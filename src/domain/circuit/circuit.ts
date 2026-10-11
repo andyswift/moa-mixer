@@ -25,8 +25,8 @@ export interface Cable {
 export type CircuitChange =
   | { type: 'param'; nodeId: string; name: string; value: number }
   | { type: 'option'; nodeId: string; name: string; value: string }
-  | { type: 'trigger'; nodeId: string; velocity: number }
-  | { type: 'choke'; nodeId: string };
+  | { type: 'trigger'; nodeId: string; velocity: number; when?: number }
+  | { type: 'choke'; nodeId: string; when?: number };
 
 export class Circuit {
   readonly nodes = new Map<string, CircuitNode>();
@@ -71,16 +71,16 @@ export class Circuit {
     this.emit({ type: 'option', nodeId, name, value });
   }
 
-  /** Fires a one-shot envelope; `velocity` is 0..1. */
-  trigger(nodeId: string, velocity = 1): void {
+  /** Fires a one-shot envelope; `velocity` is 0..1. `when` is an audio-clock time in seconds (default: now). */
+  trigger(nodeId: string, velocity = 1, when?: number): void {
     this.expectKind(nodeId, 'trigger');
-    this.emit({ type: 'trigger', nodeId, velocity: Math.min(1, Math.max(0, velocity)) });
+    this.emit({ type: 'trigger', nodeId, velocity: Math.min(1, Math.max(0, velocity)), when });
   }
 
   /** Cuts a one-shot envelope short (a fast fade to silence), e.g. a closed hat choking an open hat. */
-  choke(nodeId: string): void {
+  choke(nodeId: string, when?: number): void {
     this.expectKind(nodeId, 'trigger');
-    this.emit({ type: 'choke', nodeId });
+    this.emit({ type: 'choke', nodeId, when });
   }
 
   onChange(fn: (c: CircuitChange) => void): () => void {

@@ -19,6 +19,11 @@ export class AudioEngine {
     await this.ctx?.suspend();
   }
 
+  /** The audio clock in seconds (0 until audio has started). Schedulers use it to place hits precisely. */
+  get currentTime(): number {
+    return this.ctx?.currentTime ?? 0;
+  }
+
   /** Peak level (linear, 0..1+) of a meter node over the last few milliseconds; 0 until audio starts. */
   readLevel(deviceId: string, nodeId: string): number {
     const m = this.meters.get(`${deviceId}/${nodeId}`);
@@ -171,8 +176,8 @@ export class AudioEngine {
       if (!node) return;
       if (change.type === 'trigger' || change.type === 'choke') {
         if (node instanceof ConstantSourceNode) {
-          if (change.type === 'trigger') fireTrigger(ctx, node.offset, circuit.node(change.nodeId).params, circuit.node(change.nodeId).options.shape, change.velocity);
-          else chokeTrigger(ctx, node.offset);
+          if (change.type === 'trigger') fireTrigger(ctx, node.offset, circuit.node(change.nodeId).params, circuit.node(change.nodeId).options.shape, change.velocity, change.when);
+          else chokeTrigger(ctx, node.offset, change.when);
         }
         return;
       }
@@ -245,11 +250,12 @@ function fireTrigger(
   p: Record<string, number>,
   shape: string | undefined,
   velocity: number,
+  when?: number,
 ): void {
   const velSens = p.velSens ?? 1;
   const peak = (p.peak ?? 1) * (1 - velSens + velSens * velocity);
   const tau = Math.max(p.decay ?? 0.2, MIN_TIME) / 4;
-  const t = ctx.currentTime;
+  const t = Math.max(when ?? 0, ctx.currentTime);
   offset.cancelScheduledValues(t);
   offset.setValueAtTime(offset.value, t);
   offset.linearRampToValueAtTime(peak, t + TRIGGER_ATTACK);
@@ -266,8 +272,8 @@ function fireTrigger(
   }
 }
 
-function chokeTrigger(ctx: AudioContext, offset: AudioParam): void {
-  const t = ctx.currentTime;
+function chokeTrigger(ctx: AudioContext, offset: AudioParam, when?: number): void {
+  const t = Math.max(when ?? 0, ctx.currentTime);
   offset.cancelScheduledValues(t);
   offset.setValueAtTime(offset.value, t);
   offset.setTargetAtTime(0, t, CHOKE_TAU);

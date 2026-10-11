@@ -1,7 +1,9 @@
 import type { AudioEngine } from '../audio/engine';
 import type { NumberControl, ToggleControl } from '../domain/devices/controls';
 import { DRUM_NAMES, DRUM_VOICES, type DrumMachine, type DrumVoice } from '../domain/devices/drumMachine';
-import { el, renderFader, renderToggleButton } from './widgets';
+import { type DrumSequencer, PATTERNS, STEPS } from '../domain/devices/drumSequencer';
+import { renderTransportBlock } from './transportBlock';
+import { el, renderFader, renderKnob, renderToggleButton } from './widgets';
 
 const COLORS: Record<DrumVoice, string> = {
   kick: '#e8742c',
@@ -112,8 +114,150 @@ function renderVoice(d: DrumMachine, voice: DrumVoice, index: number, engine: Au
   return section;
 }
 
-/** The drum machine's front panel: six voices, each with a pad, faders, mute/solo and its own output meter. */
-export function renderDrumPanel(d: DrumMachine, deviceId: string, engine: AudioEngine): HTMLElement {
+const ACCENT = '#4a9be0';
+const VELOCITY_WORDS = ['off', 'soft', 'medium', 'hard'];
+const FILL = ['0%', '34%', '67%', '100%'];
+
+/** Transport strip: Play/Stop, the shared transport block (tempo, sync, channel, position), swing and pattern. */
+function renderTransportStrip(seq: DrumSequencer, d: DrumMachine, tickers: (() => void)[]): HTMLElement {
+  const strip = el('section', 'drum-transport');
+
+  const run = el('div', 'drum-run');
+  const play = el('button', 'btn drum-play', 'Play');
+  play.type = 'button';
+  play.addEventListener('click', () => seq.play());
+  const stop = el('button', 'btn drum-stop', 'Stop');
+  stop.type = 'button';
+  stop.addEventListener('click', () => seq.stop());
+  run.append(play, stop);
+  tickers.push(() => {
+    const following = seq.externallyDriven;
+    play.setAttribute('aria-pressed', String(seq.running));
+    play.style.background = seq.running ? ACCENT : '';
+    play.style.borderColor = seq.running ? ACCENT : '';
+    play.disabled = following;
+    stop.disabled = following;
+    run.title = following ? 'Following MIDI start/stop' : '';
+  });
+
+  const swing = el('div', 'drum-swing');
+  swing.append(renderKnob(seq.swing, 'Sequencer', 'Swing', 34));
+
+  const patterns = el('div', 'drum-patterns');
+  patterns.append(el('div', 'fader-label', 'Pattern'));
+  const group = el('div', 'transport-seg');
+  group.setAttribute('role', 'group');
+  group.setAttribute('aria-label', 'Pattern');
+  const buttons = PATTERNS.map((name) => {
+    const b = el('button', 'btn btn-small drum-pattern', name);
+    b.type = 'button';
+    b.addEventListener('click', () => seq.pattern.set(name));
+    group.append(b);
+    return b;
+  });
+  const paintPatterns = () => {
+    buttons.forEach((b, i) => {
+      const on = PATTERNS[i] === seq.pattern.value;
+      b.setAttribute('aria-pressed', String(on));
+      b.style.background = on ? ACCENT : '';
+      b.style.borderColor = on ? ACCENT : '';
+    });
+  };
+  seq.pattern.onChange(paintPatterns);
+  paintPatterns();
+  patterns.append(group);
+
+  strip.append(
+    run,
+    renderTransportBlock(d.transport, { running: () => seq.running, position: () => seq.position }),
+    swing,
+    patterns,
+  );
+  return strip;
+}
+
+/** The step grid: one row per voice, 16 steps, click to cycle velocity; the playhead column is outlined. */
+function renderStepGrid(seq: DrumSequencer, tickers: (() => void)[]): HTMLElement {
+  const section = el('section', 'synth-section drum-seq');
+  const head = el('div', 'synth-section-head');
+  const bar = el('span', 'synth-section-bar');
+  bar.style.background = ACCENT;
+  head.append(bar, el('h2', undefined, 'Sequencer'), el('span', 'drum-seq-sub'),
+    el('span', 'drum-seq-hint', 'Click a step to cycle velocity: soft · medium · hard · off'));
+  const sub = head.querySelector('.drum-seq-sub') as HTMLElement;
+  const paintSub = () => {
+    sub.textContent = `${STEPS} steps · pattern ${seq.pattern.value}`;
+  };
+  seq.pattern.onChange(paintSub);
+  paintSub();
+  section.append(head);
+
+  const numbers = el('div', 'drum-seq-row');
+  numbers.append(el('div', 'drum-seq-label'));
+  const numberGrid = el('div', 'drum-seq-grid');
+  const heads = Array.from({ length: STEPS }, (_, i) => {
+    const h = el('div', 'drum-seq-num', String(i + 1));
+    numberGrid.append(h);
+    return h;
+  });
+  numbers.append(numberGrid);
+  section.append(numbers);
+
+  const columns: HTMLElement[][] = Array.from({ length: STEPS }, () => []);
+  const repaints: (() => void)[] = [];
+  for (const voice of DRUM_VOICES) {
+    const color = COLORS[voice];
+    const name = DRUM_NAMES[voice];
+    const row = el('div', 'drum-seq-row');
+    const label = el('div', 'drum-seq-label');
+    const dot = el('span', 'drum-seq-dot');
+    dot.style.background = color;
+    label.append(dot, el('span', undefined, name));
+    const grid = el('div', 'drum-seq-grid');
+    for (let step = 0; step < STEPS; step++) {
+      const b = el('button', 'drum-step');
+      b.type = 'button';
+      b.dataset.group = String(Math.floor(step / 4) % 2);
+      b.style.setProperty('--voice', color);
+      const fill = el('span', 'drum-step-fill');
+      b.append(fill);
+      b.addEventListener('click', () => seq.cycle(voice, step));
+      const paint = () => {
+        const level = seq.level(voice, step);
+        fill.style.height = FILL[level]!;
+        b.setAttribute('aria-pressed', String(level > 0));
+        b.setAttribute('aria-label', `${name} step ${step + 1}, velocity ${VELOCITY_WORDS[level]}`);
+        b.classList.toggle('on', level > 0);
+      };
+      repaints.push(paint);
+      paint();
+      columns[step]!.push(b);
+      grid.append(b);
+    }
+    row.append(label, grid);
+    section.append(row);
+  }
+  seq.onChange(() => repaints.forEach((p) => p()));
+
+  let shown: number | undefined;
+  tickers.push(() => {
+    const step = seq.currentStep();
+    if (step === shown) return;
+    if (shown !== undefined) {
+      heads[shown]!.classList.remove('playhead');
+      for (const b of columns[shown]!) b.classList.remove('playhead');
+    }
+    if (step !== undefined) {
+      heads[step]!.classList.add('playhead');
+      for (const b of columns[step]!) b.classList.add('playhead');
+    }
+    shown = step;
+  });
+  return section;
+}
+
+/** The drum machine's front panel: transport, six voices (pad, faders, mute/solo, own output meter) and the step grid. */
+export function renderDrumPanel(d: DrumMachine, seq: DrumSequencer, deviceId: string, engine: AudioEngine): HTMLElement {
   const panel = el('div', 'synth-panel drum-panel');
   const header = el('div', 'synth-header');
   const brand = el('div', 'synth-brand');
@@ -122,9 +266,10 @@ export function renderDrumPanel(d: DrumMachine, deviceId: string, engine: AudioE
   panel.append(header);
 
   const tickers: (() => void)[] = [];
+  panel.append(renderTransportStrip(seq, d, tickers));
   const row = el('div', 'drum-voices');
   DRUM_VOICES.forEach((voice, i) => row.append(renderVoice(d, voice, i, engine, deviceId, tickers)));
-  panel.append(row);
+  panel.append(row, renderStepGrid(seq, tickers));
 
   window.addEventListener('keydown', (e) => {
     if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;

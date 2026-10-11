@@ -1,11 +1,21 @@
 import type { ChoiceControl } from '../domain/devices/controls';
 import type { Transport } from '../domain/devices/transport';
+import type { Position } from '../domain/midi/clock';
 import { el, renderToggleButton } from './widgets';
 
 const PINK = '#d9628a';
 
-/** Per-synth transport: tempo, sync source, start/stop following, MIDI channel and position. */
-export function renderTransportBlock(transport: Transport): HTMLElement {
+/** What the block shows as running and as the position; defaults to the transport's own (the MIDI clock's). */
+export interface TransportSource {
+  running: () => boolean;
+  position: () => Position;
+}
+
+/** Per-device transport: tempo, sync source, start/stop following, MIDI channel and position. */
+export function renderTransportBlock(
+  transport: Transport,
+  source: TransportSource = { running: () => transport.running, position: () => transport.position },
+): HTMLElement {
   const block = el('div', 'transport');
 
   // --- Tempo ---
@@ -47,7 +57,7 @@ export function renderTransportBlock(transport: Transport): HTMLElement {
   const channel = el('div', 'transport-channel');
   channel.append(el('div', 'fader-label', 'MIDI ch'));
   const channelSelect = el('select', 'patch-select transport-channel-select');
-  channelSelect.setAttribute('aria-label', 'MIDI channel for this synth');
+  channelSelect.setAttribute('aria-label', 'MIDI channel');
   for (const c of transport.channel.options) channelSelect.add(new Option(c === 'omni' ? 'Omni' : `Ch ${c}`, c));
   channelSelect.value = transport.channel.value;
   channelSelect.addEventListener('change', () => (transport.channel as ChoiceControl).set(channelSelect.value));
@@ -84,10 +94,10 @@ export function renderTransportBlock(transport: Transport): HTMLElement {
   paint();
 
   const tick = () => {
-    const running = transport.running;
+    const running = source.running();
     bpm.textContent = transport.bpm.toFixed(1);
     bpm.classList.toggle('locked', transport.locked);
-    const p = transport.position;
+    const p = source.position();
     position.textContent = `${p.bar} : ${p.beat} : ${p.sixteenth}`;
     led.classList.toggle('on', running);
     dots.forEach((d, i) => d.classList.toggle('on', running && p.beat === i + 1));

@@ -169,3 +169,29 @@ button.start:disabled { background: #3a3d42; color: #a9adb3; cursor: default; }
 .drum-meter { display: flex; gap: 2px; flex: 1; justify-content: flex-end; }
 .drum-seg { width: 6px; height: 14px; border-radius: 1px; background: #0c0d0e; }
 .drum-voice .synth-section-head { min-height: 24px; }
+
+/* ---- Drum transport and sequencer ---- */
+.drum-transport { background: #1f2124; border: 1px solid #3a3d42; border-radius: 6px; padding: 12px 16px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+.drum-transport .transport { margin: 0; }
+.drum-run { display: flex; gap: 8px; }
+.drum-run .btn { flex: none; width: 92px; height: 44px; font-size: 16px; letter-spacing: 0.16em; }
+.drum-run .btn:disabled { opacity: 0.4; cursor: default; }
+.drum-run .drum-play[aria-pressed='true'] { color: #16171a; }
+.drum-patterns { display: flex; flex-direction: column; gap: 6px; }
+.drum-patterns .fader-label { text-align: left; height: auto; }
+.drum-pattern { width: 44px; min-width: 44px; height: 30px; }
+.drum-seq { gap: 8px; }
+.drum-seq-sub, .drum-seq-hint { font-size: 12px; letter-spacing: 0.16em; color: #a9adb3; text-transform: uppercase; }
+.drum-seq-hint { margin-left: auto; }
+.drum-seq-row { display: flex; align-items: center; gap: 12px; }
+.drum-seq-label { width: 124px; flex: none; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; }
+.drum-seq-dot { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.drum-seq-grid { flex: 1; display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 6px; }
+.drum-seq-num { text-align: center; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; color: #a9adb3; border-bottom: 2px solid transparent; padding-bottom: 3px; }
+.drum-seq-num.playhead { color: #f1eee6; border-bottom-color: #4a9be0; }
+.drum-step { position: relative; overflow: hidden; min-height: 38px; padding: 0; border: 1px solid #3a3d42; background: #2f3237; border-radius: 3px; cursor: pointer; }
+.drum-step[data-group='1'] { background: #262a2e; }
+.drum-step.on { border-color: var(--voice); }
+.drum-step.playhead { border-color: #f1eee6; }
+.drum-step:focus-visible { outline: 2px solid #f1eee6; outline-offset: 1px; }
+.drum-step-fill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--voice); pointer-events: none; }

@@ -15,9 +15,10 @@ Live: **https://moaswift.no/mixer/**
   - LFO with triangle, square and sample-and-hold waves.
   - Portamento, with legato or retrigger behaviour for overlapping notes.
   - **18 mono patches plus an Init** (basses, leads, brass, effects) from the patch picker in the panel header. The real SH-101 has no patch memory, so these are recipes for the sounds it is known for, not factory dumps.
-- **MOA-DR, a 909-style drum machine** (voices only so far; the sequencer is next)
+- **MOA-DR, a 909-style drum machine**
   - Six synthesised voices, each with its own output into its own mixer channel: kick, snare, clap, closed hat, open hat and ride. Kick is a sine with a pitch drop plus a click, snare is two triangles plus noise, clap is band-passed noise through a stuttering burst envelope, hats and ride are six detuned squares through band-pass and high-pass filters (a synthesised stand-in for the 909's sampled cymbals).
   - Velocity scales level (and the kick click and snare snap a little more). A closed hat chokes the open hat (switchable). Per-voice tune, decay, character control, level, mute and solo.
+  - **16-step sequencer** with velocity per step (click a step: soft, medium, hard, off), swing, and four patterns A-D (A, B and C ship with grooves, D is empty). It runs on the drum machine's own transport: its own tempo with Play/Stop, or following MIDI clock and start/stop (one step per 6 pulses). Hits are scheduled ahead on the audio clock, so timing does not depend on UI timers.
   - Play it from the pads (Shift soft, Alt hard), keys 1-6, or MIDI: General MIDI drum notes (36 kick, 38 snare, 39 clap, 42 closed hat, 46 open hat, 51 ride) on channel 10 by default.
 - **MOA-MIX, a mixer** (seven strips: the synth, then the six drum voices; built to scale to 16)
   - Strip: low cut, 3-band EQ with a sweepable mid, six aux sends (pre/post per pair), pan, mute, solo, A/B/C bus assigns, fader and meter.
@@ -56,7 +57,7 @@ src/
 | 4 | Mixer with three stereo buses, six aux sends, meters, master section (one strip) | done |
 | 4b | **MIDI in** (Web MIDI): notes on a chosen channel, default CC map, program change, MIDI clock in, per-synth transport, monitor | done |
 | 4d | **Drum voices**: six synthesised 909-style voices with individual outputs, velocity, hat choke, pads and GM MIDI | done |
-| 4e | Drum sequencer: 16 steps, velocity per step, swing, patterns A-D, on the per-device transport | next |
+| 4e | **Drum sequencer**: 16 steps, velocity per step, swing, patterns A-D, own clock or MIDI clock and start/stop | done |
 | 4c | MIDI learn, saved CC mappings, tempo-synced LFO | next |
 | 5 | **16 channels** and the full console layout | planned |
 | 6 | **Effects** (reverb, delay) on the aux returns | planned |

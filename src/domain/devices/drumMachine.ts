@@ -51,7 +51,7 @@ export class DrumMachine extends Device {
   private readonly muted = new Set<DrumVoice>();
   private readonly soloed = new Set<DrumVoice>();
   private readonly envelopes = new Map<DrumVoice, string[]>();
-  private readonly hitListeners = new Set<(voice: DrumVoice, velocity: number) => void>();
+  private readonly hitListeners = new Set<(voice: DrumVoice, velocity: number, when?: number) => void>();
 
   constructor(name = 'Drums', clock = new MidiClock()) {
     super();
@@ -81,16 +81,19 @@ export class DrumMachine extends Device {
     this.controlList.push(this.choke);
   }
 
-  /** Plays a voice. `velocity` is 0..1; a closed hat chokes a ringing open hat when choke is on. */
-  trigger(voice: DrumVoice, velocity = 1): void {
+  /**
+   * Plays a voice. `velocity` is 0..1; a closed hat chokes a ringing open hat when choke is on.
+   * `when` is an audio-clock time in seconds, so a sequencer can place hits ahead of time (default: now).
+   */
+  trigger(voice: DrumVoice, velocity = 1, when?: number): void {
     if (velocity <= 0) return;
-    if (voice === 'closedHat' && this.choke.value) this.circuit.choke('openHat.ampEnv');
-    for (const id of this.envelopes.get(voice) ?? []) this.circuit.trigger(id, velocity);
-    for (const l of this.hitListeners) l(voice, velocity);
+    if (voice === 'closedHat' && this.choke.value) this.circuit.choke('openHat.ampEnv', when);
+    for (const id of this.envelopes.get(voice) ?? []) this.circuit.trigger(id, velocity, when);
+    for (const l of this.hitListeners) l(voice, velocity, when);
   }
 
   /** Called whenever a voice is played, from the pads, the sequencer or MIDI. */
-  onHit(fn: (voice: DrumVoice, velocity: number) => void): () => void {
+  onHit(fn: (voice: DrumVoice, velocity: number, when?: number) => void): () => void {
     this.hitListeners.add(fn);
     return () => this.hitListeners.delete(fn);
   }

@@ -1,6 +1,7 @@
 import './ui/style.css';
 import { AudioEngine } from './audio/engine';
 import type { DrumMachine } from './domain/devices/drumMachine';
+import { DrumSequencer } from './domain/devices/drumSequencer';
 import type { Synthesizer } from './domain/devices/synthesizer';
 import { MidiClock } from './domain/midi/clock';
 import { parseMidi } from './domain/midi/events';
@@ -32,6 +33,8 @@ start.addEventListener('click', async () => {
 
 const synth = patch.device<Synthesizer>('synth');
 const drums = patch.device<DrumMachine>('drums');
+const sequencer = new DrumSequencer(drums, clock, () => engine.currentTime);
+setInterval(() => sequencer.tick(), 25);
 
 /** One entry point for every MIDI message, whether it came from a device or the dev console. */
 function handleMidiBytes(data: ArrayLike<number>, time = performance.now()): void {
@@ -41,6 +44,7 @@ function handleMidiBytes(data: ArrayLike<number>, time = performance.now()): voi
   monitor.record(event, time);
   synth.handleMidi(event);
   drums.handleMidi(event);
+  sequencer.handleMidi(event);
 }
 midi.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
 void midi.connectIfPermitted();
@@ -52,9 +56,9 @@ hint.className = 'hint';
 hint.textContent = 'Play with the keys a w s e d f t g y h u j k, or click the keyboard. Drums: click a pad (Shift soft, Alt hard) or press 1-6. Double-click a fader to reset it.';
 app.append(hint, mountKeyboard(synth));
 
-app.append(renderDrumPanel(drums, 'drums', engine));
+app.append(renderDrumPanel(drums, sequencer, 'drums', engine));
 
 app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride']));
 
 // Dev-only handle for poking at the engine from the browser console.
-if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch, midi: handleMidiBytes } });
+if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch, sequencer, midi: handleMidiBytes } });
