@@ -1,6 +1,7 @@
 import type { Device } from '../devices/device';
 import { DRUM_VOICES, DrumMachine } from '../devices/drumMachine';
 import { PolySynth } from '../devices/polySynth';
+import { DelayFx, ReverbFx } from '../devices/sendFx';
 import { Mixer } from '../devices/mixer';
 import { Synthesizer } from '../devices/synthesizer';
 import { MidiClock } from '../midi/clock';
@@ -51,11 +52,19 @@ export class Patch {
       .add('synth', new Synthesizer('Synth', clock))
       .add('poly', new PolySynth('Poly', clock))
       .add('drums', new DrumMachine('Drums', clock))
-      .add('mixer', new Mixer(2 + DRUM_VOICES.length))
+      .add('reverb', new ReverbFx('Reverb'))
+      .add('delay', new DelayFx('Delay'))
+      .add('mixer', new Mixer(2 + DRUM_VOICES.length, 'Mixer', 2))
       .connect({ device: 'synth', jack: 'out' }, { device: 'mixer', jack: 'ch1' })
       .connect({ device: 'poly', jack: 'out' }, { device: 'mixer', jack: 'ch2' });
     DRUM_VOICES.forEach((voice, i) =>
       patch.connect({ device: 'drums', jack: voice }, { device: 'mixer', jack: `ch${i + 3}` }));
+    // Send effects: aux 1 feeds the reverb and aux 2 the delay; each comes back on its own stereo return strip.
+    patch
+      .connect({ device: 'mixer', jack: 'aux1' }, { device: 'reverb', jack: 'in' })
+      .connect({ device: 'mixer', jack: 'aux2' }, { device: 'delay', jack: 'in' })
+      .connect({ device: 'reverb', jack: 'out' }, { device: 'mixer', jack: 'ret1' })
+      .connect({ device: 'delay', jack: 'out' }, { device: 'mixer', jack: 'ret2' });
     return patch.setOutput('mixer', 'main');
   }
 }

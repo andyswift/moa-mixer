@@ -2,6 +2,7 @@ import './ui/style.css';
 import { AudioEngine } from './audio/engine';
 import type { DrumMachine } from './domain/devices/drumMachine';
 import type { PolySynth } from './domain/devices/polySynth';
+import type { DelayFx, ReverbFx } from './domain/devices/sendFx';
 import { DrumSequencer } from './domain/devices/drumSequencer';
 import type { Synthesizer } from './domain/devices/synthesizer';
 import { MidiClock } from './domain/midi/clock';
@@ -13,6 +14,7 @@ import { renderMidiStrip } from './ui/midiStrip';
 import { renderPolyPanel } from './ui/polyPanel';
 import type { Mixer } from './domain/devices/mixer';
 import { renderDrumPanel } from './ui/drumPanel';
+import { renderFxPanel } from './ui/fxPanel';
 import { renderMixerPanel } from './ui/mixerPanel';
 import { renderSynthPanel } from './ui/synthPanel';
 
@@ -58,7 +60,9 @@ app.append(renderPolyPanel(poly));
 
 app.append(renderDrumPanel(drums, sequencer, 'drums', engine));
 
-app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride']));
+app.append(renderFxPanel(patch.device<ReverbFx>('reverb'), patch.device<DelayFx>('delay')));
+
+app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay']));
 
 // Dev-only handle for poking at the engine from the browser console.
 if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch, sequencer, midi: handleMidiBytes } });

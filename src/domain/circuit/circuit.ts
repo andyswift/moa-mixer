@@ -6,8 +6,14 @@
 // 'trigger' is a one-shot envelope for percussion: `trigger(id, velocity)` fires it, `choke(id)` cuts it short.
 // Params: peak (output at full velocity), decay (s), velSens (0..1: how much velocity scales the peak), and for
 // shape 'clap' the `spread` (s) between the stuttered bursts that precede the tail.
+// 'convolver' is a reverb: a generated impulse response chosen by option `size` (small | medium | large).
+// 'compressor' is a dynamics compressor (params threshold dB, knee dB, ratio, attack s, release s); used as a limiter.
+// A 'gain' node with option `channels: 'mono'` sums a stereo input down to mono.
+// A 'waveshaper' has option `curve`: 'pulse' (hard clip), 'soft' (tanh-style saturation), 'limit'
+// (transparent below 0.9, then a soft knee into a hard ceiling just under full scale) or 'warm' (the
+// channel gain stage: its input range is +/-3, linear to 0.6, then a smooth knee that settles at 1.0).
 // 'delay' is a delay line: `delayTime` (s, also a CV target) up to `maxTime` (s, fixed when the node is built).
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter';
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter';
 
 export interface CircuitNode {
   readonly id: string;

@@ -15,25 +15,40 @@ export const AUX_PAIRS = [
 ] as const;
 
 /**
- * Mixer: N channel strips, three independent stereo buses (A/B/C) and six aux buses.
+ * Mixer: N channel strips, optional stereo FX return strips, three independent stereo buses (A/B/C)
+ * and six aux buses.
  *
- * Strip: low cut -> EQ -> mute/solo gate -> fader -> pan -> bus assigns.
+ * Strip: low cut -> EQ -> soft-clipping gain stage -> mute/solo gate -> fader -> pan -> bus assigns.
+ * The gain stage is transparent up to 0.6 and eases hot signals into a ceiling at 1.0, like an analogue
+ * channel, instead of letting them clip hard.
  * Aux sends tap after the mute gate (pre-fader) or after the fader (post-fader), per pair.
- * A fixed `main` output sums the three buses so the browser's single stereo output can hear them.
+ * FX returns are the same strip in stereo (pan acts as balance, no solo) with all six aux sends. A return
+ * can send to its own aux (an effect feeding itself through the desk) and to the other effects (echoing
+ * into the reverb): the dub tricks. Every such loop passes through a delay line, and the main output's
+ * limiter and ceiling keep even a runaway loop inside the speakers' range.
+ * A fixed `main` output sums the three buses through a limiter and a hard ceiling just under full scale, so
+ * runaway feedback is loud but can never leave the speakers' range.
  */
 export class Mixer extends Device {
   readonly name: string;
   private readonly muted = new Set<number>();
   private readonly soloed = new Set<number>();
 
-  constructor(readonly channelCount = 1, name = 'Mixer') {
+  constructor(readonly channelCount = 1, name = 'Mixer', readonly returnCount = 0) {
     super();
     this.name = name;
     const c = this.circuit;
 
     // Masters: three stereo buses, six aux buses, and the summed main output.
-    c.add('main', 'gain', { gain: 1 });
-    this.outputList.push({ name: 'main', nodeId: 'main' });
+    c.add('main', 'gain', { gain: 1 })
+      .add('limiter', 'compressor', { threshold: -2, knee: 0, ratio: 20, attack: 0.002, release: 0.12 })
+      .add('ceiling', 'waveshaper', {}, { curve: 'limit' })
+      .add('mainMeter', 'meter', {}, { channel: 'mono' })
+      .connect('main', 'limiter')
+      .connect('limiter', 'ceiling')
+      .connect('ceiling', 'mainMeter');
+    this.outputList.push({ name: 'main', nodeId: 'ceiling' });
+    this.meterList.push({ name: 'main', nodeId: 'mainMeter' });
     for (const bus of BUSES) {
       const id = `bus${bus}`;
       c.add(id, 'gain', { gain: 1 })
@@ -56,30 +71,44 @@ export class Mixer extends Device {
       );
     }
 
-    for (let i = 1; i <= channelCount; i++) this.addStrip(i);
+    for (let i = 1; i <= channelCount; i++) this.addStrip(`ch${i}`, i, false);
+    for (let r = 1; r <= returnCount; r++) this.addStrip(`ret${r}`, r, true);
   }
 
-  private addStrip(i: number): void {
+  /** Builds one strip. Channels are mono with solo; returns are stereo, with mute only. */
+  private addStrip(prefix: string, i: number, isReturn: boolean): void {
     const c = this.circuit;
-    const id = (n: string) => `ch${i}.${n}`;
+    const id = (n: string) => `${prefix}.${n}`;
 
     c.add(id('lowcut'), 'filter', { frequency: LOW_CUT_OFF_HZ, Q: 0.707, gain: 0 }, { type: 'highpass' })
       .add(id('eqLow'), 'filter', { frequency: 80, Q: 0.707, gain: 0 }, { type: 'lowshelf' })
       .add(id('eqMid'), 'filter', { frequency: 2500, Q: 1, gain: 0 }, { type: 'peaking' })
       .add(id('eqHigh'), 'filter', { frequency: 12000, Q: 0.707, gain: 0 }, { type: 'highshelf' })
+      .add(id('drive'), 'gain', { gain: 1 / 3 }) // scales the +/-3 input range onto the 'warm' curve
+      .add(id('sat'), 'waveshaper', {}, { curve: 'warm' })
       .add(id('mute'), 'gain', { gain: 1 }) // mute/solo gate: also silences the aux sends
       .add(id('fader'), 'gain', { gain: 0.8 })
       .add(id('pan'), 'pan', { pan: 0 })
-      .add(id('meter'), 'meter', {}, { channel: 'mono' })
       .connect(id('lowcut'), id('eqLow'))
       .connect(id('eqLow'), id('eqMid'))
       .connect(id('eqMid'), id('eqHigh'))
-      .connect(id('eqHigh'), id('mute'))
+      .connect(id('eqHigh'), id('drive'))
+      .connect(id('drive'), id('sat'))
+      .connect(id('sat'), id('mute'))
       .connect(id('mute'), id('fader'))
-      .connect(id('fader'), id('pan'))
-      .connect(id('fader'), id('meter'));
-    this.inputList.push({ name: `ch${i}`, nodeId: id('lowcut') });
-    this.meterList.push({ name: `ch${i}`, nodeId: id('meter') });
+      .connect(id('fader'), id('pan'));
+    if (isReturn) {
+      // Stereo: a meter per side, after the balance control.
+      c.add(id('meterL'), 'meter', {}, { channel: 'left' })
+        .add(id('meterR'), 'meter', {}, { channel: 'right' })
+        .connect(id('pan'), id('meterL'))
+        .connect(id('pan'), id('meterR'));
+      this.meterList.push({ name: `${prefix}.L`, nodeId: id('meterL') }, { name: `${prefix}.R`, nodeId: id('meterR') });
+    } else {
+      c.add(id('meter'), 'meter', {}, { channel: 'mono' }).connect(id('fader'), id('meter'));
+      this.meterList.push({ name: prefix, nodeId: id('meter') });
+    }
+    this.inputList.push({ name: prefix, nodeId: id('lowcut') });
 
     // Bus assigns: pan -> gate -> bus.
     for (const bus of BUSES) {
@@ -127,11 +156,15 @@ export class Mixer extends Device {
       );
     }
 
-    this.controlList.push(
-      num('pan', 'Pan', -1, 1, 0, '', (v) => c.setParam(id('pan'), 'pan', v)),
-      new ToggleControl(id('mute'), 'Mute', false, (on) => this.setFlag(this.muted, i, on)),
-      new ToggleControl(id('solo'), 'Solo', false, (on) => this.setFlag(this.soloed, i, on)),
-    );
+    this.controlList.push(num('pan', isReturn ? 'Balance' : 'Pan', -1, 1, 0, '', (v) => c.setParam(id('pan'), 'pan', v)));
+    if (isReturn) {
+      this.controlList.push(new ToggleControl(id('mute'), 'Mute', false, (on) => c.setParam(id('mute'), 'gain', on ? 0 : 1)));
+    } else {
+      this.controlList.push(
+        new ToggleControl(id('mute'), 'Mute', false, (on) => this.setFlag(this.muted, i, on)),
+        new ToggleControl(id('solo'), 'Solo', false, (on) => this.setFlag(this.soloed, i, on)),
+      );
+    }
     for (const bus of BUSES) {
       this.controlList.push(
         new ToggleControl(id(`bus${bus}`), bus, bus === 'A', (on) => c.setParam(id(`assign${bus}`), 'gain', on ? 1 : 0)),

@@ -88,6 +88,22 @@ export class AudioEngine {
           nodes.set(n.id, src);
           break;
         }
+        case 'convolver': {
+          const cv = ctx.createConvolver();
+          cv.buffer = reverbImpulse(ctx, IR_SECONDS[n.options.size ?? 'medium'] ?? IR_SECONDS.medium!);
+          nodes.set(n.id, cv);
+          break;
+        }
+        case 'compressor': {
+          const comp = ctx.createDynamicsCompressor();
+          comp.threshold.value = n.params.threshold ?? -24;
+          comp.knee.value = n.params.knee ?? 30;
+          comp.ratio.value = n.params.ratio ?? 12;
+          comp.attack.value = n.params.attack ?? 0.003;
+          comp.release.value = n.params.release ?? 0.25;
+          nodes.set(n.id, comp);
+          break;
+        }
         case 'delay': {
           const d = ctx.createDelay(n.params.maxTime ?? 1);
           d.delayTime.value = n.params.delayTime ?? 0.25;
@@ -113,6 +129,9 @@ export class AudioEngine {
         case 'waveshaper': {
           const ws = ctx.createWaveShaper();
           if (n.options.curve === 'pulse') ws.curve = pulseCurve();
+          else if (n.options.curve === 'soft') ws.curve = softCurve();
+          else if (n.options.curve === 'limit') ws.curve = limitCurve();
+          else if (n.options.curve === 'warm') ws.curve = warmCurve();
           ws.oversample = '4x';
           nodes.set(n.id, ws);
           break;
@@ -160,6 +179,10 @@ export class AudioEngine {
         case 'gain': {
           const g = ctx.createGain();
           g.gain.value = n.params.gain ?? 1;
+          if (n.options.channels === 'mono') {
+            g.channelCount = 1;
+            g.channelCountMode = 'explicit';
+          }
           nodes.set(n.id, g);
           break;
         }
@@ -203,6 +226,8 @@ export class AudioEngine {
           node.type = change.value as OscillatorType;
         } else if (node instanceof BiquadFilterNode && change.name === 'type') {
           node.type = change.value as BiquadFilterType;
+        } else if (node instanceof ConvolverNode && change.name === 'size') {
+          node.buffer = reverbImpulse(ctx, IR_SECONDS[change.value] ?? IR_SECONDS.medium!);
         }
         return;
       }
@@ -291,6 +316,72 @@ function pulseCurve(): Float32Array<ArrayBuffer> {
   const curve = new Float32Array(new ArrayBuffer(size * 4));
   for (let i = 0; i < size; i++) curve[i] = i < size / 2 ? -1 : 1;
   return curve;
+}
+
+/** tanh saturation normalised to +/-1 across the shaper's input range; small signals get gain ~2.5. */
+const SOFT_DRIVE = 2.5;
+function softCurve(): Float32Array<ArrayBuffer> {
+  const size = 2048;
+  const curve = new Float32Array(new ArrayBuffer(size * 4));
+  for (let i = 0; i < size; i++) {
+    const x = (i / (size - 1)) * 2 - 1;
+    curve[i] = Math.tanh(SOFT_DRIVE * x) / Math.tanh(SOFT_DRIVE);
+  }
+  return curve;
+}
+
+/** Linear up to 0.9, a soft knee, then a hard ceiling (inputs beyond +/-1 clamp to the curve's ends). */
+function limitCurve(): Float32Array<ArrayBuffer> {
+  const size = 4097;
+  const curve = new Float32Array(new ArrayBuffer(size * 4));
+  const knee = 0.9;
+  for (let i = 0; i < size; i++) {
+    const x = (i / (size - 1)) * 2 - 1;
+    const a = Math.abs(x);
+    curve[i] = Math.sign(x) * (a < knee ? a : knee + (1 - knee) * Math.tanh((a - knee) / (1 - knee)));
+  }
+  return curve;
+}
+
+export const WARM_RANGE = 3; // the 'warm' curve spans input amplitudes of +/-3 (feed it through a 1/3 gain)
+
+/**
+ * The channel gain stage: transparent up to 0.6, then a smooth tanh knee that settles at 1.0, reached
+ * (with a flat slope, so no corner) at the edge of the +/-3 input range. Hot signals round off instead of clipping.
+ */
+function warmCurve(): Float32Array<ArrayBuffer> {
+  const size = 4097;
+  const curve = new Float32Array(new ArrayBuffer(size * 4));
+  const knee = 0.6;
+  for (let i = 0; i < size; i++) {
+    const x = (i / (size - 1)) * 2 - 1;
+    const a = Math.abs(x) * WARM_RANGE;
+    curve[i] = Math.sign(x) * (a < knee ? a : knee + (1 - knee) * Math.tanh((a - knee) / (1 - knee)));
+  }
+  return curve;
+}
+
+// Reverb tail lengths (seconds to -60 dB) for the convolver's size option.
+const IR_SECONDS: Record<string, number> = { small: 0.9, medium: 2.4, large: 5 };
+
+/** A stereo impulse response: decorrelated noise with an exponential decay that also darkens as it fades. */
+function reverbImpulse(ctx: AudioContext, seconds: number): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const length = Math.floor(rate * seconds);
+  const buffer = ctx.createBuffer(2, length, rate);
+  const k = Math.log(1000) / seconds;
+  for (let ch = 0; ch < 2; ch++) {
+    const data = buffer.getChannelData(ch);
+    let lp = 0;
+    for (let i = 0; i < length; i++) {
+      const t = i / rate;
+      const envelope = Math.exp(-k * t) * Math.min(1, t / 0.004);
+      const brightness = 0.75 * Math.exp(-t * 1.2) + 0.06; // one-pole coefficient: bright early, dark late
+      lp += brightness * ((Math.random() * 2 - 1) - lp);
+      data[i] = lp * envelope;
+    }
+  }
+  return buffer;
 }
 
 function noiseBuffer(ctx: AudioContext): AudioBuffer {

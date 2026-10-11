@@ -27,8 +27,13 @@ Live: **https://moaswift.no/mixer/**
   - Velocity scales level (and the kick click and snare snap a little more). A closed hat chokes the open hat (switchable). Per-voice tune, decay, character control, level, mute and solo.
   - **16-step sequencer** with velocity per step (click a step: soft, medium, hard, off), swing, and four patterns A-D (A, B and C ship with grooves, D is empty). It runs on the drum machine's own transport: its own tempo with Play/Stop, or following MIDI clock and start/stop (one step per 6 pulses). Hits are scheduled ahead on the audio clock, so timing does not depend on UI timers.
   - Play it from the pads (Shift soft, Alt hard), keys 1-6, or MIDI: General MIDI drum notes (36 kick, 38 snare, 39 clap, 42 closed hat, 46 open hat, 51 ride) on channel 10 by default.
-- **MOA-MIX, a mixer** (eight strips: the mono synth, the poly synth, then the six drum voices; built to scale to 16)
-  - Strip: low cut, 3-band EQ with a sweepable mid, six aux sends (pre/post per pair), pan, mute, solo, A/B/C bus assigns, fader and meter.
+- **Send FX: a reverb and a dub delay**, both mono in and stereo out. Aux 1 feeds the reverb, aux 2 feeds the delay, and each comes back on its own stereo FX return strip.
+  - **Reverb**: small, medium or large generated stereo tail, with pre-delay, low cut and damping.
+  - **Delay**: time (20 ms to 1.5 s), feedback up to 110 %, tone, ping-pong spread, tape wobble and drive. The feedback loop is darkened and soft-clipped, so past 100 % it holds a stable, distorted drone instead of blowing up, and backing off lets it die away.
+- **MOA-MIX, a mixer** (eight channels, two stereo FX returns, three stereo buses, six aux sends; built to scale to 16)
+  - **FX returns**: stereo strips with low cut, EQ, aux sends, balance, mute, bus assigns, fader and an L/R meter. A return can send to its own aux (an effect feeding itself through the desk) or to the other effect (echo into the reverb): the dub tricks. Sends start at zero, and the reverb soft-clips and the delay saturates its loop, so even a runaway loop stays bounded.
+  - **Safe output**: the main sum runs through a limiter and a hard ceiling just under full scale, so feedback abuse is loud but never leaves the speakers' range.
+  - Strip: low cut, 3-band EQ with a sweepable mid, a soft-clipping gain stage (transparent to 0.6, then hot signals ease into a ceiling at 1.0 instead of clipping hard), six aux sends (pre/post per pair), pan, mute, solo, A/B/C bus assigns, fader and meter.
   - Master: three independent stereo buses with L/R meters, six aux masters, and a solo indicator.
 
 ## The plan
@@ -66,9 +71,10 @@ src/
 | 4d | **Drum voices**: six synthesised 909-style voices with individual outputs, velocity, hat choke, pads and GM MIDI | done |
 | 4e | **Drum sequencer**: 16 steps, velocity per step, swing, patterns A-D, own clock or MIDI clock and start/stop | done |
 | 4f | **MOA-6 poly synth**: six one-oscillator voices, poly/mono/unison, LFO with tempo sync, chorus and delay, 16 patches with Save, shared keyboard bed | done |
+| 4g | **Send FX**: reverb and dub delay on aux 1 and 2, stereo FX return strips, limiter and ceiling on the main output | done |
 | 4c | MIDI learn, saved CC mappings, tempo-synced LFO | next |
 | 5 | **16 channels** and the full console layout | planned |
-| 6 | **Effects** (reverb, delay) on the aux returns | planned |
+| 6 | **More effects**: the Ouroboros dual-channel feedback delay (design done), then others | next |
 | 7 | Synth depth: polyphony, sequencer or arpeggiator | planned |
 | 8 | Presets and persistence (save/load a Patch) | planned |
 | 9 | Real inputs: audio files and microphone/line in per channel | planned |

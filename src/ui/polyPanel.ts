@@ -27,7 +27,7 @@ const GLYPH = {
   unison: 'M1 4 L19 4 M1 6 L19 6',
 } as const;
 
-interface Option {
+export interface Option {
   value: string;
   text: string;
   glyph: string;
@@ -74,7 +74,7 @@ const glyph = (d: string, w = 20, h = 10) =>
   `<svg aria-hidden="true" width="${w}" height="${h}" viewBox="0 0 20 10"><path d="${d}" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"></path></svg>`;
 
 /** A button that steps through the options, with an LED row beside it showing (and picking) the current one. */
-function renderSelector(c: ChoiceControl, title: string, stepLabel: string, options: Option[]): HTMLElement {
+export function renderSelector(c: ChoiceControl, title: string, stepLabel: string, options: Option[]): HTMLElement {
   const wrap = el('div', 'poly-selector');
   const stepper = el('div', 'poly-step-wrap');
   const step = el('button', 'poly-key');

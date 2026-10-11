@@ -385,7 +385,7 @@ describe('Mixer routing', () => {
     const m = new Mixer(1);
     toggle(m, 'ch1.mute').set(true);
     expect(m.circuit.node('ch1.mute').params.gain).toBe(0);
-    expect(m.circuit.cables).toContainEqual({ from: 'ch1.eqHigh', to: 'ch1.mute', port: 'in' });
+    expect(m.circuit.cables).toContainEqual({ from: 'ch1.sat', to: 'ch1.mute', port: 'in' });
   });
 
   it('exposes meters for the strip and for each bus (L and R)', () => {
@@ -406,7 +406,7 @@ describe('Mixer routing', () => {
 describe('Patch', () => {
   it('default patch routes the synth to mixer channel 1, the poly synth to 2 and each drum voice to its own channel', () => {
     const p = Patch.default();
-    expect(p.connections).toHaveLength(8);
+    expect(p.connections).toHaveLength(12); // 8 sources plus aux1>reverb, aux2>delay and their two returns
     expect(p.connections[0]).toEqual({ from: { device: 'synth', jack: 'out' }, to: { device: 'mixer', jack: 'ch1' } });
     expect(p.connections[1]).toEqual({ from: { device: 'poly', jack: 'out' }, to: { device: 'mixer', jack: 'ch2' } });
     expect(p.connections[2]).toEqual({ from: { device: 'drums', jack: 'kick' }, to: { device: 'mixer', jack: 'ch3' } });

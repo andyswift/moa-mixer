@@ -273,3 +273,13 @@ button.start:disabled { background: #3a3d42; color: #a9adb3; cursor: default; }
 .poly-save { width: auto; padding: 0 18px; font-family: inherit; font-size: 15px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; }
 .poly-spacer { flex: 1; }
 .poly-midi { display: flex; align-items: center; gap: 10px; font-size: 13px; letter-spacing: 0.2em; color: #a9adb3; text-transform: uppercase; flex: none; }
+
+/* ---- FX returns in the console ---- */
+.mix-strip-return { border-left: 2px solid #a98ae0; margin-left: 6px; }
+
+/* ---- Send FX panel ---- */
+.fx-panel { background: linear-gradient(180deg, #2b2e32 0%, #24272a 100%); border-top: 6px solid #a98ae0; border-radius: 8px; padding: 18px 28px 24px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 12px; font-family: 'Barlow Condensed', system-ui, sans-serif; }
+.fx-header { display: flex; align-items: baseline; gap: 16px; }
+.fx-card { flex: 1 1 0; }
+.fx-card:last-child { flex: 2 1 0; }
+.fx-card-sub { margin-left: auto; font-size: 12px; letter-spacing: 0.16em; color: #a9adb3; text-transform: uppercase; }
