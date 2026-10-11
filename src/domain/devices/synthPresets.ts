@@ -41,7 +41,7 @@ export const INIT: PresetValues = {
 const p = (name: string, values: PresetValues): SynthPreset => ({ name, values });
 
 /**
- * Twenty classic mono-synth sounds in the SH-101 vocabulary. The original has no patch memory, so
+ * Seventeen classic mono-synth sounds in the SH-101 vocabulary. The original has no patch memory, so
  * these are recipes for the sounds the instrument is known for, not factory dumps.
  */
 export const SYNTH_PRESETS: readonly SynthPreset[] = [
@@ -115,32 +115,14 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
     'osc.mod': 8, 'lfo.rate': 5,
   }),
 
-  // --- Pads and ensembles ---
+  // --- Brass ---
   p('Brass', {
     'mix.saw': 1, 'mix.pulse': 0.4, 'mix.sub': 0.2, 'mix.noise': 0, 'filter.cutoff': 500, 'filter.resonance': 2,
     'filter.keyFollow': 60, 'filterEnv.amount': 3, 'filterEnv.attack': 0.12, 'filterEnv.decay': 0.3,
     'filterEnv.sustain': 0.6, 'ampEnv.attack': 0.08, 'ampEnv.decay': 0.2, 'ampEnv.sustain': 0.85,
     'ampEnv.release': 0.2,
   }),
-  p('Strings', {
-    'mix.saw': 0.7, 'mix.pulse': 0.5, 'mix.sub': 0.1, 'mix.noise': 0, 'osc.pwSource': 'lfo', 'osc.pwm': 45,
-    'lfo.rate': 0.7, 'filter.cutoff': 1800, 'filter.resonance': 1, 'filterEnv.amount': 0.5,
-    'filterEnv.attack': 0.5, 'ampEnv.attack': 0.6, 'ampEnv.decay': 0.5, 'ampEnv.sustain': 0.9,
-    'ampEnv.release': 1.2, level: 0.45,
-  }),
-  p('Warm Pad', {
-    'mix.saw': 0.6, 'mix.sub': 0.5, 'mix.noise': 0, 'filter.cutoff': 900, 'filter.resonance': 2,
-    'filter.keyFollow': 50, 'filterEnv.amount': 1.5, 'filterEnv.attack': 1.2, 'filterEnv.decay': 1.5,
-    'filterEnv.sustain': 0.6, 'filterEnv.release': 2, 'filter.lfo': 0.5, 'lfo.rate': 0.3, 'ampEnv.attack': 1,
-    'ampEnv.decay': 1, 'ampEnv.sustain': 0.9, 'ampEnv.release': 2.5, level: 0.45,
-  }),
-
   // --- Effects and percussion ---
-  p('S&H Bleeps', {
-    'mix.saw': 0.5, 'mix.pulse': 0.5, 'mix.sub': 0, 'mix.noise': 0, 'lfo.wave': 'rnd', 'lfo.rate': 7,
-    'osc.mod': 400, 'filter.cutoff': 2500, 'filter.resonance': 6, 'filterEnv.amount': 1.5,
-    'ampEnv.decay': 0.1, 'ampEnv.sustain': 0.5, 'ampEnv.release': 0.1,
-  }),
   p('Siren', {
     'mix.saw': 1, 'mix.sub': 0, 'mix.noise': 0, 'osc.mod': 600, 'lfo.wave': 'tri', 'lfo.rate': 0.7,
     'filter.cutoff': 4000, 'filter.resonance': 2, 'filterEnv.amount': 0, 'ampEnv.sustain': 1,

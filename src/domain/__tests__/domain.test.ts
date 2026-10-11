@@ -417,10 +417,12 @@ describe('Patch', () => {
 });
 
 describe('Synth presets', () => {
-  it('has Init plus twenty patches with unique names', () => {
+  it('has Init plus seventeen mono patches with unique names', () => {
     expect(SYNTH_PRESETS[0]?.name).toBe('Init');
-    expect(SYNTH_PRESETS).toHaveLength(21);
-    expect(new Set(SYNTH_PRESETS.map((x) => x.name)).size).toBe(21);
+    expect(SYNTH_PRESETS).toHaveLength(18);
+    expect(new Set(SYNTH_PRESETS.map((x) => x.name)).size).toBe(18);
+    const names = SYNTH_PRESETS.map((x) => x.name);
+    for (const polyOnly of ['Strings', 'Warm Pad', 'S&H Bleeps']) expect(names).not.toContain(polyOnly);
   });
 
   it('INIT covers every control and matches a freshly built synth', () => {
