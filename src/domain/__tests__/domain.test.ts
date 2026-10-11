@@ -336,7 +336,7 @@ describe('Mixer routing', () => {
   it('has three stereo buses, six aux buses and a main sum', () => {
     const m = new Mixer(1);
     expect(m.outputs.map((o) => o.name)).toEqual(
-      ['main', 'busA', 'busB', 'busC', 'aux1', 'aux2', 'aux3', 'aux4', 'aux5', 'aux6'],
+      ['main', 'key', 'busA', 'busB', 'busC', 'aux1', 'aux2', 'aux3', 'aux4', 'aux5', 'aux6'],
     );
     for (const b of ['A', 'B', 'C']) {
       expect(m.circuit.cables).toContainEqual({ from: `bus${b}`, to: `bus${b}.toMain`, port: 'in' });
@@ -407,7 +407,7 @@ describe('Mixer routing', () => {
 describe('Patch', () => {
   it('default patch routes the synth to mixer channel 1, the poly synth to 2 and each drum voice to its own channel', () => {
     const p = Patch.default();
-    expect(p.connections).toHaveLength(14); // 8 sources, aux1>reverb, aux2>delay and their returns, busC>Ouroboros and its return
+    expect(p.connections).toHaveLength(17); // 8 sources, aux1>reverb, aux2>delay and their returns, busC>Ouroboros and its return, busB>Bus Comp, its key and its return
     expect(p.connections[0]).toEqual({ from: { device: 'synth', jack: 'out' }, to: { device: 'mixer', jack: 'ch1' } });
     expect(p.connections[1]).toEqual({ from: { device: 'poly', jack: 'out' }, to: { device: 'mixer', jack: 'ch2' } });
     expect(p.connections[2]).toEqual({ from: { device: 'drums', jack: 'kick' }, to: { device: 'mixer', jack: 'ch3' } });

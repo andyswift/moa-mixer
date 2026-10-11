@@ -1,5 +1,5 @@
 import { Device } from './device';
-import { NumberControl, ToggleControl } from './controls';
+import { ChoiceControl, NumberControl, ToggleControl } from './controls';
 
 const LOW_CUT_HZ = 75;
 const LOW_CUT_OFF_HZ = 10; // effectively transparent
@@ -27,6 +27,8 @@ export const AUX_PAIRS = [
  * can send to its own aux (an effect feeding itself through the desk) and to the other effects (echoing
  * into the reverb): the dub tricks. Every such loop passes through a delay line, and the main output's
  * limiter and ceiling keep even a runaway loop inside the speakers' range.
+ * One channel at a time can be the sidechain key (`key.source`): a pre-fader tap on the `key` output, which a
+ * bus compressor uses to duck the bus.
  * Each bus has a "To main" switch: turn it off and the bus only goes where it is patched (e.g. into an
  * effect that returns on a strip). A return that is fed by a bus can't be assigned back to that bus.
  * A fixed `main` output sums the three buses through a limiter and a hard ceiling just under full scale, so
@@ -57,6 +59,9 @@ export class Mixer extends Device {
       .connect('limiter', 'ceiling')
       .connect('ceiling', 'mainMeter');
     this.outputList.push({ name: 'main', nodeId: 'ceiling' });
+    // Sidechain key: one channel at a time (see `key.source`) is tapped post-mute, pre-fader onto this output.
+    c.add('key', 'gain', { gain: 1 });
+    this.outputList.push({ name: 'key', nodeId: 'key' });
     this.meterList.push({ name: 'main', nodeId: 'mainMeter' });
     for (const bus of BUSES) {
       const id = `bus${bus}`;
@@ -85,6 +90,13 @@ export class Mixer extends Device {
 
     for (let i = 1; i <= channelCount; i++) this.addStrip(`ch${i}`, i, false);
     for (let r = 1; r <= returnCount; r++) this.addStrip(`ret${r}`, r, true);
+
+    this.controlList.push(
+      new ChoiceControl('key.source', 'Key source', ['off', ...Array.from({ length: channelCount }, (_, k) => `${k + 1}`)], 'off',
+        (v) => {
+          for (let i = 1; i <= channelCount; i++) c.setParam(`ch${i}.keySend`, 'gain', v === `${i}` ? 1 : 0);
+        }),
+    );
   }
 
   /** Builds one strip. Channels are mono with solo; returns are stereo, with mute only. */
@@ -117,7 +129,8 @@ export class Mixer extends Device {
         .connect(id('pan'), id('meterR'));
       this.meterList.push({ name: `${prefix}.L`, nodeId: id('meterL') }, { name: `${prefix}.R`, nodeId: id('meterR') });
     } else {
-      c.add(id('meter'), 'meter', {}, { channel: 'mono' }).connect(id('fader'), id('meter'));
+      c.add(id('meter'), 'meter', {}, { channel: 'mono' }).connect(id('fader'), id('meter'))
+        .add(id('keySend'), 'gain', { gain: 0 }).connect(id('mute'), id('keySend')).connect(id('keySend'), 'key');
       this.meterList.push({ name: prefix, nodeId: id('meter') });
     }
     this.inputList.push({ name: prefix, nodeId: id('lowcut') });

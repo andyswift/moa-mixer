@@ -6,12 +6,17 @@ const SMOOTHING = 0.01; // seconds; avoids zipper noise on param changes
 /** Compiles a Patch into Web Audio nodes and keeps them in sync with domain state. */
 export class AudioEngine {
   private ctx?: AudioContext;
+  private readonly compressors = new Map<string, DynamicsCompressorNode>();
   private readonly meters = new Map<string, { analyser: AnalyserNode; buffer: Float32Array<ArrayBuffer> }>();
 
   constructor(private readonly patch: Patch) {}
 
   async start(): Promise<void> {
-    if (!this.ctx) this.build(new AudioContext());
+    if (!this.ctx) {
+      const ctx = new AudioContext();
+      await ctx.audioWorklet.addModule(followerModuleUrl());
+      this.build(ctx);
+    }
     await this.ctx?.resume();
   }
 
@@ -32,6 +37,11 @@ export class AudioEngine {
     let peak = 0;
     for (const v of m.buffer) peak = Math.max(peak, Math.abs(v));
     return peak;
+  }
+
+  /** Current gain reduction of a compressor node in dB (0 or negative); 0 until audio starts. */
+  readReduction(deviceId: string, nodeId: string): number {
+    return this.compressors.get(`${deviceId}/${nodeId}`)?.reduction ?? 0;
   }
 
   private build(ctx: AudioContext): void {
@@ -94,8 +104,17 @@ export class AudioEngine {
           nodes.set(n.id, cv);
           break;
         }
+        case 'follower': {
+          const f = new AudioWorkletNode(ctx, FOLLOWER_NAME, {
+            numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
+            parameterData: { attack: n.params.attack ?? 0.003, release: n.params.release ?? 0.12 },
+          });
+          nodes.set(n.id, f);
+          break;
+        }
         case 'compressor': {
           const comp = ctx.createDynamicsCompressor();
+          this.compressors.set(`${deviceId}/${n.id}`, comp);
           comp.threshold.value = n.params.threshold ?? -24;
           comp.knee.value = n.params.knee ?? 30;
           comp.ratio.value = n.params.ratio ?? 12;
@@ -246,6 +265,7 @@ export class AudioEngine {
 }
 
 function audioParam(node: AudioNode, name: string): AudioParam | undefined {
+  if (node instanceof AudioWorkletNode) return node.parameters.get(name);
   const p = (node as unknown as Record<string, unknown>)[name];
   return p instanceof AudioParam ? p : undefined;
 }
@@ -438,4 +458,38 @@ function timeConstant(circuit: Circuit, nodeId: string, param: string): number {
     return Math.max(node.params.glide / 3, SMOOTHING); // ~95% of the way after 3 time constants
   }
   return SMOOTHING;
+}
+
+const FOLLOWER_NAME = 'moa-follower';
+const FOLLOWER_SOURCE = `
+class MoaFollower extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [
+      { name: 'attack', defaultValue: 0.003, minValue: 0.0001, maxValue: 2, automationRate: 'k-rate' },
+      { name: 'release', defaultValue: 0.12, minValue: 0.001, maxValue: 5, automationRate: 'k-rate' },
+    ];
+  }
+  constructor() { super(); this.env = 0; }
+  process(inputs, outputs, params) {
+    const out = outputs[0][0];
+    const input = inputs[0];
+    const ca = 1 - Math.exp(-1 / (Math.max(params.attack[0], 0.0001) * sampleRate));
+    const cr = 1 - Math.exp(-1 / (Math.max(params.release[0], 0.001) * sampleRate));
+    let env = this.env;
+    for (let i = 0; i < out.length; i++) {
+      let x = 0;
+      for (let ch = 0; ch < input.length; ch++) x = Math.max(x, Math.abs(input[ch][i]));
+      env += (x > env ? ca : cr) * (x - env);
+      out[i] = env;
+    }
+    this.env = env;
+    return true;
+  }
+}
+registerProcessor('${FOLLOWER_NAME}', MoaFollower);
+`;
+
+/** The follower's processor is a worklet module, loaded from an in-memory script. */
+function followerModuleUrl(): string {
+  return URL.createObjectURL(new Blob([FOLLOWER_SOURCE], { type: 'text/javascript' }));
 }

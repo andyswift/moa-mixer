@@ -14,8 +14,10 @@
 // channel gain stage: its input range is +/-3, linear to 0.6, then a smooth knee that settles at 1.0),
 // 'abs' (a full-wave rectifier, for an envelope follower) or 'crush' (a bit-crusher: quantises to `bits`
 // bits, a param that can change while running).
+// 'follower' is a peak envelope follower: it takes the loudest channel of its input and outputs a mono CV that
+// rises with `attack` (s) and falls with `release` (s). It runs as an audio worklet.
 // 'delay' is a delay line: `delayTime` (s, also a CV target) up to `maxTime` (s, fixed when the node is built).
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter';
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower';
 
 export interface CircuitNode {
   readonly id: string;

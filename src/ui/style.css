@@ -323,3 +323,49 @@ button.start:disabled { background: #3a3d42; color: #a9adb3; cursor: default; }
 .bus-tag { min-height: 14px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: transparent; text-align: center; white-space: nowrap; }
 .bus-tag.on { color: #c45bd6; }
 .poly-option span { white-space: nowrap; }
+
+/* MOA-FX2 bus compressor: a fixed 1440x400 vintage rack panel scaled to fit */
+.bc-wrap { position: relative; width: 100%; margin-bottom: 16px; border-radius: 8px; overflow: hidden; background: #161812; }
+.bc-panel { position: absolute; left: 0; top: 0; width: 1440px; height: 400px; overflow: hidden; transform-origin: 0 0; box-sizing: border-box; background-color: #3d4a3a; background-image: repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0, rgba(255,255,255,.03) 1px, rgba(0,0,0,.05) 1px, rgba(0,0,0,.05) 3px); font-family: 'Barlow Condensed', sans-serif; color: #ece2c4; }
+.bc-abs { position: absolute; }
+.bc-silk { font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: .14em; color: #ece2c4; line-height: 1; }
+.bc-ear { position: absolute; top: 0; width: 40px; height: 400px; background: #2c342a; }
+.bc-slot { position: absolute; left: 8px; width: 24px; height: 12px; border-radius: 6px; background: #0e100d; box-shadow: inset 0 2px 3px #000, 0 1px 0 rgba(255,255,255,.12); }
+.bc-screw { position: absolute; left: 11px; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #e9e6dc, #a09d92 60%, #5d5b53); box-shadow: 0 1px 2px rgba(0,0,0,.7), inset 0 0 0 1px rgba(0,0,0,.35); }
+.bc-screw::after { content: ''; position: absolute; left: 3px; top: 8px; width: 12px; height: 2px; background: #3a382f; }
+.bc-nameplate { height: 96px; box-sizing: border-box; padding: 10px 12px; border-radius: 4px; background: #17150f; box-shadow: inset 0 0 0 2px #8a6a30, inset 0 0 0 4px #17150f, inset 0 0 0 5px #5c4720, 0 2px 4px rgba(0,0,0,.5); display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.bc-brand { font-family: 'Alfa Slab One', serif; font-size: 31px; line-height: 32px; color: #e2bd73; letter-spacing: .02em; }
+.bc-pilot { width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(circle at 38% 32%, #fff0c4, #ffb347 45%, #b4661a 100%); box-shadow: 0 0 14px 4px rgba(255,170,60,.55), 0 0 0 3px #a8a698, 0 0 0 4px #25231b; }
+.bc-wide { all: unset; cursor: pointer; box-sizing: border-box; width: 176px; height: 46px; display: flex; align-items: center; justify-content: center; gap: 12px; border-radius: 4px; background: #d8cfae; box-shadow: 0 4px 0 #7d7658, 0 5px 4px rgba(0,0,0,.5); }
+.bc-wide.bc-lit { background: #f6d98c; box-shadow: 0 1px 0 #8a6a30, 0 0 14px rgba(255,179,71,.6); }
+.bc-lamp { width: 12px; height: 12px; border-radius: 50%; display: block; }
+.bc-jack { width: 36px; height: 36px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #dedbd0, #8f8c80 70%); box-shadow: 0 1px 2px #000, inset 0 0 0 1px rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; }
+.bc-jack-hole { width: 18px; height: 18px; border-radius: 50%; background: #0c0b08; box-shadow: inset 0 2px 3px #000; }
+.bc-jack-pin { width: 6px; height: 6px; margin: 6px; border-radius: 50%; background: #5d5b53; }
+.bc-knob { all: unset; width: 96px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+button.bc-knob { cursor: pointer; }
+button.bc-knob:focus-visible, .bc-knob-cap:focus-visible { outline: 2px solid #ffcf7a; outline-offset: 2px; }
+.bc-knob-box { position: relative; width: 96px; height: 88px; }
+.bc-knob-cap { position: absolute; left: 20px; top: 16px; width: 56px; height: 56px; border-radius: 50%; box-shadow: 0 4px 6px rgba(0,0,0,.65); touch-action: none; cursor: ns-resize; }
+.bc-knob-knurl { position: absolute; inset: 0; border-radius: 50%; background: repeating-conic-gradient(#2c271d 0deg 4deg, #15120d 4deg 8deg); box-shadow: inset 0 0 0 1px #000, inset 0 1px 0 rgba(255,255,255,.12); }
+.bc-knob-brass { position: absolute; left: 8px; top: 8px; width: 40px; height: 40px; border-radius: 50%; background: radial-gradient(circle at 35% 28%, #f6e2a6 0%, #cfa65c 42%, #8a6628 100%); box-shadow: inset 0 0 0 1px rgba(60,40,10,.7), 0 1px 2px rgba(0,0,0,.5); }
+.bc-knob-pointer { position: absolute; left: 26px; top: 3px; width: 4px; height: 24px; border-radius: 2px; background: #f7f2e2; box-shadow: 0 0 0 .5px rgba(0,0,0,.5); }
+.bc-readout { font-family: 'DM Mono', monospace; font-size: 11px; line-height: 16px; min-width: 60px; text-align: center; padding: 0 6px; border-radius: 3px; background: #12100a; color: #ffb347; box-shadow: inset 0 1px 2px #000, 0 1px 0 rgba(255,255,255,.1); box-sizing: border-box; }
+.bc-vu-bezel { box-sizing: border-box; width: 304px; height: 246px; padding: 8px; border-radius: 8px; background: #14120d; box-shadow: inset 0 0 0 2px #6b5426, inset 0 0 0 4px #14120d, 0 3px 6px rgba(0,0,0,.6), 0 0 28px 2px rgba(255,170,60,.18); }
+.bc-vu-face { width: 288px; height: 230px; border-radius: 3px; overflow: hidden; box-shadow: inset 0 0 18px rgba(80,40,0,.5); }
+.bc-ladder { display: flex; flex-direction: column; gap: 5px; padding: 6px; background: #0f0d09; border-radius: 3px; box-shadow: inset 0 1px 3px #000; }
+.bc-seg { width: 14px; height: 9px; border-radius: 2px; background: #2a2a20; }
+.bc-sidechain { position: absolute; width: 318px; height: 292px; box-sizing: border-box; border: 2px solid #c4c2a4; border-radius: 8px; box-shadow: inset 0 0 0 3px #3d4a3a, inset 0 0 0 4px rgba(196,194,164,.55); padding: 26px 14px 12px; display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,.12); }
+.bc-side-title { position: absolute; left: 50%; top: -11px; transform: translateX(-50%); background: #3d4a3a; padding: 3px 14px; white-space: nowrap; }
+.bc-keybtn { all: unset; cursor: pointer; box-sizing: border-box; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; background: #d8cfae; color: #2a2417; box-shadow: 0 3px 0 #7d7658, 0 4px 3px rgba(0,0,0,.45); }
+.bc-keybtn.bc-lit { background: #f6d98c; box-shadow: 0 2px 0 #8a6a30, 0 0 10px rgba(255,179,71,.65); }
+.bc-keybtn:focus-visible, .bc-wide:focus-visible, .bc-preset:focus-visible, .bc-save:focus-visible { outline: 2px solid #ffcf7a; outline-offset: 2px; }
+.bc-keylamp { width: 10px; height: 10px; border-radius: 50%; background: #4a3a22; }
+.bc-duckbar { flex: 1; display: flex; gap: 3px; padding: 4px; background: #0f0d09; border-radius: 3px; box-shadow: inset 0 1px 3px #000; }
+.bc-duckseg { flex: 1; height: 12px; border-radius: 1px; background: #2a2a20; }
+.bc-strip { position: absolute; left: 14px; top: 318px; width: 1332px; height: 66px; box-sizing: border-box; padding: 0 14px; display: flex; align-items: center; gap: 10px; border-radius: 6px; background: rgba(0,0,0,.22); box-shadow: inset 0 2px 4px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.08); }
+.bc-preset { all: unset; cursor: pointer; flex: 1; min-width: 0; box-sizing: border-box; height: 42px; position: relative; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; color: #2a2417; background: #e6dcc0; box-shadow: 0 4px 0 #7d7658, 0 5px 4px rgba(0,0,0,.5); }
+.bc-preset.bc-lit { background: #eadfba; box-shadow: 0 1px 0 #7d7658, 0 2px 3px rgba(0,0,0,.5); transform: translateY(3px); }
+.bc-preset-led { position: absolute; left: 50%; top: 4px; width: 22px; height: 4px; margin-left: -11px; border-radius: 2px; background: #6d6444; }
+.bc-preset.bc-lit .bc-preset-led { background: #ffb347; box-shadow: 0 0 8px 1px rgba(255,170,60,.9); }
+.bc-save { all: unset; cursor: pointer; box-sizing: border-box; width: 112px; height: 42px; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: #b9b08f; box-shadow: 0 4px 0 #6f6849, 0 5px 4px rgba(0,0,0,.5); font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: .2em; text-transform: uppercase; color: #2a2417; }

@@ -1,5 +1,6 @@
 import './ui/style.css';
 import { AudioEngine } from './audio/engine';
+import type { BusCompFx } from './domain/devices/busComp';
 import type { DrumMachine } from './domain/devices/drumMachine';
 import type { OuroborosFx } from './domain/devices/ouroboros';
 import type { PolySynth } from './domain/devices/polySynth';
@@ -12,6 +13,7 @@ import { MidiMonitor } from './domain/midi/monitor';
 import { WebMidi } from './midi/webMidi';
 import { Patch } from './domain/patch/patch';
 import { renderMidiStrip } from './ui/midiStrip';
+import { renderBusCompPanel } from './ui/busCompPanel';
 import { renderOuroPanel } from './ui/ouroborosPanel';
 import { renderPolyPanel } from './ui/polyPanel';
 import type { Mixer } from './domain/devices/mixer';
@@ -66,7 +68,13 @@ app.append(renderFxPanel(patch.device<ReverbFx>('reverb'), patch.device<DelayFx>
 
 app.append(renderOuroPanel(patch.device<OuroborosFx>('ouroboros'), 'ouroboros', engine));
 
-app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay', 'Ouroboros'], { C: 'to Ouroboros' }));
+app.append(renderBusCompPanel(patch.device<BusCompFx>('buscomp'), patch.device<Mixer>('mixer'), 'buscomp', engine, [
+  { value: 'off', label: 'Off' }, { value: '3', label: 'Kick' }, { value: '4', label: 'Snare' }, { value: '5', label: 'Clap' },
+  { value: '6', label: 'CL Hat' }, { value: '7', label: 'OP Hat' }, { value: '8', label: 'Ride' }, { value: '1', label: 'Synth' },
+  { value: '2', label: 'Poly' },
+]));
+
+app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay', 'Ouroboros', 'Bus Comp'], { B: 'to Bus Comp', C: 'to Ouroboros' }));
 
 // Dev-only handle for poking at the engine from the browser console.
 if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch, sequencer, midi: handleMidiBytes } });

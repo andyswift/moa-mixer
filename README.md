@@ -30,13 +30,14 @@ Live: **https://moaswift.no/mixer/**
 - **Send FX: a reverb and a dub delay**, both mono in and stereo out. Aux 1 feeds the reverb, aux 2 feeds the delay, and each comes back on its own stereo FX return strip.
   - **Reverb**: small, medium or large generated stereo tail, with pre-delay, low cut and damping.
   - **Delay**: time (20 ms to 1.5 s), feedback up to 110 %, tone, ping-pong spread, tape wobble and drive. The feedback loop is darkened and soft-clipped, so past 100 % it holds a stable, distorted drone instead of blowing up, and backing off lets it die away.
-- **Ouroboros (MOA-FX1), a dual-channel feedback delay on bus C**, deliberately unstable. Bus C feeds it, it returns on its own stereo strip (FX 3), and bus C is taken off main, so Ouroboros's dry/wet mix puts the clean bus back (Mix at 0 is the bus untouched). Bus B is left free for a compressor and sidechain later.
+- **Ouroboros (MOA-FX1), a dual-channel feedback delay on bus C**, deliberately unstable. Bus C feeds it, it returns on its own stereo strip (FX 3), and bus C is taken off main, so Ouroboros's dry/wet mix puts the clean bus back (Mix at 0 is the bus untouched).
+- **Bus Comp (MOA-FX2), a vintage-style bus compressor with a sidechain ducker on bus B**. Bus B feeds it, it returns on its own stereo strip (FX 4), and bus B is taken off main. Threshold, ratio, attack, release, knee, make-up and a parallel Mix (the browser's automatic make-up gain is taken out, so 0 dB means 0 dB). The ducker listens to one mixer channel (the Key source, the kick by default; tapped before its fader) through a high-pass and a peak follower with fast attack and an adjustable release, and can only turn the bus down. Key Listen plays the key, Bypass bypasses, a VU needle shows gain reduction (or input/output level), and 8 patches can be saved. The follower is an audio worklet (`moa-follower`), the one node kind the browser's graph couldn't give us.
   - **Two channels** (A and B), each: gain (into a soft clipper), a long dull delay with bit-crush "grit", a resonant LP/HP filter, a clip stage and a level. They run in **series, parallel or ping-pong**.
   - **Four feedback paths** (A>A, A>B, B>A, B>B) let it ring and drone with no input; a tiny built-in noise floor starts a loop that is above unity from silence. Every loop passes a delay and a soft clipper, so it saturates into a loud wash and stays bounded. The Clip knob adds saturation, not loop gain.
   - **Modulator**: an LFO (triangle, ramp, square, random) or an envelope follower of the input with a manual trigger, with bipolar amounts to each channel's delay time, cutoff and gain.
   - **Kill** (hold: cuts all feedback) and **Freeze** (latch: each channel holds its own loop at 100 % and the input shuts). Eight patches (most decay over a few seconds, Karaoke Drone and Self Oscillator are meant to sustain), with Save. The panel is a fixed matte-black layout drawn from the design, with the signal flow as lines and a live feedback diagram.
 - **MOA-MIX, a mixer** (eight channels, three stereo FX returns, three stereo buses, six aux sends; built to scale to 16)
-  - **FX returns**: stereo strips (reverb, delay, Ouroboros) with low cut, EQ, aux sends, balance, mute, bus assigns, fader and an L/R meter. A return fed by a bus has no assign back to that bus. A return can send to its own aux (an effect feeding itself through the desk) or to the other effect (echo into the reverb): the dub tricks. Sends start at zero, and the reverb soft-clips and the delay saturates its loop, so even a runaway loop stays bounded.
+  - **FX returns**: stereo strips (reverb, delay, Ouroboros, bus compressor) with low cut, EQ, aux sends, balance, mute, bus assigns, fader and an L/R meter. A return fed by a bus has no assign back to that bus. A return can send to its own aux (an effect feeding itself through the desk) or to the other effect (echo into the reverb): the dub tricks. Sends start at zero, and the reverb soft-clips and the delay saturates its loop, so even a runaway loop stays bounded.
   - **Bus "To main" switches**: take a bus off the main mix so it only goes where it is patched.
   - **Safe output**: the main sum runs through a limiter and a hard ceiling just under full scale, so feedback abuse is loud but never leaves the speakers' range.
   - Strip: low cut, 3-band EQ with a sweepable mid, a soft-clipping gain stage (transparent to 0.6, then hot signals ease into a ceiling at 1.0 instead of clipping hard), six aux sends (pre/post per pair), pan, mute, solo, A/B/C bus assigns, fader and meter.
@@ -81,7 +82,8 @@ src/
 | 4c | MIDI learn, saved CC mappings, tempo-synced LFO | next |
 | 5 | **16 channels** and the full console layout | planned |
 | 4h | **Ouroboros** feedback delay on bus C with its own FX return strip, and a per-bus "To main" switch | done |
-| 6 | **More effects and bus processing**: a compressor with sidechain on bus B, then others | next |
+| 6 | **Bus processing**: a compressor with sidechain on bus B | done |
+| 6b | More effects | next |
 | 7 | Synth depth: polyphony, sequencer or arpeggiator | planned |
 | 8 | Presets and persistence (save/load a Patch) | planned |
 | 9 | Real inputs: audio files and microphone/line in per channel | planned |

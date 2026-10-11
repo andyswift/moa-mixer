@@ -1,10 +1,11 @@
+import { BusCompFx } from '../devices/busComp';
 import type { Device } from '../devices/device';
 import { DRUM_VOICES, DrumMachine } from '../devices/drumMachine';
 import { OuroborosFx } from '../devices/ouroboros';
 import { PolySynth } from '../devices/polySynth';
 import { DelayFx, ReverbFx } from '../devices/sendFx';
 import { Mixer } from '../devices/mixer';
-import type { ToggleControl } from '../devices/controls';
+import type { ChoiceControl, ToggleControl } from '../devices/controls';
 import { Synthesizer } from '../devices/synthesizer';
 import { MidiClock } from '../midi/clock';
 
@@ -57,7 +58,8 @@ export class Patch {
       .add('reverb', new ReverbFx('Reverb'))
       .add('delay', new DelayFx('Delay'))
       .add('ouroboros', new OuroborosFx('Ouroboros'))
-      .add('mixer', new Mixer(2 + DRUM_VOICES.length, 'Mixer', 3, { 3: 'C' }))
+      .add('buscomp', new BusCompFx('Bus Comp'))
+      .add('mixer', new Mixer(2 + DRUM_VOICES.length, 'Mixer', 4, { 3: 'C', 4: 'B' }))
       .connect({ device: 'synth', jack: 'out' }, { device: 'mixer', jack: 'ch1' })
       .connect({ device: 'poly', jack: 'out' }, { device: 'mixer', jack: 'ch2' });
     DRUM_VOICES.forEach((voice, i) =>
@@ -73,7 +75,15 @@ export class Patch {
     patch
       .connect({ device: 'mixer', jack: 'busC' }, { device: 'ouroboros', jack: 'in' })
       .connect({ device: 'ouroboros', jack: 'out' }, { device: 'mixer', jack: 'ret3' });
-    (patch.device<Mixer>('mixer').control('busC.main') as ToggleControl).set(false);
+    // The bus compressor sits on bus B the same way (return 4), keyed by the kick (channel 3) for ducking.
+    patch
+      .connect({ device: 'mixer', jack: 'busB' }, { device: 'buscomp', jack: 'in' })
+      .connect({ device: 'mixer', jack: 'key' }, { device: 'buscomp', jack: 'key' })
+      .connect({ device: 'buscomp', jack: 'out' }, { device: 'mixer', jack: 'ret4' });
+    const mixer = patch.device<Mixer>('mixer');
+    (mixer.control('busC.main') as ToggleControl).set(false);
+    (mixer.control('busB.main') as ToggleControl).set(false);
+    (mixer.control('key.source') as ChoiceControl).set('3');
     return patch.setOutput('mixer', 'main');
   }
 }
