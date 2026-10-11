@@ -1,7 +1,7 @@
 // Internal signal graph. Audio and CV are the same thing here: a cable carries "voltage".
 // Not exported to the UI layer — devices wrap a Circuit and expose controls instead.
 
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan';
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope';
 
 export interface CircuitNode {
   readonly id: string;

@@ -60,7 +60,16 @@ export class AudioEngine {
           f.frequency.value = n.params.frequency ?? 350;
           f.Q.value = n.params.Q ?? 1;
           f.gain.value = n.params.gain ?? 0;
+          f.detune.value = n.params.detune ?? 0;
           nodes.set(n.id, f);
+          break;
+        }
+        case 'envelope': {
+          // CV source: its offset is automated to follow the ADSR whenever `gate` changes.
+          const src = ctx.createConstantSource();
+          src.offset.value = 0;
+          src.start();
+          nodes.set(n.id, src);
           break;
         }
         case 'pan': {
@@ -92,6 +101,12 @@ export class AudioEngine {
     circuit.onChange((change) => {
       const node = nodes.get(change.nodeId);
       if (!node) return;
+      if (node instanceof ConstantSourceNode) {
+        if (change.type === 'param' && change.name === 'gate') {
+          applyEnvelope(ctx, node.offset, circuit.node(change.nodeId).params, change.value > 0);
+        }
+        return;
+      }
       if (change.type === 'option') {
         if (node instanceof OscillatorNode && change.name === 'waveform') {
           node.type = change.value as OscillatorType;
@@ -111,4 +126,26 @@ export class AudioEngine {
 function audioParam(node: AudioNode, name: string): AudioParam | undefined {
   const p = (node as unknown as Record<string, unknown>)[name];
   return p instanceof AudioParam ? p : undefined;
+}
+
+const MIN_TIME = 0.001;
+
+/** Schedules ADSR on `offset`, starting from wherever it currently is (so retriggers don't click). */
+function applyEnvelope(
+  ctx: AudioContext,
+  offset: AudioParam,
+  p: Record<string, number>,
+  gateOn: boolean,
+): void {
+  const t = ctx.currentTime;
+  offset.cancelScheduledValues(t);
+  offset.setValueAtTime(offset.value, t);
+  if (gateOn) {
+    const attack = Math.max(p.attack ?? 0.01, MIN_TIME);
+    offset.linearRampToValueAtTime(1, t + attack);
+    // setTargetAtTime reaches ~95% after 3 time constants, so decay/3 ~= "decay time".
+    offset.setTargetAtTime(p.sustain ?? 0.7, t + attack, Math.max(p.decay ?? 0.2, MIN_TIME) / 3);
+  } else {
+    offset.setTargetAtTime(0, t, Math.max(p.release ?? 0.3, MIN_TIME) / 3);
+  }
 }

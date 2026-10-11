@@ -17,7 +17,8 @@ function fromSlider(c: Extract<Control, { kind: 'number' }>, s: number): number 
 
 function format(c: Extract<Control, { kind: 'number' }>): string {
   const v = c.value;
-  return `${v >= 100 ? v.toFixed(0) : v.toFixed(2)}${c.unit ? ' ' + c.unit : ''}`;
+  const text = v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v >= 1 ? v.toFixed(2) : v.toFixed(3);
+  return `${text}${c.unit ? ' ' + c.unit : ''}`;
 }
 
 export function renderControl(c: Control): HTMLElement {
@@ -57,7 +58,9 @@ export function renderControl(c: Control): HTMLElement {
 
 function groupTitle(prefix: string): string {
   const m = /^ch(\d+)$/.exec(prefix);
-  return m ? `Ch ${m[1]}` : prefix.charAt(0).toUpperCase() + prefix.slice(1);
+  if (m) return `Ch ${m[1]}`;
+  const words = prefix.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase(); // ampEnv -> amp env
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 export function renderDevice(device: Device): HTMLElement {

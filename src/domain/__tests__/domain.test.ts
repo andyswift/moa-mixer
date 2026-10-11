@@ -38,13 +38,37 @@ describe('Synthesizer', () => {
     expect(s.circuit.node('filter').params.frequency).toBe(20000);
   });
 
-  it('gates notes', () => {
+  it('gates both envelopes with notes', () => {
     const s = new Synthesizer();
     s.noteOn(220);
     expect(s.circuit.node('osc').params.frequency).toBe(220);
-    expect(s.circuit.node('gate').params.gain).toBe(1);
+    expect(s.circuit.node('ampEnv').params.gate).toBe(1);
+    expect(s.circuit.node('filterEnv').params.gate).toBe(1);
     s.noteOff();
-    expect(s.circuit.node('gate').params.gain).toBe(0);
+    expect(s.circuit.node('ampEnv').params.gate).toBe(0);
+    expect(s.circuit.node('filterEnv').params.gate).toBe(0);
+  });
+
+  it('wires ampEnv to the VCA and filterEnv to the filter cutoff', () => {
+    const { cables } = new Synthesizer().circuit;
+    expect(cables).toContainEqual({ from: 'ampEnv', to: 'amp', port: 'gain' });
+    expect(cables).toContainEqual({ from: 'filterEnv', to: 'filterEnvDepth', port: 'in' });
+    expect(cables).toContainEqual({ from: 'filterEnvDepth', to: 'filter', port: 'detune' });
+  });
+
+  it('envelope controls set ADSR params; amount is in octaves (cents internally)', () => {
+    const s = new Synthesizer();
+    const set = (id: string, v: number) => {
+      const c = s.control(id);
+      if (c.kind !== 'number') throw new Error('expected number');
+      c.set(v);
+    };
+    set('ampEnv.attack', 0.5);
+    set('filterEnv.sustain', 0.1);
+    set('filterEnv.amount', 3);
+    expect(s.circuit.node('ampEnv').params.attack).toBe(0.5);
+    expect(s.circuit.node('filterEnv').params.sustain).toBe(0.1);
+    expect(s.circuit.node('filterEnvDepth').params.gain).toBe(3600);
   });
 });
 
