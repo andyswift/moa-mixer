@@ -41,7 +41,7 @@ export const INIT: PresetValues = {
 const p = (name: string, values: PresetValues): SynthPreset => ({ name, values });
 
 /**
- * Seventeen classic mono-synth sounds in the SH-101 vocabulary. The original has no patch memory, so
+ * Eighteen classic mono-synth sounds in the SH-101 vocabulary. The original has no patch memory, so
  * these are recipes for the sounds the instrument is known for, not factory dumps.
  */
 export const SYNTH_PRESETS: readonly SynthPreset[] = [
@@ -127,6 +127,12 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
     'mix.saw': 1, 'mix.sub': 0, 'mix.noise': 0, 'osc.mod': 600, 'lfo.wave': 'tri', 'lfo.rate': 0.7,
     'filter.cutoff': 4000, 'filter.resonance': 2, 'filterEnv.amount': 0, 'ampEnv.sustain': 1,
     'ampEnv.release': 0.15,
+  }),
+  p('Random SFX', {
+    // The random (sample-and-hold) LFO steps both pitch and filter: computer-chatter style effects.
+    'mix.saw': 0.5, 'mix.pulse': 0.5, 'mix.sub': 0, 'mix.noise': 0, 'lfo.wave': 'rnd', 'lfo.rate': 9,
+    'osc.mod': 500, 'filter.cutoff': 1200, 'filter.resonance': 8, 'filter.lfo': 2.5, 'filterEnv.amount': 0,
+    'ampEnv.attack': 0.01, 'ampEnv.sustain': 1, 'ampEnv.release': 0.1, level: 0.45,
   }),
   p('Snare', {
     'mix.saw': 0, 'mix.pulse': 0, 'mix.sub': 0, 'mix.noise': 1, 'filter.cutoff': 3000, 'filter.resonance': 2,
