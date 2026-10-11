@@ -145,3 +145,27 @@ button.start:disabled { background: #3a3d42; color: #a9adb3; cursor: default; }
 .transport .led.on { background: #d9628a; box-shadow: 0 0 8px #d9628a; }
 .synth-header { flex-wrap: wrap; }
 .patch-picker { margin-left: 0; }
+
+/* ---- Drum machine ---- */
+.drum-panel { border-top-color: #4a9be0; }
+.drum-outputs-note { font-size: 13px; letter-spacing: 0.2em; color: #a9adb3; text-transform: uppercase; }
+.drum-voices { display: flex; flex-wrap: wrap; gap: 12px; }
+.drum-voice { flex: 1 1 200px; min-width: 200px; padding: 14px; gap: 12px; }
+.drum-voice .synth-section-head h2 { letter-spacing: 0.14em; white-space: nowrap; }
+.drum-faders { display: flex; gap: 2px; justify-content: space-between; }
+.drum-faders .fader { width: auto; flex: 1 1 0; min-width: 0; max-width: none; gap: 6px; }
+.drum-faders .fader-label { font-size: 11px; letter-spacing: 0.1em; height: 14px; }
+.drum-faders .fader-value { font-size: 10px; height: 12px; }
+.drum-pad { position: relative; height: 56px; border: 1px solid var(--voice); background: #2a2d31; border-radius: 4px; padding: 0; cursor: pointer; touch-action: manipulation; }
+.drum-pad.hit { background: var(--voice); opacity: var(--hit, 1); }
+.drum-pad:focus-visible { outline: 2px solid #f1eee6; outline-offset: 2px; }
+.drum-pad-key { position: absolute; left: 8px; top: 6px; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; color: #a9adb3; }
+.drum-pad.hit .drum-pad-key { color: #16171a; }
+.drum-ms { display: flex; gap: 6px; }
+.drum-choke { flex: none; height: 24px; padding: 0 8px; font-size: 11px; letter-spacing: 0.14em; }
+.drum-out { display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid #3a3d42; }
+.drum-jack { width: 18px; height: 18px; border-radius: 50%; background: #0c0d0e; border: 3px solid #5b5f66; box-sizing: border-box; flex: none; }
+.drum-out-label { font-size: 13px; font-weight: 600; letter-spacing: 0.16em; color: #c9ccd1; text-transform: uppercase; white-space: nowrap; }
+.drum-meter { display: flex; gap: 2px; flex: 1; justify-content: flex-end; }
+.drum-seg { width: 6px; height: 14px; border-radius: 1px; background: #0c0d0e; }
+.drum-voice .synth-section-head { min-height: 24px; }

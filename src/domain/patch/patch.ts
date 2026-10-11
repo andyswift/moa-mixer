@@ -1,4 +1,5 @@
 import type { Device } from '../devices/device';
+import { DRUM_VOICES, DrumMachine } from '../devices/drumMachine';
 import { Mixer } from '../devices/mixer';
 import { Synthesizer } from '../devices/synthesizer';
 import { MidiClock } from '../midi/clock';
@@ -44,10 +45,14 @@ export class Patch {
   }
 
   static default(clock = new MidiClock()): Patch {
-    return new Patch()
+    // Mixer channel 1 is the synth; channels 2-7 are the drum voices, one individual output each.
+    const patch = new Patch()
       .add('synth', new Synthesizer('Synth', clock))
-      .add('mixer', new Mixer(1))
-      .connect({ device: 'synth', jack: 'out' }, { device: 'mixer', jack: 'ch1' })
-      .setOutput('mixer', 'main');
+      .add('drums', new DrumMachine('Drums', clock))
+      .add('mixer', new Mixer(1 + DRUM_VOICES.length))
+      .connect({ device: 'synth', jack: 'out' }, { device: 'mixer', jack: 'ch1' });
+    DRUM_VOICES.forEach((voice, i) =>
+      patch.connect({ device: 'drums', jack: voice }, { device: 'mixer', jack: `ch${i + 2}` }));
+    return patch.setOutput('mixer', 'main');
   }
 }

@@ -83,6 +83,14 @@ export class AudioEngine {
           nodes.set(n.id, src);
           break;
         }
+        case 'trigger': {
+          // CV source like an envelope, but fired by trigger()/choke() events rather than a gate.
+          const src = ctx.createConstantSource();
+          src.offset.value = 0;
+          src.start();
+          nodes.set(n.id, src);
+          break;
+        }
         case 'constant': {
           // DC source: `offset` is a CV that other nodes can sum into a param (e.g. pitch in cents).
           const src = ctx.createConstantSource();
@@ -161,6 +169,14 @@ export class AudioEngine {
     circuit.onChange((change) => {
       const node = nodes.get(change.nodeId);
       if (!node) return;
+      if (change.type === 'trigger' || change.type === 'choke') {
+        if (node instanceof ConstantSourceNode) {
+          if (change.type === 'trigger') fireTrigger(ctx, node.offset, circuit.node(change.nodeId).params, circuit.node(change.nodeId).options.shape, change.velocity);
+          else chokeTrigger(ctx, node.offset);
+        }
+        return;
+      }
+      if (circuit.node(change.nodeId).kind === 'trigger') return; // its params are read when it fires
       if (circuit.node(change.nodeId).kind === 'envelope') {
         if (node instanceof ConstantSourceNode && change.type === 'param' && change.name === 'gate') {
           applyEnvelope(ctx, node.offset, circuit.node(change.nodeId).params, change.value > 0);
@@ -212,6 +228,49 @@ function applyEnvelope(
   } else {
     offset.setTargetAtTime(0, t, Math.max(p.release ?? 0.3, MIN_TIME) / 3);
   }
+}
+
+const TRIGGER_ATTACK = 0.001;
+const CLAP_BURSTS = 3; // quick bursts before the tail
+const CLAP_BURST_TAU = 0.0035;
+const CHOKE_TAU = 0.005;
+
+/**
+ * Fires a one-shot envelope: a 1 ms attack to peak (scaled by velocity) then an exponential decay.
+ * The `clap` shape stutters through a few short bursts first. `decay` is roughly the time to -40 dB.
+ */
+function fireTrigger(
+  ctx: AudioContext,
+  offset: AudioParam,
+  p: Record<string, number>,
+  shape: string | undefined,
+  velocity: number,
+): void {
+  const velSens = p.velSens ?? 1;
+  const peak = (p.peak ?? 1) * (1 - velSens + velSens * velocity);
+  const tau = Math.max(p.decay ?? 0.2, MIN_TIME) / 4;
+  const t = ctx.currentTime;
+  offset.cancelScheduledValues(t);
+  offset.setValueAtTime(offset.value, t);
+  offset.linearRampToValueAtTime(peak, t + TRIGGER_ATTACK);
+  if (shape !== 'clap') {
+    offset.setTargetAtTime(0, t + TRIGGER_ATTACK, tau);
+    return;
+  }
+  const gap = Math.max(p.spread ?? 0.012, 0.002);
+  offset.setTargetAtTime(0, t + TRIGGER_ATTACK, CLAP_BURST_TAU);
+  for (let k = 1; k <= CLAP_BURSTS; k++) {
+    const tk = t + k * gap;
+    offset.setValueAtTime(peak, tk);
+    offset.setTargetAtTime(0, tk, k === CLAP_BURSTS ? tau : CLAP_BURST_TAU);
+  }
+}
+
+function chokeTrigger(ctx: AudioContext, offset: AudioParam): void {
+  const t = ctx.currentTime;
+  offset.cancelScheduledValues(t);
+  offset.setValueAtTime(offset.value, t);
+  offset.setTargetAtTime(0, t, CHOKE_TAU);
 }
 
 /** Hard-clips to +/-1: a sawtooth plus a DC offset becomes a pulse whose width follows the offset. */

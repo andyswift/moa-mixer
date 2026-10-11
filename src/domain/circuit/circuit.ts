@@ -3,7 +3,10 @@
 
 // 'meter' taps a signal for level display (option `channel`: mono | left | right).
 // 'random' is a sample-and-hold source: a new random value in -1..1 `rate` times per second.
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter';
+// 'trigger' is a one-shot envelope for percussion: `trigger(id, velocity)` fires it, `choke(id)` cuts it short.
+// Params: peak (output at full velocity), decay (s), velSens (0..1: how much velocity scales the peak), and for
+// shape 'clap' the `spread` (s) between the stuttered bursts that precede the tail.
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter';
 
 export interface CircuitNode {
   readonly id: string;
@@ -21,7 +24,9 @@ export interface Cable {
 
 export type CircuitChange =
   | { type: 'param'; nodeId: string; name: string; value: number }
-  | { type: 'option'; nodeId: string; name: string; value: string };
+  | { type: 'option'; nodeId: string; name: string; value: string }
+  | { type: 'trigger'; nodeId: string; velocity: number }
+  | { type: 'choke'; nodeId: string };
 
 export class Circuit {
   readonly nodes = new Map<string, CircuitNode>();
@@ -66,6 +71,18 @@ export class Circuit {
     this.emit({ type: 'option', nodeId, name, value });
   }
 
+  /** Fires a one-shot envelope; `velocity` is 0..1. */
+  trigger(nodeId: string, velocity = 1): void {
+    this.expectKind(nodeId, 'trigger');
+    this.emit({ type: 'trigger', nodeId, velocity: Math.min(1, Math.max(0, velocity)) });
+  }
+
+  /** Cuts a one-shot envelope short (a fast fade to silence), e.g. a closed hat choking an open hat. */
+  choke(nodeId: string): void {
+    this.expectKind(nodeId, 'trigger');
+    this.emit({ type: 'choke', nodeId });
+  }
+
   onChange(fn: (c: CircuitChange) => void): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
@@ -75,6 +92,10 @@ export class Circuit {
     const n = this.nodes.get(id);
     if (!n) throw new Error(`Unknown node: ${id}`);
     return n;
+  }
+
+  private expectKind(nodeId: string, kind: NodeKind): void {
+    if (this.node(nodeId).kind !== kind) throw new Error(`Node ${nodeId} is not a ${kind}`);
   }
 
   private emit(c: CircuitChange): void {
