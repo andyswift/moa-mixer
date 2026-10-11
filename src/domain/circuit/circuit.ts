@@ -11,7 +11,9 @@
 // A 'gain' node with option `channels: 'mono'` sums a stereo input down to mono.
 // A 'waveshaper' has option `curve`: 'pulse' (hard clip), 'soft' (tanh-style saturation), 'limit'
 // (transparent below 0.9, then a soft knee into a hard ceiling just under full scale) or 'warm' (the
-// channel gain stage: its input range is +/-3, linear to 0.6, then a smooth knee that settles at 1.0).
+// channel gain stage: its input range is +/-3, linear to 0.6, then a smooth knee that settles at 1.0),
+// 'abs' (a full-wave rectifier, for an envelope follower) or 'crush' (a bit-crusher: quantises to `bits`
+// bits, a param that can change while running).
 // 'delay' is a delay line: `delayTime` (s, also a CV target) up to `maxTime` (s, fixed when the node is built).
 export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter';
 

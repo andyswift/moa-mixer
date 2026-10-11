@@ -98,6 +98,8 @@ function renderStrip(m: Mixer, prefix: string, i: number, isReturn: boolean, nam
   buses.append(heading('Bus', GREEN));
   const busRow = el('div', 'mix-row');
   for (const bus of BUSES) {
+    // A return that is fed by a bus has no assign to that bus.
+    if (!m.controls.some((c) => c.id === id(`bus${bus}`))) continue;
     busRow.append(renderToggleButton(toggle(m, id(`bus${bus}`)), `${section} assign to bus ${bus}`, () => bus, GREEN, 'btn'));
   }
   buses.append(busRow);
@@ -129,6 +131,7 @@ function renderStrip(m: Mixer, prefix: string, i: number, isReturn: boolean, nam
 /** The mixer console: channel strips on the left, master section on the right. */
 export function renderMixerPanel(
   m: Mixer, deviceId: string, engine: AudioEngine, channelNames: string[] = [], returnNames: string[] = [],
+  busTags: Partial<Record<(typeof BUSES)[number], string>> = {},
 ): HTMLElement {
   const panel = el('div', 'mix-panel');
 
@@ -192,6 +195,16 @@ export function renderMixerPanel(
     }
     faderRow.append(meters);
     col.append(faderRow);
+    // "To main": off takes the bus out of the main mix, so it only goes where it is patched (e.g. into an effect).
+    const route = el('div', 'bus-route');
+    route.append(renderToggleButton(toggle(m, `bus${bus}.main`), `Bus ${bus} to main`, () => 'To main', GREEN, 'btn'));
+    const tag = el('div', 'bus-tag', busTags[bus] ? `→ ${busTags[bus]}` : '');
+    route.append(tag);
+    const mainSwitch = toggle(m, `bus${bus}.main`);
+    const paintTag = () => tag.classList.toggle('on', !mainSwitch.value && !!busTags[bus]);
+    mainSwitch.onChange(paintTag);
+    paintTag();
+    col.append(route);
     busRow.append(col);
   }
   busGroup.append(busRow);

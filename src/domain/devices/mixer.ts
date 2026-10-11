@@ -6,6 +6,7 @@ const LOW_CUT_OFF_HZ = 10; // effectively transparent
 const EQ_RANGE_DB = 15;
 
 export const BUSES = ['A', 'B', 'C'] as const;
+export type Bus = (typeof BUSES)[number];
 export const AUX_COUNT = 6;
 /** Pre/post is switched per aux pair (1-2, 3-4, 5-6). */
 export const AUX_PAIRS = [
@@ -26,6 +27,8 @@ export const AUX_PAIRS = [
  * can send to its own aux (an effect feeding itself through the desk) and to the other effects (echoing
  * into the reverb): the dub tricks. Every such loop passes through a delay line, and the main output's
  * limiter and ceiling keep even a runaway loop inside the speakers' range.
+ * Each bus has a "To main" switch: turn it off and the bus only goes where it is patched (e.g. into an
+ * effect that returns on a strip). A return that is fed by a bus can't be assigned back to that bus.
  * A fixed `main` output sums the three buses through a limiter and a hard ceiling just under full scale, so
  * runaway feedback is loud but can never leave the speakers' range.
  */
@@ -34,7 +37,13 @@ export class Mixer extends Device {
   private readonly muted = new Set<number>();
   private readonly soloed = new Set<number>();
 
-  constructor(readonly channelCount = 1, name = 'Mixer', readonly returnCount = 0) {
+  /** `returnFeeds` names the bus that feeds a return (by number), so that return has no assign to that bus. */
+  constructor(
+    readonly channelCount = 1,
+    name = 'Mixer',
+    readonly returnCount = 0,
+    private readonly returnFeeds: Partial<Record<number, Bus>> = {},
+  ) {
     super();
     this.name = name;
     const c = this.circuit;
@@ -52,15 +61,18 @@ export class Mixer extends Device {
     for (const bus of BUSES) {
       const id = `bus${bus}`;
       c.add(id, 'gain', { gain: 1 })
+        .add(`${id}.toMain`, 'gain', { gain: 1 })
         .add(`${id}.meterL`, 'meter', {}, { channel: 'left' })
         .add(`${id}.meterR`, 'meter', {}, { channel: 'right' })
-        .connect(id, 'main')
+        .connect(id, `${id}.toMain`)
+        .connect(`${id}.toMain`, 'main')
         .connect(id, `${id}.meterL`)
         .connect(id, `${id}.meterR`);
       this.outputList.push({ name: id, nodeId: id });
       this.meterList.push({ name: `${id}.L`, nodeId: `${id}.meterL` }, { name: `${id}.R`, nodeId: `${id}.meterR` });
       this.controlList.push(
         new NumberControl(`${id}.fader`, `Bus ${bus}`, 0, 1.5, 1, '', (v) => c.setParam(id, 'gain', v)),
+        new ToggleControl(`${id}.main`, 'To main', true, (on) => c.setParam(`${id}.toMain`, 'gain', on ? 1 : 0)),
       );
     }
     for (let k = 1; k <= AUX_COUNT; k++) {
@@ -110,8 +122,9 @@ export class Mixer extends Device {
     }
     this.inputList.push({ name: prefix, nodeId: id('lowcut') });
 
-    // Bus assigns: pan -> gate -> bus.
-    for (const bus of BUSES) {
+    // Bus assigns: pan -> gate -> bus. (Not the bus that feeds this return: that would be an endless loop.)
+    const assignable = BUSES.filter((bus) => !(isReturn && this.returnFeeds[i] === bus));
+    for (const bus of assignable) {
       c.add(id(`assign${bus}`), 'gain', { gain: 0 }).connect(id('pan'), id(`assign${bus}`)).connect(id(`assign${bus}`), `bus${bus}`);
     }
 
@@ -165,7 +178,7 @@ export class Mixer extends Device {
         new ToggleControl(id('solo'), 'Solo', false, (on) => this.setFlag(this.soloed, i, on)),
       );
     }
-    for (const bus of BUSES) {
+    for (const bus of assignable) {
       this.controlList.push(
         new ToggleControl(id(`bus${bus}`), bus, bus === 'A', (on) => c.setParam(id(`assign${bus}`), 'gain', on ? 1 : 0)),
       );

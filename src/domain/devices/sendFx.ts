@@ -10,7 +10,7 @@ export const REVERB_SIZES = ['small', 'medium', 'large'] as const;
 const REVERB_MAKEUP = 3.5;
 
 /** Make-up gain that gives the soft-clip curve (a tanh normalised to +/-1) unity gain for small signals. */
-const SOFT_UNITY = Math.tanh(2.5) / 2.5;
+export const SOFT_UNITY = Math.tanh(2.5) / 2.5;
 
 /** The reverb's output soft-clips at this amplitude, so a reverb fed back into itself on the desk stays bounded. */
 const REVERB_CEILING = 2;

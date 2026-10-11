@@ -1,8 +1,10 @@
 import type { Device } from '../devices/device';
 import { DRUM_VOICES, DrumMachine } from '../devices/drumMachine';
+import { OuroborosFx } from '../devices/ouroboros';
 import { PolySynth } from '../devices/polySynth';
 import { DelayFx, ReverbFx } from '../devices/sendFx';
 import { Mixer } from '../devices/mixer';
+import type { ToggleControl } from '../devices/controls';
 import { Synthesizer } from '../devices/synthesizer';
 import { MidiClock } from '../midi/clock';
 
@@ -54,7 +56,8 @@ export class Patch {
       .add('drums', new DrumMachine('Drums', clock))
       .add('reverb', new ReverbFx('Reverb'))
       .add('delay', new DelayFx('Delay'))
-      .add('mixer', new Mixer(2 + DRUM_VOICES.length, 'Mixer', 2))
+      .add('ouroboros', new OuroborosFx('Ouroboros'))
+      .add('mixer', new Mixer(2 + DRUM_VOICES.length, 'Mixer', 3, { 3: 'C' }))
       .connect({ device: 'synth', jack: 'out' }, { device: 'mixer', jack: 'ch1' })
       .connect({ device: 'poly', jack: 'out' }, { device: 'mixer', jack: 'ch2' });
     DRUM_VOICES.forEach((voice, i) =>
@@ -65,6 +68,12 @@ export class Patch {
       .connect({ device: 'mixer', jack: 'aux2' }, { device: 'delay', jack: 'in' })
       .connect({ device: 'reverb', jack: 'out' }, { device: 'mixer', jack: 'ret1' })
       .connect({ device: 'delay', jack: 'out' }, { device: 'mixer', jack: 'ret2' });
+    // Ouroboros sits on bus C: the bus feeds it, it comes back on return 3, and bus C no longer goes to main
+    // directly (Ouroboros's dry/wet mix puts the dry sound back).
+    patch
+      .connect({ device: 'mixer', jack: 'busC' }, { device: 'ouroboros', jack: 'in' })
+      .connect({ device: 'ouroboros', jack: 'out' }, { device: 'mixer', jack: 'ret3' });
+    (patch.device<Mixer>('mixer').control('busC.main') as ToggleControl).set(false);
     return patch.setOutput('mixer', 'main');
   }
 }

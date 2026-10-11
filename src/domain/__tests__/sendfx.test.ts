@@ -81,6 +81,29 @@ describe('Mixer FX returns', () => {
   });
 });
 
+describe('Bus to main switch and bus-fed returns', () => {
+  it('every bus has a To main switch, on by default, that gates its feed to the main sum', () => {
+    const m = new Mixer(1);
+    for (const bus of ['A', 'B', 'C']) {
+      const t = m.control(`bus${bus}.main`) as ToggleControl;
+      expect(t.value).toBe(true);
+      expect(param(m, `bus${bus}.toMain`, 'gain')).toBe(1);
+      t.set(false);
+      expect(param(m, `bus${bus}.toMain`, 'gain')).toBe(0);
+    }
+  });
+
+  it('a return fed by a bus has no assign to that bus (it would loop), but keeps the others', () => {
+    const m = new Mixer(1, 'Mixer', 3, { 3: 'C' });
+    const ids = m.controls.map((c) => c.id);
+    expect(ids).toContain('ret3.busA');
+    expect(ids).toContain('ret3.busB');
+    expect(ids).not.toContain('ret3.busC');
+    expect(m.circuit.nodes.has('ret3.assignC')).toBe(false);
+    expect(ids).toContain('ret1.busC'); // the other returns are unaffected
+  });
+});
+
 describe('Mixer channel gain stage', () => {
   it('soft-clips every strip after the EQ and before the mute gate and the aux taps', () => {
     const m = new Mixer(2, 'Mixer', 2);
@@ -209,6 +232,6 @@ describe('Default patch send effects', () => {
     expect(has(['mixer', 'aux2'], ['delay', 'in'])).toBe(true);
     expect(has(['reverb', 'out'], ['mixer', 'ret1'])).toBe(true);
     expect(has(['delay', 'out'], ['mixer', 'ret2'])).toBe(true);
-    expect((p.device('mixer') as Mixer).returnCount).toBe(2);
+    expect((p.device('mixer') as Mixer).returnCount).toBe(3); // reverb, delay and Ouroboros
   });
 });

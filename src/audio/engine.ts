@@ -132,6 +132,8 @@ export class AudioEngine {
           else if (n.options.curve === 'soft') ws.curve = softCurve();
           else if (n.options.curve === 'limit') ws.curve = limitCurve();
           else if (n.options.curve === 'warm') ws.curve = warmCurve();
+          else if (n.options.curve === 'abs') ws.curve = absCurve();
+          else if (n.options.curve === 'crush') ws.curve = crushCurve(n.params.bits ?? 16);
           ws.oversample = '4x';
           nodes.set(n.id, ws);
           break;
@@ -211,6 +213,10 @@ export class AudioEngine {
         return;
       }
       if (circuit.node(change.nodeId).kind === 'trigger') return; // its params are read when it fires
+      if (node instanceof WaveShaperNode && change.type === 'param' && change.name === 'bits') {
+        node.curve = crushCurve(change.value);
+        return;
+      }
       if (circuit.node(change.nodeId).kind === 'envelope') {
         if (node instanceof ConstantSourceNode && change.type === 'param' && change.name === 'gate') {
           applyEnvelope(ctx, node.offset, circuit.node(change.nodeId).params, change.value > 0);
@@ -357,6 +363,26 @@ function warmCurve(): Float32Array<ArrayBuffer> {
     const x = (i / (size - 1)) * 2 - 1;
     const a = Math.abs(x) * WARM_RANGE;
     curve[i] = Math.sign(x) * (a < knee ? a : knee + (1 - knee) * Math.tanh((a - knee) / (1 - knee)));
+  }
+  return curve;
+}
+
+/** Full-wave rectifier: |x|. */
+function absCurve(): Float32Array<ArrayBuffer> {
+  const size = 1025;
+  const curve = new Float32Array(new ArrayBuffer(size * 4));
+  for (let i = 0; i < size; i++) curve[i] = Math.abs((i / (size - 1)) * 2 - 1);
+  return curve;
+}
+
+/** Quantises to 2^bits levels across -1..1 (16 bits and up is effectively transparent). */
+function crushCurve(bits: number): Float32Array<ArrayBuffer> {
+  const size = 8193;
+  const curve = new Float32Array(new ArrayBuffer(size * 4));
+  const half = Math.pow(2, Math.max(1, Math.min(16, bits))) / 2;
+  for (let i = 0; i < size; i++) {
+    const x = (i / (size - 1)) * 2 - 1;
+    curve[i] = Math.round(x * half) / half;
   }
   return curve;
 }

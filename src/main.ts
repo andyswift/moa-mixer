@@ -1,6 +1,7 @@
 import './ui/style.css';
 import { AudioEngine } from './audio/engine';
 import type { DrumMachine } from './domain/devices/drumMachine';
+import type { OuroborosFx } from './domain/devices/ouroboros';
 import type { PolySynth } from './domain/devices/polySynth';
 import type { DelayFx, ReverbFx } from './domain/devices/sendFx';
 import { DrumSequencer } from './domain/devices/drumSequencer';
@@ -11,6 +12,7 @@ import { MidiMonitor } from './domain/midi/monitor';
 import { WebMidi } from './midi/webMidi';
 import { Patch } from './domain/patch/patch';
 import { renderMidiStrip } from './ui/midiStrip';
+import { renderOuroPanel } from './ui/ouroborosPanel';
 import { renderPolyPanel } from './ui/polyPanel';
 import type { Mixer } from './domain/devices/mixer';
 import { renderDrumPanel } from './ui/drumPanel';
@@ -62,7 +64,9 @@ app.append(renderDrumPanel(drums, sequencer, 'drums', engine));
 
 app.append(renderFxPanel(patch.device<ReverbFx>('reverb'), patch.device<DelayFx>('delay')));
 
-app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay']));
+app.append(renderOuroPanel(patch.device<OuroborosFx>('ouroboros'), 'ouroboros', engine));
+
+app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay', 'Ouroboros'], { C: 'to Ouroboros' }));
 
 // Dev-only handle for poking at the engine from the browser console.
 if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch, sequencer, midi: handleMidiBytes } });

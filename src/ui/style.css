@@ -246,10 +246,10 @@ button.start:disabled { background: #3a3d42; color: #a9adb3; cursor: default; }
 .poly-key { width: 44px; height: 44px; border-radius: 5px; border: 1px solid #8a8e94; background: #d8dbe0; color: #1b1c1e; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 16px; font-weight: 500; }
 .poly-key:focus-visible, .poly-option:focus-visible, .poly-sync:focus-visible { outline: 2px solid #e8e4da; outline-offset: 2px; }
 .poly-options { display: flex; flex-direction: column; gap: 3px; }
-.poly-option { display: flex; align-items: center; gap: 6px; width: 88px; height: 22px; padding: 0 6px; border-radius: 3px; border: 1px solid #3a3d42; background: #25282c; color: #a9adb3; font-family: inherit; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; cursor: pointer; box-sizing: border-box; }
-.poly-option[aria-pressed='true'], .poly-sync[aria-pressed='true'] { background: #2f3338; color: #f1eee6; border-color: #3a8fd6; }
+.poly-option { display: flex; align-items: center; gap: 6px; width: var(--ow, 88px); height: 22px; padding: 0 6px; border-radius: 3px; border: 1px solid #3a3d42; background: #25282c; color: #a9adb3; font-family: inherit; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; cursor: pointer; box-sizing: border-box; }
+.poly-option[aria-pressed='true'], .poly-sync[aria-pressed='true'] { background: #2f3338; color: #f1eee6; border-color: var(--accent, #3a8fd6); }
 .poly-led { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #3a3d42; display: inline-block; }
-.poly-led.on, [aria-pressed='true'] > .poly-led { background: #3a8fd6; box-shadow: 0 0 8px #3a8fd6; }
+.poly-led.on, [aria-pressed='true'] > .poly-led { background: var(--accent, #3a8fd6); box-shadow: 0 0 8px var(--accent, #3a8fd6); }
 .poly-led-big { width: 12px; height: 12px; }
 .poly-led-big.on { box-shadow: 0 0 10px #3a8fd6; }
 .poly-sync { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid #3a3d42; background: #25282c; color: #a9adb3; font-family: inherit; font-size: 14px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; cursor: pointer; flex: none; }
@@ -283,3 +283,43 @@ button.start:disabled { background: #3a3d42; color: #a9adb3; cursor: default; }
 .fx-card { flex: 1 1 0; }
 .fx-card:last-child { flex: 2 1 0; }
 .fx-card-sub { margin-left: auto; font-size: 12px; letter-spacing: 0.16em; color: #a9adb3; text-transform: uppercase; }
+
+/* ---- Ouroboros: a fixed 1440x760 layout, scaled to fit ---- */
+.ouro-wrap { position: relative; width: 100%; margin-bottom: 16px; border-radius: 8px; overflow: hidden; background: #111214; }
+.ouro-panel { --accent: #c45bd6; position: absolute; left: 0; top: 0; width: 1440px; height: 760px; box-sizing: border-box; background: #111214; color: #e8e4da; border-top: 6px solid #c45bd6; overflow: hidden; transform-origin: 0 0; font-family: 'Barlow Condensed', system-ui, sans-serif; }
+.ouro-panel .poly-option { background: #151618; border-color: #4a4e54; }
+.ouro-panel .poly-option[aria-pressed='true'] { background: #2a2c30; }
+.ouro-abs { position: absolute; }
+.ouro-knob { position: absolute; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; background: #111214; padding-bottom: 2px; }
+.ouro-knob-face { position: relative; touch-action: none; cursor: ns-resize; border-radius: 50%; }
+.ouro-knob-face:focus-visible, .ouro-fader-face:focus-visible { outline: 2px solid #e8e4da; outline-offset: 2px; }
+.ouro-knob-face svg { display: block; }
+.ouro-label { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; height: 14px; line-height: 14px; white-space: nowrap; color: #cfcac0; }
+.ouro-value { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; height: 14px; line-height: 14px; color: #e8e4da; white-space: nowrap; }
+.ouro-fader { position: absolute; z-index: 1; width: 56px; display: flex; flex-direction: column; align-items: center; gap: 4px; background: #111214; }
+.ouro-fader-face { position: relative; width: 56px; touch-action: none; cursor: ns-resize; }
+.ouro-toggle { position: absolute; z-index: 1; width: 60px; display: flex; flex-direction: column; align-items: center; gap: 2px; background: #111214; }
+.ouro-toggle button { width: 40px; height: 44px; padding: 0; border: 0; background: transparent; cursor: pointer; display: block; }
+.ouro-toggle button:focus-visible { outline: 2px solid #e8e4da; outline-offset: 2px; }
+.ouro-toggle-text { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; height: 14px; line-height: 14px; }
+.ouro-selector { position: absolute; z-index: 1; background: #111214; }
+.ouro-key { height: 44px; border-radius: 5px; border: 1px solid #8a8e94; background: #d8dbe0; color: #1b1c1e; cursor: pointer; padding: 0; font-family: inherit; font-weight: 700; text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.ouro-key:focus-visible { outline: 2px solid #e8e4da; outline-offset: 2px; }
+.ouro-led { width: 8px; height: 8px; border-radius: 50%; background: #8a8e94; }
+.ouro-display { position: absolute; z-index: 1; background: #050607; border: 1px solid #3a3d42; border-radius: 3px; overflow: hidden; }
+.ouro-display-title { background: #e8e4da; color: #0c0d0e; text-align: center; font-size: 13px; font-weight: 700; letter-spacing: 0.24em; height: 18px; line-height: 18px; }
+.ouro-display-text { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; color: #e8e4da; white-space: pre; text-align: center; height: 18px; line-height: 14px; }
+.ouro-display svg { display: block; }
+.ouro-meter { position: absolute; display: flex; flex-direction: column; gap: 4px; }
+.ouro-meter-row { display: flex; gap: 3px; }
+.ouro-seg { width: 14px; height: 6px; background: #2c3036; }
+.ouro-patch { position: absolute; left: 36px; top: 688px; width: 1368px; height: 62px; box-sizing: border-box; border: 1px solid rgba(207, 202, 192, 0.55); border-radius: 12px; padding: 0 18px; display: flex; align-items: center; gap: 20px; }
+.ouro-patch h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; }
+.ouro-patch-display { width: 280px; height: 44px; box-sizing: border-box; background: #050607; border: 1px solid #3a3d42; border-radius: 3px; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; flex: none; }
+.ouro-preset { width: 44px; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 16px; font-weight: 500; }
+
+/* ---- Bus routing under the bus faders ---- */
+.bus-route { display: flex; flex-direction: column; align-items: stretch; gap: 4px; margin-top: 8px; }
+.bus-tag { min-height: 14px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: transparent; text-align: center; white-space: nowrap; }
+.bus-tag.on { color: #c45bd6; }
+.poly-option span { white-space: nowrap; }
