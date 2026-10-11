@@ -41,12 +41,47 @@ describe('Synthesizer', () => {
   it('gates both envelopes with notes', () => {
     const s = new Synthesizer();
     s.noteOn(220);
-    expect(s.circuit.node('osc').params.frequency).toBe(220);
+    expect(s.circuit.node('pitch').params.offset).toBeCloseTo(-1200); // A3 = one octave below A4
     expect(s.circuit.node('ampEnv').params.gate).toBe(1);
     expect(s.circuit.node('filterEnv').params.gate).toBe(1);
     s.noteOff();
     expect(s.circuit.node('ampEnv').params.gate).toBe(0);
     expect(s.circuit.node('filterEnv').params.gate).toBe(0);
+  });
+
+  it('pitch CV and range feed every oscillator, so the sub tracks', () => {
+    const { cables } = new Synthesizer().circuit;
+    for (const osc of ['sawOsc', 'pulseOsc', 'subOsc']) {
+      expect(cables).toContainEqual({ from: 'pitch', to: osc, port: 'detune' });
+      expect(cables).toContainEqual({ from: 'range', to: osc, port: 'detune' });
+    }
+  });
+
+  it('range, sub mode and pulse width map to CV offsets', () => {
+    const s = new Synthesizer();
+    const choice = (id: string, v: string) => {
+      const c = s.control(id);
+      if (c.kind !== 'choice') throw new Error('expected choice');
+      c.set(v);
+    };
+    choice('osc.range', "4'");
+    choice('osc.sub', '-2');
+    const width = s.control('osc.width');
+    if (width.kind !== 'number') throw new Error('expected number');
+    width.set(25);
+    expect(s.circuit.node('range').params.offset).toBe(1200);
+    expect(s.circuit.node('subShift').params.offset).toBe(-2400);
+    expect(s.circuit.node('pulseWidthCv').params.offset).toBeCloseTo(0.5);
+    width.set(50);
+    expect(s.circuit.node('pulseWidthCv').params.offset).toBeCloseTo(0);
+  });
+
+  it('source mix levels set the mix gains', () => {
+    const s = new Synthesizer();
+    const pulse = s.control('mix.pulse');
+    if (pulse.kind !== 'number') throw new Error('expected number');
+    pulse.set(0.7);
+    expect(s.circuit.node('mix.pulse').params.gain).toBe(0.7);
   });
 
   it('wires ampEnv to the VCA and filterEnv to the filter cutoff', () => {

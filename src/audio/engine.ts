@@ -72,6 +72,29 @@ export class AudioEngine {
           nodes.set(n.id, src);
           break;
         }
+        case 'constant': {
+          // DC source: `offset` is a CV that other nodes can sum into a param (e.g. pitch in cents).
+          const src = ctx.createConstantSource();
+          src.offset.value = n.params.offset ?? 0;
+          src.start();
+          nodes.set(n.id, src);
+          break;
+        }
+        case 'waveshaper': {
+          const ws = ctx.createWaveShaper();
+          if (n.options.curve === 'pulse') ws.curve = pulseCurve();
+          ws.oversample = '4x';
+          nodes.set(n.id, ws);
+          break;
+        }
+        case 'noise': {
+          const src = ctx.createBufferSource();
+          src.buffer = noiseBuffer(ctx);
+          src.loop = true;
+          src.start();
+          nodes.set(n.id, src);
+          break;
+        }
         case 'pan': {
           const p = ctx.createStereoPanner();
           p.pan.value = n.params.pan ?? 0;
@@ -101,8 +124,8 @@ export class AudioEngine {
     circuit.onChange((change) => {
       const node = nodes.get(change.nodeId);
       if (!node) return;
-      if (node instanceof ConstantSourceNode) {
-        if (change.type === 'param' && change.name === 'gate') {
+      if (circuit.node(change.nodeId).kind === 'envelope') {
+        if (node instanceof ConstantSourceNode && change.type === 'param' && change.name === 'gate') {
           applyEnvelope(ctx, node.offset, circuit.node(change.nodeId).params, change.value > 0);
         }
         return;
@@ -148,4 +171,19 @@ function applyEnvelope(
   } else {
     offset.setTargetAtTime(0, t, Math.max(p.release ?? 0.3, MIN_TIME) / 3);
   }
+}
+
+/** Hard-clips to +/-1: a sawtooth plus a DC offset becomes a pulse whose width follows the offset. */
+function pulseCurve(): Float32Array<ArrayBuffer> {
+  const size = 1024;
+  const curve = new Float32Array(new ArrayBuffer(size * 4));
+  for (let i = 0; i < size; i++) curve[i] = i < size / 2 ? -1 : 1;
+  return curve;
+}
+
+function noiseBuffer(ctx: AudioContext): AudioBuffer {
+  const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  return buffer;
 }

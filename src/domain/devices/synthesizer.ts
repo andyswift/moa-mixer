@@ -2,14 +2,18 @@ import { Device } from './device';
 import { ChoiceControl, NumberControl } from './controls';
 import type { Circuit } from '../circuit/circuit';
 
-export const WAVEFORMS = ['sine', 'triangle', 'sawtooth', 'square'] as const;
-
 const CENTS_PER_OCTAVE = 1200;
 
+const A4_HZ = 440;
+const RANGES = { "16'": -1200, "8'": 0, "4'": 1200, "2'": 2400 } as const;
+const SUB_MODES = { '-1': -1200, '-2': -2400 } as const;
+
 /**
- * Monophonic subtractive synth:
- *   oscillator -> filter -> amp (VCA) -> level
- * with two ADSR envelopes: ampEnv drives the VCA, filterEnv sweeps the filter cutoff.
+ * SH-101 style monophonic synth:
+ *   saw + pulse + sub + noise -> source mix -> filter -> amp (VCA) -> level
+ * Pitch is a CV in cents: a hidden `pitch` signal (the played note) and `range` (octave switch)
+ * are both summed into every oscillator's detune, so the sub tracks the keyboard for free.
+ * ampEnv drives the VCA, filterEnv sweeps the filter cutoff.
  */
 export class Synthesizer extends Device {
   readonly name: string;
@@ -18,14 +22,41 @@ export class Synthesizer extends Device {
     super();
     this.name = name;
     const c = this.circuit;
-    c.add('osc', 'oscillator', { frequency: 440, detune: 0 }, { waveform: 'sawtooth' })
+    c.add('pitch', 'constant', { offset: 0 })
+      .add('range', 'constant', { offset: 0 })
+      .add('subShift', 'constant', { offset: SUB_MODES['-1'] })
+      .add('pulseWidthCv', 'constant', { offset: 0 })
+      .add('sawOsc', 'oscillator', { frequency: A4_HZ, detune: 0 }, { waveform: 'sawtooth' })
+      .add('pulseOsc', 'oscillator', { frequency: A4_HZ, detune: 0 }, { waveform: 'sawtooth' })
+      .add('pulseSum', 'gain', { gain: 1 }) // saw + width CV
+      .add('pulseShaper', 'waveshaper', {}, { curve: 'pulse' })
+      .add('subOsc', 'oscillator', { frequency: A4_HZ, detune: 0 }, { waveform: 'square' })
+      .add('noise', 'noise')
+      .add('mix.saw', 'gain', { gain: 0.8 })
+      .add('mix.pulse', 'gain', { gain: 0 })
+      .add('mix.sub', 'gain', { gain: 0.55 })
+      .add('mix.noise', 'gain', { gain: 0.05 })
+      .add('mix', 'gain', { gain: 0.5 })
       .add('filter', 'filter', { frequency: 800, Q: 1, detune: 0 }, { type: 'lowpass' })
       .add('amp', 'gain', { gain: 0 }) // silent until the amp envelope opens it
       .add('level', 'gain', { gain: 0.5 })
       .add('ampEnv', 'envelope', { attack: 0.005, decay: 0.2, sustain: 0.7, release: 0.3, gate: 0 })
       .add('filterEnv', 'envelope', { attack: 0.005, decay: 0.3, sustain: 0.3, release: 0.3, gate: 0 })
-      .add('filterEnvDepth', 'gain', { gain: 2 * CENTS_PER_OCTAVE }) // envelope 0..1 -> cents
-      .connect('osc', 'filter')
+      .add('filterEnvDepth', 'gain', { gain: 2 * CENTS_PER_OCTAVE }); // envelope 0..1 -> cents
+
+    for (const osc of ['sawOsc', 'pulseOsc', 'subOsc']) {
+      c.connect('pitch', osc, 'detune').connect('range', osc, 'detune');
+    }
+    c.connect('subShift', 'subOsc', 'detune')
+      .connect('pulseOsc', 'pulseSum')
+      .connect('pulseWidthCv', 'pulseSum')
+      .connect('pulseSum', 'pulseShaper')
+      .connect('sawOsc', 'mix.saw')
+      .connect('pulseShaper', 'mix.pulse')
+      .connect('subOsc', 'mix.sub')
+      .connect('noise', 'mix.noise');
+    for (const src of ['mix.saw', 'mix.pulse', 'mix.sub', 'mix.noise']) c.connect(src, 'mix');
+    c.connect('mix', 'filter')
       .connect('filter', 'amp')
       .connect('amp', 'level')
       .connect('ampEnv', 'amp', 'gain')
@@ -34,8 +65,17 @@ export class Synthesizer extends Device {
     this.outputList.push({ name: 'out', nodeId: 'level' });
 
     this.controlList.push(
-      new ChoiceControl('waveform', 'Waveform', WAVEFORMS, 'sawtooth', (v) =>
-        c.setOption('osc', 'waveform', v)),
+      new ChoiceControl('osc.range', 'Range', Object.keys(RANGES), "8'", (v) =>
+        c.setParam('range', 'offset', RANGES[v as keyof typeof RANGES])),
+      new NumberControl('osc.width', 'Width', 5, 50, 50, '%', (v) =>
+        // 50% -> offset 0 (square); narrower pulses shift the saw further from zero.
+        c.setParam('pulseWidthCv', 'offset', 1 - (2 * v) / 100)),
+      new ChoiceControl('osc.sub', 'Sub', Object.keys(SUB_MODES), '-1', (v) =>
+        c.setParam('subShift', 'offset', SUB_MODES[v as keyof typeof SUB_MODES])),
+      mixLevel(c, 'saw', 'Saw', 0.8),
+      mixLevel(c, 'pulse', 'Pulse', 0),
+      mixLevel(c, 'sub', 'Sub', 0.55),
+      mixLevel(c, 'noise', 'Noise', 0.05),
       new NumberControl('cutoff', 'Cutoff', 20, 20000, 800, 'Hz', (v) =>
         c.setParam('filter', 'frequency', v), 'log'),
       new NumberControl('resonance', 'Resonance', 0.1, 20, 1, '', (v) => c.setParam('filter', 'Q', v)),
@@ -48,7 +88,7 @@ export class Synthesizer extends Device {
   }
 
   noteOn(hz: number): void {
-    this.circuit.setParam('osc', 'frequency', hz);
+    this.circuit.setParam('pitch', 'offset', CENTS_PER_OCTAVE * Math.log2(hz / A4_HZ));
     this.circuit.setParam('ampEnv', 'gate', 1);
     this.circuit.setParam('filterEnv', 'gate', 1);
   }
@@ -72,4 +112,8 @@ function adsr(
     new NumberControl(`${node}.sustain`, 'Sustain', 0, 1, d.sustain, '', (v) => c.setParam(node, 'sustain', v)),
     time('release', 'Release', 0.005, 10),
   ];
+}
+
+function mixLevel(c: Circuit, name: string, label: string, initial: number): NumberControl {
+  return new NumberControl(`mix.${name}`, label, 0, 1, initial, '', (v) => c.setParam(`mix.${name}`, 'gain', v));
 }
