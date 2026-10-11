@@ -60,6 +60,50 @@ describe('Mixer', () => {
   });
 });
 
+describe('Mixer strip', () => {
+  const toggle = (m: Mixer, id: string) => {
+    const c = m.control(id);
+    if (c.kind !== 'toggle') throw new Error('expected toggle');
+    return c;
+  };
+
+  it('solo silences other channels and restores them', () => {
+    const m = new Mixer(3);
+    toggle(m, 'ch2.solo').set(true);
+    expect(m.circuit.node('ch1.mute').params.gain).toBe(0);
+    expect(m.circuit.node('ch2.mute').params.gain).toBe(1);
+    expect(m.circuit.node('ch3.mute').params.gain).toBe(0);
+    toggle(m, 'ch2.solo').set(false);
+    expect(m.circuit.node('ch1.mute').params.gain).toBe(1);
+  });
+
+  it('mute wins over solo on the same channel', () => {
+    const m = new Mixer(2);
+    toggle(m, 'ch1.solo').set(true);
+    toggle(m, 'ch1.mute').set(true);
+    expect(m.circuit.node('ch1.mute').params.gain).toBe(0);
+  });
+
+  it('low cut toggles the high-pass frequency', () => {
+    const m = new Mixer(1);
+    toggle(m, 'ch1.lowcutOn').set(true);
+    expect(m.circuit.node('ch1.lowcut').params.frequency).toBe(75);
+    toggle(m, 'ch1.lowcutOn').set(false);
+    expect(m.circuit.node('ch1.lowcut').params.frequency).toBe(10);
+  });
+
+  it('EQ gain is limited to +/-15 dB and pan to +/-1', () => {
+    const m = new Mixer(1);
+    const high = m.control('ch1.eqHigh');
+    const pan = m.control('ch1.pan');
+    if (high.kind !== 'number' || pan.kind !== 'number') throw new Error('expected number');
+    high.set(40);
+    pan.set(-5);
+    expect(m.circuit.node('ch1.eqHigh').params.gain).toBe(15);
+    expect(m.circuit.node('ch1.pan').params.pan).toBe(-1);
+  });
+});
+
 describe('Patch', () => {
   it('default patch routes synth to mixer channel 1', () => {
     const p = Patch.default();

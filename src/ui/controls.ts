@@ -55,15 +55,35 @@ export function renderControl(c: Control): HTMLElement {
   return wrap;
 }
 
+function groupTitle(prefix: string): string {
+  const m = /^ch(\d+)$/.exec(prefix);
+  return m ? `Ch ${m[1]}` : prefix.charAt(0).toUpperCase() + prefix.slice(1);
+}
+
 export function renderDevice(device: Device): HTMLElement {
   const section = document.createElement('section');
   section.className = 'device';
   const h = document.createElement('h2');
   h.textContent = device.name;
   section.append(h);
-  const row = document.createElement('div');
-  row.className = 'controls';
-  for (const c of device.controls) row.append(renderControl(c));
-  section.append(row);
+
+  // Controls with ids like "ch1.pan" are grouped under "Ch 1"; others sit in an untitled group.
+  const groups = new Map<string, HTMLElement>();
+  for (const c of device.controls) {
+    const prefix = c.id.includes('.') ? c.id.split('.')[0]! : '';
+    let row = groups.get(prefix);
+    if (!row) {
+      row = document.createElement('div');
+      row.className = 'controls';
+      if (prefix) {
+        const title = document.createElement('h3');
+        title.textContent = groupTitle(prefix);
+        section.append(title);
+      }
+      section.append(row);
+      groups.set(prefix, row);
+    }
+    row.append(renderControl(c));
+  }
   return section;
 }

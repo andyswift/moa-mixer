@@ -13,3 +13,4 @@ button { background: #3b82f6; color: white; border: 0; border-radius: 6px; paddi
 .key.black { background: #111; color: #aaa; }
 .key.active { background: #3b82f6; color: #fff; }
 .hint { color: #9aa4b2; font-size: 0.8rem; }
+.device h3 { font-size: 0.75rem; margin: 16px 0 8px; color: #6b7685; }

@@ -59,7 +59,14 @@ export class AudioEngine {
           f.type = n.options.type as BiquadFilterType;
           f.frequency.value = n.params.frequency ?? 350;
           f.Q.value = n.params.Q ?? 1;
+          f.gain.value = n.params.gain ?? 0;
           nodes.set(n.id, f);
+          break;
+        }
+        case 'pan': {
+          const p = ctx.createStereoPanner();
+          p.pan.value = n.params.pan ?? 0;
+          nodes.set(n.id, p);
           break;
         }
         case 'gain': {
