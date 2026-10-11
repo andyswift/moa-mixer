@@ -9,12 +9,12 @@ export class NumberControl {
     readonly label: string,
     readonly min: number,
     readonly max: number,
-    initial: number,
+    readonly initial: number,
     readonly unit: string,
     private readonly apply: (v: number) => void,
     readonly curve: 'linear' | 'log' = 'linear',
   ) {
-    this.current = clamp(initial, min, max);
+    this.current = clamp(this.initial, min, max);
     this.apply(this.current);
   }
 

@@ -14,3 +14,35 @@ button { background: #3b82f6; color: white; border: 0; border-radius: 6px; paddi
 .key.active { background: #3b82f6; color: #fff; }
 .hint { color: #9aa4b2; font-size: 0.8rem; }
 .device h3 { font-size: 0.75rem; margin: 16px 0 8px; color: #6b7685; }
+
+/* ---- Synth panel ---- */
+#app { max-width: 1440px; }
+.synth-panel { background: linear-gradient(180deg, #2b2e32 0%, #24272a 100%); border-top: 6px solid #e8742c; border-radius: 8px; padding: 24px 28px 28px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 18px; font-family: 'Barlow Condensed', system-ui, sans-serif; }
+.synth-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
+.synth-brand { display: flex; align-items: baseline; gap: 16px; }
+.synth-name { font-size: 44px; font-weight: 700; letter-spacing: 0.06em; line-height: 1; }
+.synth-subtitle { font-size: 15px; font-weight: 500; letter-spacing: 0.32em; color: #a9adb3; text-transform: uppercase; }
+.synth-row { display: flex; flex-wrap: wrap; gap: 14px; }
+.synth-section { min-width: 260px; background: #1f2124; border: 1px solid #3a3d42; border-radius: 6px; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 14px; box-sizing: border-box; }
+.synth-section-head { display: flex; align-items: center; gap: 10px; }
+.synth-section-head h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: #e8e4da; }
+.synth-section-bar { width: 28px; height: 5px; border-radius: 2px; }
+.synth-section-body { display: flex; gap: 6px; flex: 1; }
+.fader-label { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #a9adb3; height: 16px; white-space: nowrap; text-align: center; }
+.fader { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 52px; flex: 1 1 52px; max-width: 64px; }
+.fader-slot { position: relative; width: 44px; height: 140px; touch-action: none; background: repeating-linear-gradient(to bottom, #6b6f75 0 1px, transparent 1px 14px) left top / 7px 100% no-repeat, repeating-linear-gradient(to bottom, #6b6f75 0 1px, transparent 1px 14px) right top / 7px 100% no-repeat; }
+.fader-track { position: absolute; left: 20px; top: 0; width: 4px; height: 140px; border-radius: 2px; background: #0c0d0e; box-shadow: inset 0 0 0 1px #3a3d42; }
+.fader-cap { position: absolute; left: 9px; width: 26px; height: 36px; border-radius: 3px; background: linear-gradient(180deg, #46494e 0%, #1b1c1e 100%); box-shadow: 0 2px 4px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.fader-cap-line { width: 18px; height: 2px; background: #f1eee6; }
+/* Transparent native range, rotated to vertical, over the drawn cap: gives pointer, keyboard and a11y for free. */
+.fader-input { position: absolute; left: 0; top: 140px; width: 140px; height: 44px; margin: 0; transform-origin: 0 0; transform: rotate(-90deg); opacity: 0; cursor: pointer; }
+.fader-input::-webkit-slider-thumb { -webkit-appearance: none; width: 36px; height: 44px; }
+.fader-input::-moz-range-thumb { width: 36px; height: 44px; border: 0; }
+.fader-slot:focus-within .fader-cap { outline: 2px solid #f1eee6; outline-offset: 2px; }
+.fader-value { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; color: #a9adb3; height: 14px; white-space: nowrap; }
+.switch { display: flex; flex-direction: column; gap: 8px; width: 74px; flex: none; }
+.switch-options { display: flex; flex-direction: column; gap: 6px; }
+.switch-option { min-height: 30px; border: 1px solid #464a50; background: #2a2d31; color: #c9ccd1; border-radius: 4px; font-family: inherit; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: capitalize; cursor: pointer; padding: 0 6px; }
+.switch-option[aria-pressed='true'] { color: #16171a; }
+button.start { background: #e8742c; color: #16171a; font-family: 'Barlow Condensed', system-ui, sans-serif; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
+button.start:disabled { background: #3a3d42; color: #a9adb3; cursor: default; }

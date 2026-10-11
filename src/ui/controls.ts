@@ -1,21 +1,21 @@
 import type { Control } from '../domain/devices/controls';
 import type { Device } from '../domain/devices/device';
 
-const STEPS = 1000;
+export const STEPS = 1000;
 
-function toSlider(c: Extract<Control, { kind: 'number' }>): number {
+export function toSlider(c: Extract<Control, { kind: 'number' }>): number {
   const t = c.curve === 'log'
     ? Math.log(c.value / c.min) / Math.log(c.max / c.min)
     : (c.value - c.min) / (c.max - c.min);
   return Math.round(t * STEPS);
 }
 
-function fromSlider(c: Extract<Control, { kind: 'number' }>, s: number): number {
+export function fromSlider(c: Extract<Control, { kind: 'number' }>, s: number): number {
   const t = s / STEPS;
   return c.curve === 'log' ? c.min * Math.pow(c.max / c.min, t) : c.min + t * (c.max - c.min);
 }
 
-function format(c: Extract<Control, { kind: 'number' }>): string {
+export function format(c: Extract<Control, { kind: 'number' }>): string {
   const v = c.value;
   const text = v >= 100 ? v.toFixed(0) : v >= 10 ? v.toFixed(1) : v >= 1 ? v.toFixed(2) : v.toFixed(3);
   return `${text}${c.unit ? ' ' + c.unit : ''}`;
