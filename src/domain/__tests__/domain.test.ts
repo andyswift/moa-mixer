@@ -156,6 +156,66 @@ describe('Synthesizer', () => {
     }
   });
 
+  describe('performance', () => {
+    const record = (s: Synthesizer) => {
+      const events: string[] = [];
+      s.circuit.onChange((ch) => {
+        if (ch.type === 'param') events.push(`${ch.nodeId}.${ch.name}=${Math.round(ch.value * 100) / 100}`);
+      });
+      return events;
+    };
+    const setGlide = (s: Synthesizer, v: number) => {
+      const c = s.control('perf.glide');
+      if (c.kind !== 'number') throw new Error('expected number');
+      c.set(v);
+    };
+
+    it('legato: overlapping notes glide and do not retrigger the envelopes', () => {
+      const s = new Synthesizer();
+      setGlide(s, 0.5);
+      const events = record(s);
+      s.noteOn(220);
+      events.length = 0;
+      s.noteOn(330);
+      expect(events.some((e) => e.startsWith('ampEnv.gate'))).toBe(false);
+      expect(events.some((e) => e.startsWith('filterEnv.gate'))).toBe(false);
+      expect(events.some((e) => e.startsWith('pitch.glide'))).toBe(false); // keeps the glide time
+      expect(events.some((e) => e.startsWith('pitch.offset'))).toBe(true);
+    });
+
+    it('retrig: overlapping notes retrigger the envelopes', () => {
+      const s = new Synthesizer();
+      const mode = s.control('perf.notes');
+      if (mode.kind !== 'choice') throw new Error('expected choice');
+      mode.set('retrig');
+      s.noteOn(220);
+      const events = record(s);
+      s.noteOn(330);
+      expect(events).toContain('ampEnv.gate=1');
+      expect(events).toContain('filterEnv.gate=1');
+    });
+
+    it('a note from silence jumps to pitch (glide off for that change, then restored)', () => {
+      const s = new Synthesizer();
+      setGlide(s, 0.5);
+      const events = record(s);
+      s.noteOn(220);
+      const iOff = events.findIndex((e) => e.startsWith('pitch.offset'));
+      expect(events.slice(0, iOff)).toContain('pitch.glide=0');
+      expect(events.slice(iOff + 1)).toContain('pitch.glide=0.5');
+      expect(s.circuit.node('pitch').params.glide).toBe(0.5);
+    });
+
+    it('after noteOff the next note retriggers and jumps again', () => {
+      const s = new Synthesizer();
+      s.noteOn(220);
+      s.noteOff();
+      const events = record(s);
+      s.noteOn(330);
+      expect(events).toContain('ampEnv.gate=1');
+    });
+  });
+
   it('wires ampEnv to the VCA and filterEnv to the filter cutoff', () => {
     const { cables } = new Synthesizer().circuit;
     expect(cables).toContainEqual({ from: 'ampEnv', to: 'amp', port: 'gain' });

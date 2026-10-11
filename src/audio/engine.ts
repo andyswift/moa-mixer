@@ -152,7 +152,7 @@ export class AudioEngine {
         return;
       }
       const param = audioParam(node, change.name);
-      param?.setTargetAtTime(change.value, ctx.currentTime, SMOOTHING);
+      param?.setTargetAtTime(change.value, ctx.currentTime, timeConstant(circuit, change.nodeId, change.name));
     });
 
     return nodes;
@@ -213,4 +213,13 @@ function stepBuffer(ctx: AudioContext): AudioBuffer {
   const data = buffer.getChannelData(0);
   for (let i = 0; i < STEPS; i++) data.fill(Math.random() * 2 - 1, i * perStep, (i + 1) * perStep);
   return buffer;
+}
+
+/** A constant source with a `glide` param slides to new offsets over that many seconds (portamento). */
+function timeConstant(circuit: Circuit, nodeId: string, param: string): number {
+  const node = circuit.node(nodeId);
+  if (node.kind === 'constant' && param === 'offset' && node.params.glide) {
+    return Math.max(node.params.glide / 3, SMOOTHING); // ~95% of the way after 3 time constants
+  }
+  return SMOOTHING;
 }

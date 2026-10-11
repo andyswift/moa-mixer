@@ -6,6 +6,7 @@ const CENTS_PER_OCTAVE = 1200;
 
 const A4_HZ = 440;
 const LFO_DEFAULT_HZ = 4.8;
+const NOTE_MODES = ['legato', 'retrig'] as const;
 const LFO_WAVES = ['tri', 'sqr', 'rnd'] as const;
 const RANGES = { "16'": -1200, "8'": 0, "4'": 1200, "2'": 2400 } as const;
 const SUB_MODES = { '-1': -1200, '-2': -2400 } as const;
@@ -19,12 +20,15 @@ const SUB_MODES = { '-1': -1200, '-2': -2400 } as const;
  */
 export class Synthesizer extends Device {
   readonly name: string;
+  private gateOpen = false;
+  private glideSeconds = 0;
+  private retrigger = false;
 
   constructor(name = 'Synth') {
     super();
     this.name = name;
     const c = this.circuit;
-    c.add('pitch', 'constant', { offset: 0 })
+    c.add('pitch', 'constant', { offset: 0, glide: 0 })
       .add('range', 'constant', { offset: 0 })
       .add('subShift', 'constant', { offset: SUB_MODES['-1'] })
       .add('pulseWidthCv', 'constant', { offset: 0 })
@@ -111,6 +115,13 @@ export class Synthesizer extends Device {
       }, 'log'),
       new NumberControl('filter.resonance', 'Resonance', 0.1, 20, 1, '', (v) => c.setParam('filter1', 'Q', v)),
       new NumberControl('filter.keyFollow', 'Key', 0, 100, 50, '%', (v) => c.setParam('keyFollow', 'gain', v / 100)),
+      new NumberControl('perf.glide', 'Glide', 0, 3, 0, 's', (v) => {
+        this.glideSeconds = v;
+        c.setParam('pitch', 'glide', v);
+      }),
+      new ChoiceControl('perf.notes', 'Notes', NOTE_MODES, 'legato', (v) => {
+        this.retrigger = v === 'retrig';
+      }),
       new ChoiceControl('lfo.wave', 'Wave', LFO_WAVES, 'tri', (v) => {
         c.setOption('lfoOsc', 'waveform', v === 'sqr' ? 'square' : 'triangle');
         c.setParam('lfoOscOut', 'gain', v === 'rnd' ? 0 : 1);
@@ -131,15 +142,29 @@ export class Synthesizer extends Device {
     );
   }
 
+  /**
+   * Plays a note. A note that starts while another is still held is "overlapping": the pitch
+   * glides to it, and in legato mode the envelopes are not retriggered. A note from silence
+   * always jumps straight to pitch.
+   */
   noteOn(hz: number): void {
+    const overlapping = this.gateOpen;
+    const glide = this.glideSeconds;
+    if (!overlapping) this.circuit.setParam('pitch', 'glide', 0);
     this.circuit.setParam('pitch', 'offset', CENTS_PER_OCTAVE * Math.log2(hz / A4_HZ));
-    this.circuit.setParam('ampEnv', 'gate', 1);
-    this.circuit.setParam('filterEnv', 'gate', 1);
+    if (!overlapping) this.circuit.setParam('pitch', 'glide', glide);
+
+    if (!overlapping || this.retrigger) {
+      this.circuit.setParam('ampEnv', 'gate', 1);
+      this.circuit.setParam('filterEnv', 'gate', 1);
+    }
+    this.gateOpen = true;
   }
 
   noteOff(): void {
     this.circuit.setParam('ampEnv', 'gate', 0);
     this.circuit.setParam('filterEnv', 'gate', 0);
+    this.gateOpen = false;
   }
 }
 
