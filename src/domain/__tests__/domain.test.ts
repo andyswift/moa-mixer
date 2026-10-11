@@ -31,11 +31,12 @@ describe('Circuit', () => {
 describe('Synthesizer', () => {
   it('maps controls to circuit params and clamps', () => {
     const s = new Synthesizer();
-    const cutoff = s.control('cutoff');
+    const cutoff = s.control('filter.cutoff');
     if (cutoff.kind !== 'number') throw new Error('expected number');
     cutoff.set(999999);
     expect(cutoff.value).toBe(20000);
-    expect(s.circuit.node('filter').params.frequency).toBe(20000);
+    expect(s.circuit.node('filter1').params.frequency).toBe(20000);
+    expect(s.circuit.node('filter2').params.frequency).toBe(20000);
   });
 
   it('gates both envelopes with notes', () => {
@@ -84,11 +85,37 @@ describe('Synthesizer', () => {
     expect(s.circuit.node('mix.pulse').params.gain).toBe(0.7);
   });
 
+  it('is a 24 dB filter: two low-pass stages in series, resonance on the first', () => {
+    const s = new Synthesizer();
+    expect(s.circuit.cables).toContainEqual({ from: 'filter1', to: 'filter2', port: 'in' });
+    expect(s.circuit.node('filter1').options.type).toBe('lowpass');
+    expect(s.circuit.node('filter2').options.type).toBe('lowpass');
+    const res = s.control('filter.resonance');
+    if (res.kind !== 'number') throw new Error('expected number');
+    res.set(12);
+    expect(s.circuit.node('filter1').params.Q).toBe(12);
+    expect(s.circuit.node('filter2').params.Q).toBe(0.707);
+  });
+
+  it('key follow scales the pitch CV into both filter stages', () => {
+    const s = new Synthesizer();
+    const key = s.control('filter.keyFollow');
+    if (key.kind !== 'number') throw new Error('expected number');
+    key.set(100);
+    expect(s.circuit.node('keyFollow').params.gain).toBe(1);
+    expect(s.circuit.cables).toContainEqual({ from: 'pitch', to: 'keyFollow', port: 'in' });
+    for (const f of ['filter1', 'filter2']) {
+      expect(s.circuit.cables).toContainEqual({ from: 'keyFollow', to: f, port: 'detune' });
+    }
+  });
+
   it('wires ampEnv to the VCA and filterEnv to the filter cutoff', () => {
     const { cables } = new Synthesizer().circuit;
     expect(cables).toContainEqual({ from: 'ampEnv', to: 'amp', port: 'gain' });
     expect(cables).toContainEqual({ from: 'filterEnv', to: 'filterEnvDepth', port: 'in' });
-    expect(cables).toContainEqual({ from: 'filterEnvDepth', to: 'filter', port: 'detune' });
+    for (const f of ['filter1', 'filter2']) {
+      expect(cables).toContainEqual({ from: 'filterEnvDepth', to: f, port: 'detune' });
+    }
   });
 
   it('envelope controls set ADSR params; amount is in octaves (cents internally)', () => {

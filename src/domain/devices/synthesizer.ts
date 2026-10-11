@@ -13,7 +13,7 @@ const SUB_MODES = { '-1': -1200, '-2': -2400 } as const;
  *   saw + pulse + sub + noise -> source mix -> filter -> amp (VCA) -> level
  * Pitch is a CV in cents: a hidden `pitch` signal (the played note) and `range` (octave switch)
  * are both summed into every oscillator's detune, so the sub tracks the keyboard for free.
- * ampEnv drives the VCA, filterEnv sweeps the filter cutoff.
+ * ampEnv drives the VCA, filterEnv sweeps the filter cutoff (and the keyboard follows it via keyFollow).
  */
 export class Synthesizer extends Device {
   readonly name: string;
@@ -37,7 +37,10 @@ export class Synthesizer extends Device {
       .add('mix.sub', 'gain', { gain: 0.55 })
       .add('mix.noise', 'gain', { gain: 0.05 })
       .add('mix', 'gain', { gain: 0.5 })
-      .add('filter', 'filter', { frequency: 800, Q: 1, detune: 0 }, { type: 'lowpass' })
+      // 24 dB/oct low-pass: two 12 dB stages in series. Resonance lives on the first stage.
+      .add('filter1', 'filter', { frequency: 800, Q: 1, detune: 0 }, { type: 'lowpass' })
+      .add('filter2', 'filter', { frequency: 800, Q: 0.707, detune: 0 }, { type: 'lowpass' })
+      .add('keyFollow', 'gain', { gain: 0.5 }) // pitch CV scaled: 1 = cutoff tracks the keyboard 1:1
       .add('amp', 'gain', { gain: 0 }) // silent until the amp envelope opens it
       .add('level', 'gain', { gain: 0.5 })
       .add('ampEnv', 'envelope', { attack: 0.005, decay: 0.2, sustain: 0.7, release: 0.3, gate: 0 })
@@ -56,12 +59,16 @@ export class Synthesizer extends Device {
       .connect('subOsc', 'mix.sub')
       .connect('noise', 'mix.noise');
     for (const src of ['mix.saw', 'mix.pulse', 'mix.sub', 'mix.noise']) c.connect(src, 'mix');
-    c.connect('mix', 'filter')
-      .connect('filter', 'amp')
+    c.connect('mix', 'filter1')
+      .connect('filter1', 'filter2')
+      .connect('filter2', 'amp')
       .connect('amp', 'level')
       .connect('ampEnv', 'amp', 'gain')
       .connect('filterEnv', 'filterEnvDepth')
-      .connect('filterEnvDepth', 'filter', 'detune');
+      .connect('pitch', 'keyFollow');
+    for (const f of ['filter1', 'filter2']) {
+      c.connect('filterEnvDepth', f, 'detune').connect('keyFollow', f, 'detune');
+    }
     this.outputList.push({ name: 'out', nodeId: 'level' });
 
     this.controlList.push(
@@ -76,9 +83,12 @@ export class Synthesizer extends Device {
       mixLevel(c, 'pulse', 'Pulse', 0),
       mixLevel(c, 'sub', 'Sub', 0.55),
       mixLevel(c, 'noise', 'Noise', 0.05),
-      new NumberControl('cutoff', 'Cutoff', 20, 20000, 800, 'Hz', (v) =>
-        c.setParam('filter', 'frequency', v), 'log'),
-      new NumberControl('resonance', 'Resonance', 0.1, 20, 1, '', (v) => c.setParam('filter', 'Q', v)),
+      new NumberControl('filter.cutoff', 'Cutoff', 20, 20000, 800, 'Hz', (v) => {
+        c.setParam('filter1', 'frequency', v);
+        c.setParam('filter2', 'frequency', v);
+      }, 'log'),
+      new NumberControl('filter.resonance', 'Resonance', 0.1, 20, 1, '', (v) => c.setParam('filter1', 'Q', v)),
+      new NumberControl('filter.keyFollow', 'Key', 0, 100, 50, '%', (v) => c.setParam('keyFollow', 'gain', v / 100)),
       new NumberControl('level', 'Level', 0, 1, 0.5, '', (v) => c.setParam('level', 'gain', v)),
       new NumberControl('filterEnv.amount', 'Amount', 0, 6, 2, 'oct', (v) =>
         c.setParam('filterEnvDepth', 'gain', v * CENTS_PER_OCTAVE)),
