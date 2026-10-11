@@ -6,6 +6,7 @@ const SMOOTHING = 0.01; // seconds; avoids zipper noise on param changes
 /** Compiles a Patch into Web Audio nodes and keeps them in sync with domain state. */
 export class AudioEngine {
   private ctx?: AudioContext;
+  private readonly meters = new Map<string, { analyser: AnalyserNode; buffer: Float32Array<ArrayBuffer> }>();
 
   constructor(private readonly patch: Patch) {}
 
@@ -18,11 +19,21 @@ export class AudioEngine {
     await this.ctx?.suspend();
   }
 
+  /** Peak level (linear, 0..1+) of a meter node over the last few milliseconds; 0 until audio starts. */
+  readLevel(deviceId: string, nodeId: string): number {
+    const m = this.meters.get(`${deviceId}/${nodeId}`);
+    if (!m) return 0;
+    m.analyser.getFloatTimeDomainData(m.buffer);
+    let peak = 0;
+    for (const v of m.buffer) peak = Math.max(peak, Math.abs(v));
+    return peak;
+  }
+
   private build(ctx: AudioContext): void {
     this.ctx = ctx;
     const compiled = new Map<string, Map<string, AudioNode>>();
     for (const [id, device] of this.patch.devices) {
-      compiled.set(id, this.compileCircuit(ctx, device.circuit));
+      compiled.set(id, this.compileCircuit(ctx, id, device.circuit));
     }
 
     const jackNode = (d: string, dir: 'in' | 'out', j: string): AudioNode => {
@@ -41,7 +52,7 @@ export class AudioEngine {
     }
   }
 
-  private compileCircuit(ctx: AudioContext, circuit: Circuit): Map<string, AudioNode> {
+  private compileCircuit(ctx: AudioContext, deviceId: string, circuit: Circuit): Map<string, AudioNode> {
     const nodes = new Map<string, AudioNode>();
     for (const n of circuit.nodes.values()) {
       switch (n.kind) {
@@ -102,6 +113,23 @@ export class AudioEngine {
           src.playbackRate.value = (n.params.rate ?? 4) / STEP_SECONDS_INV;
           src.start();
           nodes.set(n.id, src);
+          break;
+        }
+        case 'meter': {
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 1024;
+          const channel = n.options.channel ?? 'mono';
+          if (channel === 'mono') {
+            nodes.set(n.id, analyser);
+          } else {
+            const split = ctx.createChannelSplitter(2);
+            split.connect(analyser, channel === 'left' ? 0 : 1);
+            nodes.set(n.id, split);
+          }
+          this.meters.set(`${deviceId}/${n.id}`, {
+            analyser,
+            buffer: new Float32Array(new ArrayBuffer(analyser.fftSize * 4)),
+          });
           break;
         }
         case 'pan': {

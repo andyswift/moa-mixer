@@ -320,6 +320,88 @@ describe('Mixer strip', () => {
   });
 });
 
+describe('Mixer routing', () => {
+  const toggle = (m: Mixer, id: string) => {
+    const c = m.control(id);
+    if (c.kind !== 'toggle') throw new Error('expected toggle');
+    return c;
+  };
+  const number = (m: Mixer, id: string) => {
+    const c = m.control(id);
+    if (c.kind !== 'number') throw new Error('expected number');
+    return c;
+  };
+
+  it('has three stereo buses, six aux buses and a main sum', () => {
+    const m = new Mixer(1);
+    expect(m.outputs.map((o) => o.name)).toEqual(
+      ['main', 'busA', 'busB', 'busC', 'aux1', 'aux2', 'aux3', 'aux4', 'aux5', 'aux6'],
+    );
+    for (const b of ['A', 'B', 'C']) {
+      expect(m.circuit.cables).toContainEqual({ from: `bus${b}`, to: 'main', port: 'in' });
+    }
+  });
+
+  it('bus assigns are independent per bus (default: A only)', () => {
+    const m = new Mixer(1);
+    expect(m.circuit.node('ch1.assignA').params.gain).toBe(1);
+    expect(m.circuit.node('ch1.assignB').params.gain).toBe(0);
+    toggle(m, 'ch1.busB').set(true);
+    toggle(m, 'ch1.busA').set(false);
+    expect(m.circuit.node('ch1.assignA').params.gain).toBe(0);
+    expect(m.circuit.node('ch1.assignB').params.gain).toBe(1);
+    expect(m.circuit.node('ch1.assignC').params.gain).toBe(0);
+  });
+
+  it('aux send levels reach their own aux bus; all six exist', () => {
+    const m = new Mixer(1);
+    number(m, 'ch1.aux4').set(0.6);
+    expect(m.circuit.node('ch1.aux4').params.gain).toBe(0.6);
+    for (let k = 1; k <= 6; k++) {
+      expect(m.circuit.cables).toContainEqual({ from: `ch1.aux${k}`, to: `aux${k}`, port: 'in' });
+    }
+  });
+
+  it('pre/post switches a pair: pre taps before the fader, post after it', () => {
+    const m = new Mixer(1);
+    const { cables } = m.circuit;
+    expect(cables).toContainEqual({ from: 'ch1.mute', to: 'ch1.aux1.pre', port: 'in' });
+    expect(cables).toContainEqual({ from: 'ch1.fader', to: 'ch1.aux1.post', port: 'in' });
+    // default: post
+    expect(m.circuit.node('ch1.aux3.pre').params.gain).toBe(0);
+    expect(m.circuit.node('ch1.aux3.post').params.gain).toBe(1);
+    toggle(m, 'ch1.auxPre34').set(true);
+    for (const k of [3, 4]) {
+      expect(m.circuit.node(`ch1.aux${k}.pre`).params.gain).toBe(1);
+      expect(m.circuit.node(`ch1.aux${k}.post`).params.gain).toBe(0);
+    }
+    // other pairs untouched
+    expect(m.circuit.node('ch1.aux1.pre').params.gain).toBe(0);
+    expect(m.circuit.node('ch1.aux5.post').params.gain).toBe(1);
+  });
+
+  it('mute gates before the aux taps, so muting silences the sends too', () => {
+    const m = new Mixer(1);
+    toggle(m, 'ch1.mute').set(true);
+    expect(m.circuit.node('ch1.mute').params.gain).toBe(0);
+    expect(m.circuit.cables).toContainEqual({ from: 'ch1.eqHigh', to: 'ch1.mute', port: 'in' });
+  });
+
+  it('exposes meters for the strip and for each bus (L and R)', () => {
+    const m = new Mixer(1);
+    const names = m.meters.map((x) => x.name);
+    expect(names).toContain('ch1');
+    for (const b of ['A', 'B', 'C']) expect(names).toEqual(expect.arrayContaining([`bus${b}.L`, `bus${b}.R`]));
+  });
+
+  it('reports solo active', () => {
+    const m = new Mixer(2);
+    expect(m.soloActive).toBe(false);
+    toggle(m, 'ch2.solo').set(true);
+    expect(m.soloActive).toBe(true);
+  });
+});
+
 describe('Patch', () => {
   it('default patch routes synth to mixer channel 1', () => {
     const p = Patch.default();

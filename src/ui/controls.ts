@@ -92,3 +92,10 @@ export function renderDevice(device: Device): HTMLElement {
   }
   return section;
 }
+
+/** Shorter readout for small knobs: at most two decimals. */
+export function formatCompact(c: Extract<Control, { kind: 'number' }>): string {
+  const v = c.value;
+  const text = Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
+  return `${text}${c.unit ? ' ' + c.unit : ''}`;
+}

@@ -1,9 +1,6 @@
 import type { ChoiceControl, NumberControl, ToggleControl } from '../domain/devices/controls';
 import type { Device } from '../domain/devices/device';
-import { STEPS, format, fromSlider, toSlider } from './controls';
-
-const SLOT_HEIGHT = 140;
-const CAP_HEIGHT = 36;
+import { el, renderFader } from './widgets';
 
 const PINK = '#d9628a';
 const GREEN = '#4fb286';
@@ -55,62 +52,10 @@ function adsr(prefix: string): FaderSpec[] {
   ];
 }
 
-function el<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  className?: string,
-  text?: string,
-): HTMLElementTagNameMap[K] {
-  const e = document.createElement(tag);
-  if (className) e.className = className;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
-
 function numberControl(device: Device, id: string): NumberControl {
   const c = device.control(id);
   if (c.kind !== 'number') throw new Error(`${id} is not a number control`);
   return c;
-}
-
-/** Vertical fader: a transparent native range input (pointer, keyboard, a11y) over a drawn cap. */
-function renderFader(c: NumberControl, section: string, label: string): HTMLElement {
-  const wrap = el('div', 'fader');
-  wrap.append(el('div', 'fader-label', label));
-
-  const slot = el('div', 'fader-slot');
-  slot.append(el('div', 'fader-track'));
-  const cap = el('div', 'fader-cap');
-  cap.append(el('span', 'fader-cap-line'));
-  slot.append(cap);
-
-  const input = el('input', 'fader-input');
-  input.type = 'range';
-  input.min = '0';
-  input.max = String(STEPS);
-  input.setAttribute('aria-label', `${section} ${c.label}`);
-  slot.append(input);
-
-  const readout = el('div', 'fader-value');
-
-  const sync = () => {
-    input.value = String(toSlider(c));
-    const t = Number(input.value) / STEPS;
-    cap.style.top = `${Math.round((1 - t) * (SLOT_HEIGHT - CAP_HEIGHT))}px`;
-    readout.textContent = format(c);
-    input.setAttribute('aria-valuetext', readout.textContent);
-  };
-  input.addEventListener('input', () => {
-    c.set(fromSlider(c, Number(input.value)));
-    sync();
-  });
-  slot.addEventListener('dblclick', () => {
-    c.set(c.initial);
-    sync();
-  });
-  sync();
-
-  wrap.append(slot, readout);
-  return wrap;
 }
 
 function renderChoice(c: ChoiceControl, color: string): HTMLElement {

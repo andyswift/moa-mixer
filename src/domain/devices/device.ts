@@ -13,6 +13,7 @@ export abstract class Device {
   protected readonly controlList: Control[] = [];
   protected readonly inputList: Jack[] = [];
   protected readonly outputList: Jack[] = [];
+  protected readonly meterList: Jack[] = [];
 
   get controls(): readonly Control[] {
     return this.controlList;
@@ -22,6 +23,11 @@ export abstract class Device {
   }
   get outputs(): readonly Jack[] {
     return this.outputList;
+  }
+
+  /** Level meters on this device: name -> meter node. */
+  get meters(): readonly Jack[] {
+    return this.meterList;
   }
 
   control(id: string): Control {

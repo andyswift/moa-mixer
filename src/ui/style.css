@@ -46,3 +46,55 @@ button { background: #3b82f6; color: white; border: 0; border-radius: 6px; paddi
 .switch-option[aria-pressed='true'] { color: #16171a; }
 button.start { background: #e8742c; color: #16171a; font-family: 'Barlow Condensed', system-ui, sans-serif; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
 button.start:disabled { background: #3a3d42; color: #a9adb3; cursor: default; }
+
+/* ---- Fader variants (heights come from CSS variables so the synth and mixer share one component) ---- */
+.fader-slot { height: var(--slot-h, 140px); background: repeating-linear-gradient(to bottom, #6b6f75 0 1px, transparent 1px var(--tick, 14px)) left top / 7px 100% no-repeat, repeating-linear-gradient(to bottom, #6b6f75 0 1px, transparent 1px var(--tick, 14px)) right top / 7px 100% no-repeat; }
+.fader-track { height: var(--slot-h, 140px); }
+.fader-cap { height: var(--cap-h, 36px); }
+.fader-input { top: var(--slot-h, 140px); width: var(--slot-h, 140px); }
+.fader-input::-webkit-slider-thumb { width: var(--cap-h, 36px); }
+.fader-input::-moz-range-thumb { width: var(--cap-h, 36px); }
+.fader-unity { position: absolute; left: 2px; width: 40px; height: 1px; background: #e8e4da; pointer-events: none; }
+
+/* ---- Mixer panel ---- */
+.mix-panel { background: linear-gradient(180deg, #2b2e32 0%, #24272a 100%); border-top: 6px solid #4fb286; border-radius: 8px; padding: 24px 28px 28px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 18px; font-family: 'Barlow Condensed', system-ui, sans-serif; }
+.mix-brand { display: flex; align-items: baseline; gap: 18px; }
+.mix-name { font-size: 44px; font-weight: 700; letter-spacing: 0.06em; line-height: 1; }
+.mix-subtitle { font-size: 15px; font-weight: 500; letter-spacing: 0.32em; color: #a9adb3; text-transform: uppercase; }
+.mix-body { display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch; }
+.mix-strips { display: flex; gap: 4px; }
+.mix-strip { width: 118px; box-sizing: border-box; padding: 10px 8px; background: #1f2124; border: 1px solid #3a3d42; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; }
+.mix-strip-head { display: flex; flex-direction: column; align-items: center; gap: 2px; height: 36px; }
+.mix-strip-head h2 { margin: 0; font-size: 26px; font-weight: 700; line-height: 1; color: #e8e4da; }
+.mix-strip-name { font-size: 11px; letter-spacing: 0.2em; color: #a9adb3; text-transform: uppercase; }
+.mix-group { display: flex; flex-direction: column; gap: 6px; }
+.mix-group-grow { flex: 1; }
+.mix-heading { display: flex; align-items: center; gap: 6px; }
+.mix-heading-bar { width: 14px; height: 4px; border-radius: 2px; }
+.mix-heading h3 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: #e8e4da; }
+.mix-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 8px; column-gap: 4px; }
+.mix-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 12px; column-gap: 14px; }
+.mix-row { display: flex; gap: 4px; }
+.aux-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 3px; }
+.knob-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.knob-label { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; color: #a9adb3; text-transform: uppercase; white-space: nowrap; }
+.knob { position: relative; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #4a4d52, #1b1c1e 70%); box-shadow: 0 2px 4px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.15); touch-action: none; cursor: ns-resize; }
+.knob:focus-visible { outline: 2px solid #f1eee6; outline-offset: 2px; }
+.knob-pointer { position: absolute; inset: 0; }
+.knob-pointer::after { content: ''; position: absolute; left: calc(50% - 1px); top: 4px; width: 2px; height: 32%; background: #f1eee6; border-radius: 1px; }
+.knob-value { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 10px; color: #a9adb3; white-space: nowrap; }
+.btn { flex: 1; height: 30px; padding: 0 4px; border: 1px solid #464a50; background: #2a2d31; color: #c9ccd1; border-radius: 4px; font-family: inherit; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; }
+.btn[aria-pressed='true'] { color: #16171a; }
+.btn-wide { flex: none; width: 100%; font-size: 13px; }
+.btn-small { flex: none; width: 32px; height: 26px; font-size: 12px; padding: 0; }
+.mix-fader-row { display: flex; align-items: flex-start; justify-content: center; gap: 6px; margin-top: auto; }
+.meter { position: relative; width: 10px; background: linear-gradient(to top, #3fa36b 0%, #3fa36b 62%, #d8b43a 62%, #d8b43a 84%, #e0524a 84%, #e0524a 100%); }
+.meter-mask { position: absolute; left: 0; right: 0; top: 0; background: #141517; }
+.meter-grid { position: absolute; inset: 0; background: repeating-linear-gradient(to bottom, transparent 0 4px, #141517 4px 6px); }
+.meter-pair { display: flex; gap: 3px; }
+.mix-master { flex: 0 1 560px; min-width: 360px; box-sizing: border-box; background: #1f2124; border: 1px solid #3a3d42; border-radius: 6px; padding: 14px 18px 12px; display: flex; flex-direction: column; gap: 18px; }
+.bus-row { display: flex; gap: 20px; justify-content: space-around; }
+.solo-led { display: inline-flex; align-items: center; gap: 10px; height: 36px; padding: 0 16px; border: 1px solid #464a50; border-radius: 4px; background: #2a2d31; font-size: 15px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #a9adb3; align-self: flex-start; }
+.solo-led-dot { width: 12px; height: 12px; border-radius: 50%; background: #4a4018; }
+.solo-led.on { color: #e8e4da; }
+.solo-led.on .solo-led-dot { background: #dcb43c; box-shadow: 0 0 10px #dcb43c; }
