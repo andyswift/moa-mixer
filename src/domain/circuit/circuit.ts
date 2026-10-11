@@ -1,7 +1,8 @@
 // Internal signal graph. Audio and CV are the same thing here: a cable carries "voltage".
 // Not exported to the UI layer — devices wrap a Circuit and expose controls instead.
 
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'constant' | 'waveshaper' | 'noise';
+// 'random' is a sample-and-hold source: a new random value in -1..1 `rate` times per second.
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'constant' | 'waveshaper' | 'noise' | 'random';
 
 export interface CircuitNode {
   readonly id: string;

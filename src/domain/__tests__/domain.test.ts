@@ -109,6 +109,53 @@ describe('Synthesizer', () => {
     }
   });
 
+  it('LFO wave switch selects the oscillator shape or the sample-and-hold source', () => {
+    const s = new Synthesizer();
+    const wave = s.control('lfo.wave');
+    if (wave.kind !== 'choice') throw new Error('expected choice');
+    wave.set('sqr');
+    expect(s.circuit.node('lfoOsc').options.waveform).toBe('square');
+    expect(s.circuit.node('lfoOscOut').params.gain).toBe(1);
+    wave.set('rnd');
+    expect(s.circuit.node('lfoOscOut').params.gain).toBe(0);
+    expect(s.circuit.node('lfoRndOut').params.gain).toBe(1);
+    wave.set('tri');
+    expect(s.circuit.node('lfoOsc').options.waveform).toBe('triangle');
+    expect(s.circuit.node('lfoRndOut').params.gain).toBe(0);
+  });
+
+  it('LFO rate drives both LFO sources', () => {
+    const s = new Synthesizer();
+    const rate = s.control('lfo.rate');
+    if (rate.kind !== 'number') throw new Error('expected number');
+    rate.set(10);
+    expect(s.circuit.node('lfoOsc').params.frequency).toBe(10);
+    expect(s.circuit.node('lfoRnd').params.rate).toBe(10);
+  });
+
+  it('LFO amounts reach pitch, pulse width and both filter stages', () => {
+    const s = new Synthesizer();
+    const set = (id: string, v: number) => {
+      const c = s.control(id);
+      if (c.kind !== 'number') throw new Error('expected number');
+      c.set(v);
+    };
+    set('osc.mod', 100);
+    set('osc.pwm', 50);
+    set('filter.lfo', 2);
+    expect(s.circuit.node('lfoPitch').params.gain).toBe(100);
+    expect(s.circuit.node('lfoPw').params.gain).toBeCloseTo(0.45);
+    expect(s.circuit.node('lfoFilter').params.gain).toBe(2400);
+    const { cables } = s.circuit;
+    for (const osc of ['sawOsc', 'pulseOsc', 'subOsc']) {
+      expect(cables).toContainEqual({ from: 'lfoPitch', to: osc, port: 'detune' });
+    }
+    expect(cables).toContainEqual({ from: 'lfoPw', to: 'pulseSum', port: 'in' });
+    for (const f of ['filter1', 'filter2']) {
+      expect(cables).toContainEqual({ from: 'lfoFilter', to: f, port: 'detune' });
+    }
+  });
+
   it('wires ampEnv to the VCA and filterEnv to the filter cutoff', () => {
     const { cables } = new Synthesizer().circuit;
     expect(cables).toContainEqual({ from: 'ampEnv', to: 'amp', port: 'gain' });

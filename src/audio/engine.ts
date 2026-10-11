@@ -95,6 +95,15 @@ export class AudioEngine {
           nodes.set(n.id, src);
           break;
         }
+        case 'random': {
+          const src = ctx.createBufferSource();
+          src.buffer = stepBuffer(ctx);
+          src.loop = true;
+          src.playbackRate.value = (n.params.rate ?? 4) / STEP_SECONDS_INV;
+          src.start();
+          nodes.set(n.id, src);
+          break;
+        }
         case 'pan': {
           const p = ctx.createStereoPanner();
           p.pan.value = n.params.pan ?? 0;
@@ -128,6 +137,10 @@ export class AudioEngine {
         if (node instanceof ConstantSourceNode && change.type === 'param' && change.name === 'gate') {
           applyEnvelope(ctx, node.offset, circuit.node(change.nodeId).params, change.value > 0);
         }
+        return;
+      }
+      if (node instanceof AudioBufferSourceNode && change.type === 'param' && change.name === 'rate') {
+        node.playbackRate.setTargetAtTime(change.value / STEP_SECONDS_INV, ctx.currentTime, SMOOTHING);
         return;
       }
       if (change.type === 'option') {
@@ -185,5 +198,19 @@ function noiseBuffer(ctx: AudioContext): AudioBuffer {
   const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
   const data = buffer.getChannelData(0);
   for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  return buffer;
+}
+
+// Sample-and-hold buffer: STEPS random values, each held for 1/STEP_SECONDS_INV s at playbackRate 1.
+// playbackRate = rate / STEP_SECONDS_INV then gives `rate` new values per second.
+const STEPS = 64;
+const STEP_SECONDS_INV = 10;
+const STEP_SAMPLE_RATE = 8000;
+
+function stepBuffer(ctx: AudioContext): AudioBuffer {
+  const perStep = STEP_SAMPLE_RATE / STEP_SECONDS_INV;
+  const buffer = ctx.createBuffer(1, STEPS * perStep, STEP_SAMPLE_RATE);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < STEPS; i++) data.fill(Math.random() * 2 - 1, i * perStep, (i + 1) * perStep);
   return buffer;
 }

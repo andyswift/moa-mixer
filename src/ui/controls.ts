@@ -59,6 +59,8 @@ export function renderControl(c: Control): HTMLElement {
 function groupTitle(prefix: string): string {
   const m = /^ch(\d+)$/.exec(prefix);
   if (m) return `Ch ${m[1]}`;
+  const named: Record<string, string> = { lfo: 'LFO', osc: 'Oscillator', mix: 'Source mix' };
+  if (named[prefix]) return named[prefix];
   const words = prefix.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase(); // ampEnv -> amp env
   return words.charAt(0).toUpperCase() + words.slice(1);
 }

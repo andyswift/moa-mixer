@@ -5,6 +5,8 @@ import type { Circuit } from '../circuit/circuit';
 const CENTS_PER_OCTAVE = 1200;
 
 const A4_HZ = 440;
+const LFO_DEFAULT_HZ = 4.8;
+const LFO_WAVES = ['tri', 'sqr', 'rnd'] as const;
 const RANGES = { "16'": -1200, "8'": 0, "4'": 1200, "2'": 2400 } as const;
 const SUB_MODES = { '-1': -1200, '-2': -2400 } as const;
 
@@ -45,7 +47,16 @@ export class Synthesizer extends Device {
       .add('level', 'gain', { gain: 0.5 })
       .add('ampEnv', 'envelope', { attack: 0.005, decay: 0.2, sustain: 0.7, release: 0.3, gate: 0 })
       .add('filterEnv', 'envelope', { attack: 0.005, decay: 0.3, sustain: 0.3, release: 0.3, gate: 0 })
-      .add('filterEnvDepth', 'gain', { gain: 2 * CENTS_PER_OCTAVE }); // envelope 0..1 -> cents
+      .add('filterEnvDepth', 'gain', { gain: 2 * CENTS_PER_OCTAVE }) // envelope 0..1 -> cents
+      // LFO: a triangle/square oscillator or a sample-and-hold source, selected by two gains.
+      .add('lfoOsc', 'oscillator', { frequency: LFO_DEFAULT_HZ, detune: 0 }, { waveform: 'triangle' })
+      .add('lfoRnd', 'random', { rate: LFO_DEFAULT_HZ })
+      .add('lfoOscOut', 'gain', { gain: 1 })
+      .add('lfoRndOut', 'gain', { gain: 0 })
+      .add('lfo', 'gain', { gain: 1 })
+      .add('lfoPitch', 'gain', { gain: 0 }) // cents
+      .add('lfoPw', 'gain', { gain: 0 }) // pulse width offset
+      .add('lfoFilter', 'gain', { gain: 0 }); // cents
 
     for (const osc of ['sawOsc', 'pulseOsc', 'subOsc']) {
       c.connect('pitch', osc, 'detune').connect('range', osc, 'detune');
@@ -67,8 +78,19 @@ export class Synthesizer extends Device {
       .connect('filterEnv', 'filterEnvDepth')
       .connect('pitch', 'keyFollow');
     for (const f of ['filter1', 'filter2']) {
-      c.connect('filterEnvDepth', f, 'detune').connect('keyFollow', f, 'detune');
+      c.connect('filterEnvDepth', f, 'detune')
+        .connect('keyFollow', f, 'detune')
+        .connect('lfoFilter', f, 'detune');
     }
+    for (const osc of ['sawOsc', 'pulseOsc', 'subOsc']) c.connect('lfoPitch', osc, 'detune');
+    c.connect('lfoOsc', 'lfoOscOut')
+      .connect('lfoRnd', 'lfoRndOut')
+      .connect('lfoOscOut', 'lfo')
+      .connect('lfoRndOut', 'lfo')
+      .connect('lfo', 'lfoPitch')
+      .connect('lfo', 'lfoPw')
+      .connect('lfo', 'lfoFilter')
+      .connect('lfoPw', 'pulseSum');
     this.outputList.push({ name: 'out', nodeId: 'level' });
 
     this.controlList.push(
@@ -89,6 +111,18 @@ export class Synthesizer extends Device {
       }, 'log'),
       new NumberControl('filter.resonance', 'Resonance', 0.1, 20, 1, '', (v) => c.setParam('filter1', 'Q', v)),
       new NumberControl('filter.keyFollow', 'Key', 0, 100, 50, '%', (v) => c.setParam('keyFollow', 'gain', v / 100)),
+      new ChoiceControl('lfo.wave', 'Wave', LFO_WAVES, 'tri', (v) => {
+        c.setOption('lfoOsc', 'waveform', v === 'sqr' ? 'square' : 'triangle');
+        c.setParam('lfoOscOut', 'gain', v === 'rnd' ? 0 : 1);
+        c.setParam('lfoRndOut', 'gain', v === 'rnd' ? 1 : 0);
+      }),
+      new NumberControl('lfo.rate', 'Rate', 0.1, 30, LFO_DEFAULT_HZ, 'Hz', (v) => {
+        c.setParam('lfoOsc', 'frequency', v);
+        c.setParam('lfoRnd', 'rate', v);
+      }, 'log'),
+      new NumberControl('osc.mod', 'Mod', 0, 600, 0, 'ct', (v) => c.setParam('lfoPitch', 'gain', v)),
+      new NumberControl('osc.pwm', 'PWM', 0, 100, 0, '%', (v) => c.setParam('lfoPw', 'gain', (v / 100) * 0.9)),
+      new NumberControl('filter.lfo', 'LFO', 0, 4, 0, 'oct', (v) => c.setParam('lfoFilter', 'gain', v * CENTS_PER_OCTAVE)),
       new NumberControl('level', 'Level', 0, 1, 0.5, '', (v) => c.setParam('level', 'gain', v)),
       new NumberControl('filterEnv.amount', 'Amount', 0, 6, 2, 'oct', (v) =>
         c.setParam('filterEnvDepth', 'gain', v * CENTS_PER_OCTAVE)),
