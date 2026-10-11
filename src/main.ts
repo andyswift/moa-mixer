@@ -9,7 +9,6 @@ import { MidiMonitor } from './domain/midi/monitor';
 import { WebMidi } from './midi/webMidi';
 import { Patch } from './domain/patch/patch';
 import { renderMidiStrip } from './ui/midiStrip';
-import { mountKeyboard } from './ui/keyboard';
 import type { Mixer } from './domain/devices/mixer';
 import { renderDrumPanel } from './ui/drumPanel';
 import { renderMixerPanel } from './ui/mixerPanel';
@@ -49,12 +48,7 @@ function handleMidiBytes(data: ArrayLike<number>, time = performance.now()): voi
 midi.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
 void midi.connectIfPermitted();
 
-app.append(renderMidiStrip(midi, clock, monitor), renderSynthPanel(synth, start));
-
-const hint = document.createElement('p');
-hint.className = 'hint';
-hint.textContent = 'Play with the keys a w s e d f t g y h u j k, or click the keyboard. Drums: click a pad (Shift soft, Alt hard) or press 1-6. Double-click a fader to reset it.';
-app.append(hint, mountKeyboard(synth));
+app.append(renderMidiStrip(midi, clock, monitor, start), renderSynthPanel(synth));
 
 app.append(renderDrumPanel(drums, sequencer, 'drums', engine));
 

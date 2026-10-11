@@ -8,6 +8,9 @@ import { applyCcValue, DEFAULT_CC_MAP } from '../midi/ccMap';
 import type { MidiEvent } from '../midi/events';
 
 const CENTS_PER_OCTAVE = 1200;
+const BEND_RANGE_CENTS = 200; // pitch wheel: +/- 2 semitones
+const MOD_WHEEL_CENTS = 100; // full mod wheel adds this much LFO vibrato depth
+const MOD_WHEEL_CC = 1;
 
 const A4_HZ = 440;
 const LFO_DEFAULT_HZ = 4.8;
@@ -37,6 +40,11 @@ export class Synthesizer extends Device {
   private retrigger = false;
   private pwSource: (typeof PW_SOURCES)[number] = 'man';
   private pwmAmount = 0;
+  private bend = 0; // -1..1
+  private modWheelValue = 0; // 0..1
+  private oscModCents = 0; // the panel's Mod fader: LFO -> pitch depth
+  private readonly performanceListeners = new Set<() => void>();
+  private readonly noteListeners = new Set<() => void>();
 
   constructor(name = 'Synth', clock = new MidiClock()) {
     super();
@@ -45,6 +53,7 @@ export class Synthesizer extends Device {
     const c = this.circuit;
     c.add('pitch', 'constant', { offset: 0, glide: 0 })
       .add('range', 'constant', { offset: 0 })
+      .add('bend', 'constant', { offset: 0 }) // pitch wheel, in cents
       .add('subShift', 'constant', { offset: SUB_MODES['-1'] })
       .add('pulseWidthCv', 'constant', { offset: 0 })
       .add('sawOsc', 'oscillator', { frequency: A4_HZ, detune: 0 }, { waveform: 'sawtooth' })
@@ -79,7 +88,7 @@ export class Synthesizer extends Device {
       .add('lfoFilter', 'gain', { gain: 0 }); // cents
 
     for (const osc of ['sawOsc', 'pulseOsc', 'subOsc']) {
-      c.connect('pitch', osc, 'detune').connect('range', osc, 'detune');
+      c.connect('pitch', osc, 'detune').connect('range', osc, 'detune').connect('bend', osc, 'detune');
     }
     c.connect('subShift', 'subOsc', 'detune')
       .connect('pulseOsc', 'pulseSum')
@@ -149,7 +158,10 @@ export class Synthesizer extends Device {
         c.setParam('lfoOsc', 'frequency', v);
         c.setParam('lfoRnd', 'rate', v);
       }, 'log'),
-      new NumberControl('osc.mod', 'Mod', 0, 600, 0, 'ct', (v) => c.setParam('lfoPitch', 'gain', v)),
+      new NumberControl('osc.mod', 'Mod', 0, 600, 0, 'ct', (v) => {
+        this.oscModCents = v;
+        this.applyVibrato();
+      }),
       new ChoiceControl('osc.pwSource', 'PW src', PW_SOURCES, 'man', (v) => {
         this.pwSource = v as (typeof PW_SOURCES)[number];
         this.applyPwm();
@@ -165,6 +177,56 @@ export class Synthesizer extends Device {
       ...adsr(c, 'filterEnv', { attack: 0.005, decay: 0.3, sustain: 0.3, release: 0.3 }),
       ...adsr(c, 'ampEnv', { attack: 0.005, decay: 0.2, sustain: 0.7, release: 0.3 }),
     );
+  }
+
+  /** Pitch wheel position, -1..1 (full travel is +/- 2 semitones). */
+  get pitchBend(): number {
+    return this.bend;
+  }
+
+  setPitchBend(value: number): void {
+    this.bend = Math.min(1, Math.max(-1, value));
+    this.circuit.setParam('bend', 'offset', this.bend * BEND_RANGE_CENTS);
+    this.notifyPerformance();
+  }
+
+  /** Mod wheel position, 0..1: adds LFO vibrato depth on top of the panel's Mod fader. */
+  get modWheel(): number {
+    return this.modWheelValue;
+  }
+
+  setModWheel(value: number): void {
+    this.modWheelValue = Math.min(1, Math.max(0, value));
+    this.applyVibrato();
+    this.notifyPerformance();
+  }
+
+  /** Fires when the wheels move from anywhere (on-screen or MIDI), so the panel can follow. */
+  onPerformanceChange(fn: () => void): () => void {
+    this.performanceListeners.add(fn);
+    return () => this.performanceListeners.delete(fn);
+  }
+
+  /** MIDI notes currently held, oldest first; fires on every key down and up. */
+  get heldNotes(): readonly number[] {
+    return this.held;
+  }
+
+  onNoteChange(fn: () => void): () => void {
+    this.noteListeners.add(fn);
+    return () => this.noteListeners.delete(fn);
+  }
+
+  private applyVibrato(): void {
+    this.circuit.setParam('lfoPitch', 'gain', this.oscModCents + this.modWheelValue * MOD_WHEEL_CENTS);
+  }
+
+  private notifyPerformance(): void {
+    for (const l of this.performanceListeners) l();
+  }
+
+  private notifyNotes(): void {
+    for (const l of this.noteListeners) l();
   }
 
   /** Loads a patch: every control is reset to INIT, then the patch's values are applied on top. */
@@ -193,6 +255,7 @@ export class Synthesizer extends Device {
     this.held = this.held.filter((n) => n !== note);
     this.held.push(note);
     this.noteOn(midiToHz(note));
+    this.notifyNotes();
   }
 
   keyUp(note: number): void {
@@ -200,9 +263,10 @@ export class Synthesizer extends Device {
     const previous = this.held[this.held.length - 1];
     if (previous === undefined) this.noteOff();
     else this.noteOn(midiToHz(previous));
+    this.notifyNotes();
   }
 
-  /** Reacts to a MIDI message: notes, mapped CCs and program changes on this synth's channel. */
+  /** Reacts to a MIDI message: notes, pitch bend, mod wheel (CC 1), mapped CCs and program changes on this synth's channel. */
   handleMidi(event: MidiEvent): void {
     if ('channel' in event && !this.transport.acceptsChannel(event.channel)) return;
     switch (event.type) {
@@ -212,7 +276,14 @@ export class Synthesizer extends Device {
       case 'noteOff':
         this.keyUp(event.note);
         break;
+      case 'pitchBend':
+        this.setPitchBend(event.value);
+        break;
       case 'cc': {
+        if (event.controller === MOD_WHEEL_CC) {
+          this.setModWheel(event.value / 127);
+          break;
+        }
         const id = this.ccMap.get(event.controller);
         if (id) applyCcValue(this.control(id), event.value);
         break;

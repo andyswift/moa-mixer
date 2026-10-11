@@ -2,6 +2,7 @@ import type { ChoiceControl, NumberControl, ToggleControl } from '../domain/devi
 import type { Device } from '../domain/devices/device';
 import type { Synthesizer } from '../domain/devices/synthesizer';
 import { SYNTH_PRESETS } from '../domain/devices/synthPresets';
+import { mountKeyboardBed } from './keyboard';
 import { renderTransportBlock } from './transportBlock';
 import { el, renderFader } from './widgets';
 
@@ -165,18 +166,19 @@ function renderPatchPicker(synth: Synthesizer): HTMLElement {
   return wrap;
 }
 
-/** The synth's front panel. `headerRight` is shown top-right (e.g. the start-audio button). */
-export function renderSynthPanel(device: Synthesizer, headerRight: HTMLElement): HTMLElement {
+/** The synth's front panel, with the keyboard bed fused into its bottom edge. */
+export function renderSynthPanel(device: Synthesizer): HTMLElement {
   const panel = el('div', 'synth-panel');
   const header = el('div', 'synth-header');
   const brand = el('div', 'synth-brand');
   brand.append(el('div', 'synth-name', 'MOA-1'), el('div', 'synth-subtitle', 'Mono Synthesizer'));
-  header.append(brand, renderTransportBlock(device.transport), renderPatchPicker(device), headerRight);
+  header.append(brand, renderTransportBlock(device.transport), renderPatchPicker(device));
   panel.append(header);
   for (const row of ROWS) {
     const r = el('div', 'synth-row');
     for (const spec of row) r.append(renderSection(device, spec));
     panel.append(r);
   }
+  panel.append(mountKeyboardBed(device));
   return panel;
 }

@@ -8,11 +8,6 @@ h1 { font-size: 1.2rem; margin: 0 0 16px; }
 .control { display: flex; flex-direction: column; gap: 4px; min-width: 140px; font-size: 0.8rem; }
 .control output { color: #9aa4b2; font-variant-numeric: tabular-nums; }
 button { background: #3b82f6; color: white; border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; font: inherit; }
-.keys { display: flex; gap: 2px; margin-top: 8px; user-select: none; }
-.key { flex: 1; min-width: 28px; height: 90px; background: #e6e8eb; color: #16181c; border-radius: 0 0 4px 4px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; font-size: 0.7rem; }
-.key.black { background: #111; color: #aaa; }
-.key.active { background: #3b82f6; color: #fff; }
-.hint { color: #9aa4b2; font-size: 0.8rem; }
 .device h3 { font-size: 0.75rem; margin: 16px 0 8px; color: #6b7685; }
 
 /* ---- Synth panel ---- */
@@ -195,3 +190,33 @@ button.start:disabled { background: #3a3d42; color: #a9adb3; cursor: default; }
 .drum-step.playhead { border-color: #f1eee6; }
 .drum-step:focus-visible { outline: 2px solid #f1eee6; outline-offset: 1px; }
 .drum-step-fill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--voice); pointer-events: none; }
+.midi-block button.start { height: 36px; min-width: 132px; font-size: 15px; }
+
+/* ---- Keyboard bed (fused into the bottom of the synth panel) ---- */
+.keybed { display: flex; height: 224px; box-sizing: border-box; margin: 4px -28px -28px; padding: 0 28px; border-top: 1px solid #3a3d42; border-radius: 0 0 8px 8px; background: rgba(0, 0, 0, 0.14); font-family: 'Barlow Condensed', system-ui, sans-serif; }
+.keybed-cheek { width: 254px; flex: none; box-sizing: border-box; padding: 16px 20px; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid #3a3d42; }
+.keybed-wheels { display: flex; gap: 14px; justify-content: space-between; }
+.keybed-octave { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.keybed-octave .btn { flex: none; width: 30px; height: 26px; padding: 0; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 14px; }
+.keybed-octave .btn:disabled { opacity: 0.4; cursor: default; }
+.keybed-octave-text { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #e8e4da; width: 46px; text-align: center; }
+.keybed-keys { position: relative; flex: 1 1 0; min-width: 0; box-sizing: border-box; margin: 16px 0 16px 20px; padding-top: 4px; background: #0c0d0e; border-radius: 3px; user-select: none; }
+.keybed-whites { display: flex; height: 100%; }
+.key-white { flex: 1 1 0; min-width: 0; height: 100%; margin: 0; padding: 0 0 8px; border: 0; border-right: 1px solid #8a8d93; border-radius: 0 0 4px 4px; background: linear-gradient(180deg, #d9d5c8 0%, #ece8dc 14%, #f4f1e8 100%); color: #4a4c52; display: flex; align-items: flex-end; justify-content: center; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; font-weight: 500; cursor: pointer; touch-action: none; }
+.key-black { position: absolute; top: 4px; height: 60%; margin: 0; padding: 0 0 6px; border: 1px solid #000; border-top: 0; border-radius: 0 0 3px 3px; background: linear-gradient(180deg, #2c2e32 0%, #0e0f10 100%); color: #c9ccd1; display: flex; align-items: flex-end; justify-content: center; box-shadow: 0 3px 4px rgba(0, 0, 0, 0.6); font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; font-weight: 500; cursor: pointer; touch-action: none; }
+.key-white.on, .key-black.on { background: #e8742c; color: #16171a; }
+.key-white:focus-visible, .key-black:focus-visible { outline: 2px solid #f1eee6; outline-offset: -2px; }
+
+.wheel { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.wheel-label { font-size: 12px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #a9adb3; height: 16px; }
+.wheel-body { display: flex; gap: 6px; height: 112px; }
+.wheel-scale { width: 22px; height: 112px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; line-height: 14px; color: #a9adb3; }
+.wheel-face { --rib: 0px; position: relative; display: block; width: 56px; height: 112px; padding: 0; margin: 0; border: 1px solid #3a3d42; border-radius: 6px; background: #0c0d0e; box-shadow: inset 0 0 8px #000; overflow: hidden; cursor: ns-resize; touch-action: none; user-select: none; }
+.wheel-face:focus-visible { outline: 2px solid #f1eee6; outline-offset: 2px; }
+.wheel-ribs { position: absolute; left: 6px; right: 6px; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(180deg, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0) 26%, rgba(255, 255, 255, 0.14) 50%, rgba(0, 0, 0, 0) 74%, rgba(0, 0, 0, 0.85) 100%), repeating-linear-gradient(180deg, #51545a 0 2px, #26282b 2px 8px); background-position: 0 0, 0 var(--rib); box-shadow: 0 0 0 1px #0c0d0e, 2px 0 4px rgba(0, 0, 0, 0.6), -2px 0 4px rgba(0, 0, 0, 0.6); }
+.wheel-detent { position: absolute; top: 55px; width: 5px; height: 2px; background: #e8e4da; }
+.wheel-detent-left { left: 0; }
+.wheel-detent-right { right: 0; }
+.wheel-markers { position: relative; width: 10px; height: 112px; }
+.wheel-marker { position: absolute; left: 0; width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-right: 8px solid #e8742c; }
+.wheel-readout { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; color: #e8e4da; height: 16px; white-space: nowrap; }

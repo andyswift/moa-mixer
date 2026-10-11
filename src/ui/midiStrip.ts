@@ -6,9 +6,13 @@ import { el } from './widgets';
 const MONITOR_ROWS = 5;
 const LED_MS = 150;
 
-/** Global MIDI strip: device, incoming clock status, activity LEDs and a monitor of recent messages. */
-export function renderMidiStrip(midi: WebMidi, clock: MidiClock, monitor: MidiMonitor): HTMLElement {
+/** Top control strip: the audio start button, MIDI device, incoming clock status, activity LEDs and a monitor. */
+export function renderMidiStrip(midi: WebMidi, clock: MidiClock, monitor: MidiMonitor, audioButton: HTMLElement): HTMLElement {
   const strip = el('section', 'midi-strip');
+
+  // --- Audio ---
+  const audio = el('div', 'midi-block');
+  audio.append(el('div', 'fader-label', 'Audio'), audioButton);
 
   // --- Device ---
   const device = el('div', 'midi-block');
@@ -86,7 +90,7 @@ export function renderMidiStrip(midi: WebMidi, clock: MidiClock, monitor: MidiMo
   monitor.onChange(renderLog);
   renderLog();
 
-  strip.append(device, clockBlock, leds, mon);
+  strip.append(audio, device, clockBlock, leds, mon);
 
   const tick = () => {
     const now = performance.now();

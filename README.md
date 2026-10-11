@@ -14,6 +14,7 @@ Live: **https://moaswift.no/mixer/**
   - Two ADSR envelopes: one drives the VCA, one sweeps the filter.
   - LFO with triangle, square and sample-and-hold waves.
   - Portamento, with legato or retrigger behaviour for overlapping notes.
+  - **Keyboard bed** fused into the bottom of the panel: 49 keys (C2-C6, the home row plays from middle C), a spring-back **pitch wheel** (+/- 2 semitones), a **mod wheel** that adds LFO vibrato depth on top of the Mod fader, and `<` `>` octave buttons (-2 to +2). Keys light for notes from MIDI too.
   - **18 mono patches plus an Init** (basses, leads, brass, effects) from the patch picker in the panel header. The real SH-101 has no patch memory, so these are recipes for the sounds it is known for, not factory dumps.
 - **MOA-DR, a 909-style drum machine**
   - Six synthesised voices, each with its own output into its own mixer channel: kick, snare, clap, closed hat, open hat and ride. Kick is a sine with a pitch drop plus a click, snare is two triangles plus noise, clap is band-passed noise through a stuttering burst envelope, hats and ride are six detuned squares through band-pass and high-pass filters (a synthesised stand-in for the 909's sampled cymbals).
@@ -67,10 +68,11 @@ src/
 
 ### MIDI
 
-- **Chrome or Edge** (Web MIDI; Safari has none). Click **Connect MIDI** in the strip at the top and choose the input. A Torso T-1 is picked automatically if it is the only device or its name matches.
+- **Chrome or Edge** (Web MIDI; Safari has none). Click **Start audio** and **Connect MIDI** in the strip at the top and choose the input. A Torso T-1 is picked automatically if it is the only device or its name matches.
 - **Per-synth transport**: each synth chooses *Internal* tempo or *MIDI clock*, whether it follows MIDI **start/stop**, and which **MIDI channel** it listens on (default channel 1). A synth that is not synced ignores incoming clock.
 - **Default CC map** (editable in code, MIDI learn comes next): CC 70 cutoff, 71 resonance, 72 filter env amount, 73 filter decay, 74 amp decay, 75 amp release, 76 pulse width, 77 PWM, 78 pulse level, 79 sub level, 80 noise level, 81 LFO rate, 82 vibrato, 83 glide. The Torso T-1 is reported to send CC 70-83 from a CC track, which is unconfirmed: the on-screen monitor shows what a device really sends.
 - **Program change** selects a patch (0 is Init).
+- **Pitch bend** drives the pitch wheel (+/- 2 semitones) and **CC 1** the mod wheel, so a controller's wheels move the on-screen ones.
 - Clock tempo is a trimmed mean of pulse spacing, so timestamp jitter does not make the BPM wobble.
 
 ### Design decisions worth knowing
