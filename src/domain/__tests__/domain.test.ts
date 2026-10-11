@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Circuit } from '../circuit/circuit';
 import { Mixer } from '../devices/mixer';
 import { Synthesizer } from '../devices/synthesizer';
+import { INIT, SYNTH_PRESETS } from '../devices/synthPresets';
 import { Patch } from '../patch/patch';
 
 describe('Circuit', () => {
@@ -412,5 +413,51 @@ describe('Patch', () => {
   it('rejects unknown jacks', () => {
     const p = Patch.default();
     expect(() => p.connect({ device: 'synth', jack: 'nope' }, { device: 'mixer', jack: 'ch1' })).toThrow();
+  });
+});
+
+describe('Synth presets', () => {
+  it('has Init plus twenty patches with unique names', () => {
+    expect(SYNTH_PRESETS[0]?.name).toBe('Init');
+    expect(SYNTH_PRESETS).toHaveLength(21);
+    expect(new Set(SYNTH_PRESETS.map((x) => x.name)).size).toBe(21);
+  });
+
+  it('INIT covers every control and matches a freshly built synth', () => {
+    const s = new Synthesizer();
+    const ids = s.controls.map((c) => c.id).sort();
+    expect(Object.keys(INIT).sort()).toEqual(ids);
+    for (const c of s.controls) expect(c.value).toBe(INIT[c.id]);
+  });
+
+  it('every patch loads without clamping any value (all within control ranges)', () => {
+    for (const preset of SYNTH_PRESETS) {
+      const s = new Synthesizer();
+      s.loadPreset(preset);
+      const expected = { ...INIT, ...preset.values };
+      for (const c of s.controls) {
+        expect(c.value, `${preset.name}: ${c.id}`).toBe(expected[c.id]);
+      }
+    }
+  });
+
+  it('loading a patch resets what the previous patch changed', () => {
+    const s = new Synthesizer();
+    const acid = SYNTH_PRESETS.find((x) => x.name === 'Acid Squelch')!;
+    s.loadPreset(acid);
+    expect(s.control('filter.resonance').value).toBe(14);
+    s.loadPreset(SYNTH_PRESETS[0]!);
+    expect(s.control('filter.resonance').value).toBe(1);
+    expect(s.circuit.node('filter1').params.Q).toBe(1);
+    expect(s.control('perf.glide').value).toBe(0);
+  });
+
+  it('controls notify listeners when a patch changes them', () => {
+    const s = new Synthesizer();
+    const cutoff = s.control('filter.cutoff');
+    let calls = 0;
+    cutoff.onChange(() => calls++);
+    s.loadPreset(SYNTH_PRESETS.find((x) => x.name === 'Sub Bass')!);
+    expect(calls).toBe(1);
   });
 });

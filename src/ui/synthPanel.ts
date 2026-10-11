@@ -1,5 +1,7 @@
 import type { ChoiceControl, NumberControl, ToggleControl } from '../domain/devices/controls';
 import type { Device } from '../domain/devices/device';
+import type { Synthesizer } from '../domain/devices/synthesizer';
+import { SYNTH_PRESETS } from '../domain/devices/synthPresets';
 import { el, renderFader } from './widgets';
 
 const PINK = '#d9628a';
@@ -82,6 +84,7 @@ function renderChoice(c: ChoiceControl, color: string): HTMLElement {
       b.style.borderColor = on ? color : '';
     });
   };
+  c.onChange(paint);
   paint();
   wrap.append(group);
   return wrap;
@@ -130,13 +133,40 @@ function renderSection(device: Device, spec: SectionSpec): HTMLElement {
   return section;
 }
 
+/** Patch selector: previous / next buttons around a drop-down. */
+function renderPatchPicker(synth: Synthesizer): HTMLElement {
+  const wrap = el('div', 'patch-picker');
+  wrap.append(el('div', 'fader-label', 'Patch'));
+  const row = el('div', 'patch-picker-row');
+  const select = el('select', 'patch-select');
+  select.setAttribute('aria-label', 'Synth patch');
+  SYNTH_PRESETS.forEach((preset, i) => select.add(new Option(`${String(i).padStart(2, '0')}  ${preset.name}`, String(i))));
+  const load = (i: number) => {
+    const n = SYNTH_PRESETS.length;
+    const index = ((i % n) + n) % n;
+    select.value = String(index);
+    synth.loadPreset(SYNTH_PRESETS[index]!);
+  };
+  const step = (label: string, text: string, delta: number) => {
+    const b = el('button', 'btn patch-step', text);
+    b.type = 'button';
+    b.setAttribute('aria-label', label);
+    b.addEventListener('click', () => load(Number(select.value) + delta));
+    return b;
+  };
+  select.addEventListener('change', () => load(Number(select.value)));
+  row.append(step('Previous patch', '‹', -1), select, step('Next patch', '›', 1));
+  wrap.append(row);
+  return wrap;
+}
+
 /** The synth's front panel. `headerRight` is shown top-right (e.g. the start-audio button). */
-export function renderSynthPanel(device: Device, headerRight: HTMLElement): HTMLElement {
+export function renderSynthPanel(device: Synthesizer, headerRight: HTMLElement): HTMLElement {
   const panel = el('div', 'synth-panel');
   const header = el('div', 'synth-header');
   const brand = el('div', 'synth-brand');
   brand.append(el('div', 'synth-name', 'MOA-1'), el('div', 'synth-subtitle', 'Mono Synthesizer'));
-  header.append(brand, headerRight);
+  header.append(brand, renderPatchPicker(device), headerRight);
   panel.append(header);
   for (const row of ROWS) {
     const r = el('div', 'synth-row');

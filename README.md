@@ -14,6 +14,7 @@ Live: **https://moaswift.no/mixer/**
   - Two ADSR envelopes: one drives the VCA, one sweeps the filter.
   - LFO with triangle, square and sample-and-hold waves.
   - Portamento, with legato or retrigger behaviour for overlapping notes.
+  - **20 patches plus an Init** (basses, leads, pads, effects) from the patch picker in the panel header. The real SH-101 has no patch memory, so these are recipes for the sounds it is known for, not factory dumps.
 - **MOA-MIX, a mixer** (one channel strip so far, built to scale to 16)
   - Strip: low cut, 3-band EQ with a sweepable mid, six aux sends (pre/post per pair), pan, mute, solo, A/B/C bus assigns, fader and meter.
   - Master: three independent stereo buses with L/R meters, six aux masters, and a solo indicator.
@@ -47,6 +48,7 @@ src/
 | 1 | Scaffold: Circuit, Synthesizer, one-channel Mixer, Patch, Web Audio engine | done |
 | 2 | Strip depth: low cut, 3-band EQ, pan, solo | done |
 | 3 | Synth voice: two envelopes, SH-101 oscillators and mixer, 24 dB filter, LFO, glide and legato, front panel | done |
+| 3b | 21 synth patches with a patch picker (controls are observable so the panel follows) | done |
 | 4 | Mixer with three stereo buses, six aux sends, meters, master section (one strip) | done |
 | 5 | **16 channels** and the full console layout | next |
 | 6 | **Effects** (reverb, delay) on the aux returns | planned |

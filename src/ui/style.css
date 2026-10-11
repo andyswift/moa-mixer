@@ -98,3 +98,10 @@ button.start:disabled { background: #3a3d42; color: #a9adb3; cursor: default; }
 .solo-led-dot { width: 12px; height: 12px; border-radius: 50%; background: #4a4018; }
 .solo-led.on { color: #e8e4da; }
 .solo-led.on .solo-led-dot { background: #dcb43c; box-shadow: 0 0 10px #dcb43c; }
+
+/* ---- Patch picker ---- */
+.patch-picker { display: flex; flex-direction: column; gap: 4px; margin-left: auto; margin-right: 24px; }
+.patch-picker .fader-label { text-align: left; }
+.patch-picker-row { display: flex; gap: 4px; }
+.patch-select { min-width: 220px; height: 34px; background: #2a2d31; color: #e8e4da; border: 1px solid #464a50; border-radius: 4px; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; padding: 0 8px; }
+.patch-step { flex: none; width: 34px; height: 34px; font-size: 20px; padding: 0; }

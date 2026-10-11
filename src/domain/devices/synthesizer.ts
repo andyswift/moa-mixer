@@ -1,6 +1,7 @@
 import { Device } from './device';
 import { ChoiceControl, NumberControl } from './controls';
 import type { Circuit } from '../circuit/circuit';
+import { INIT, type SynthPreset } from './synthPresets';
 
 const CENTS_PER_OCTAVE = 1200;
 
@@ -153,6 +154,17 @@ export class Synthesizer extends Device {
       ...adsr(c, 'filterEnv', { attack: 0.005, decay: 0.3, sustain: 0.3, release: 0.3 }),
       ...adsr(c, 'ampEnv', { attack: 0.005, decay: 0.2, sustain: 0.7, release: 0.3 }),
     );
+  }
+
+  /** Loads a patch: every control is reset to INIT, then the patch's values are applied on top. */
+  loadPreset(preset: SynthPreset): void {
+    const values = { ...INIT, ...preset.values };
+    for (const [id, value] of Object.entries(values)) {
+      const c = this.control(id);
+      if (c.kind === 'number' && typeof value === 'number') c.set(value);
+      else if (c.kind === 'choice' && typeof value === 'string') c.set(value);
+      else throw new Error(`Preset "${preset.name}": bad value for ${id}`);
+    }
   }
 
   /** Pulse width follows the chosen source: manual width only, or width modulated by the LFO / filter envelope. */

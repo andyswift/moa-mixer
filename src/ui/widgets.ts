@@ -69,6 +69,7 @@ export function renderFader(
     c.set(c.initial);
     sync();
   });
+  c.onChange(sync); // follows changes made elsewhere, e.g. loading a patch
   sync();
 
   wrap.append(slot, readout);
@@ -136,6 +137,7 @@ export function renderKnob(c: NumberControl, section: string, label: string, siz
       setT(next[e.key]!);
     }
   });
+  c.onChange(sync);
   sync();
 
   wrap.append(knob, readout);
@@ -163,6 +165,7 @@ export function renderToggleButton(
     c.set(!c.value);
     paint();
   });
+  c.onChange(paint);
   paint();
   return b;
 }
