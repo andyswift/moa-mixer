@@ -1,7 +1,11 @@
 import { Device } from './device';
 import { ChoiceControl, NumberControl } from './controls';
 import type { Circuit } from '../circuit/circuit';
-import { INIT, type SynthPreset } from './synthPresets';
+import { INIT, SYNTH_PRESETS, type SynthPreset } from './synthPresets';
+import { Transport } from './transport';
+import { MidiClock } from '../midi/clock';
+import { applyCcValue, DEFAULT_CC_MAP } from '../midi/ccMap';
+import type { MidiEvent } from '../midi/events';
 
 const CENTS_PER_OCTAVE = 1200;
 
@@ -22,15 +26,22 @@ const SUB_MODES = { '-1': -1200, '-2': -2400 } as const;
  */
 export class Synthesizer extends Device {
   readonly name: string;
+  readonly transport: Transport;
+  /** CC number -> control id. Editable; defaults suit a Torso T-1 CC track. */
+  readonly ccMap = new Map(DEFAULT_CC_MAP);
+  private held: number[] = []; // MIDI notes currently down, most recent last
+  private presetListeners = new Set<() => void>();
+  currentPreset: SynthPreset = SYNTH_PRESETS[0]!;
   private gateOpen = false;
   private glideSeconds = 0;
   private retrigger = false;
   private pwSource: (typeof PW_SOURCES)[number] = 'man';
   private pwmAmount = 0;
 
-  constructor(name = 'Synth') {
+  constructor(name = 'Synth', clock = new MidiClock()) {
     super();
     this.name = name;
+    this.transport = new Transport(clock);
     const c = this.circuit;
     c.add('pitch', 'constant', { offset: 0, glide: 0 })
       .add('range', 'constant', { offset: 0 })
@@ -159,11 +170,58 @@ export class Synthesizer extends Device {
   /** Loads a patch: every control is reset to INIT, then the patch's values are applied on top. */
   loadPreset(preset: SynthPreset): void {
     const values = { ...INIT, ...preset.values };
+    this.currentPreset = preset;
     for (const [id, value] of Object.entries(values)) {
       const c = this.control(id);
       if (c.kind === 'number' && typeof value === 'number') c.set(value);
       else if (c.kind === 'choice' && typeof value === 'string') c.set(value);
       else throw new Error(`Preset "${preset.name}": bad value for ${id}`);
+    }
+    for (const l of this.presetListeners) l();
+  }
+
+  onPresetChange(fn: () => void): () => void {
+    this.presetListeners.add(fn);
+    return () => this.presetListeners.delete(fn);
+  }
+
+  /**
+   * Key down for a MIDI note number. Mono with last-note priority: the newest held note plays, and
+   * releasing it falls back to the previous one still held (overlapping, so legato rules apply).
+   */
+  keyDown(note: number): void {
+    this.held = this.held.filter((n) => n !== note);
+    this.held.push(note);
+    this.noteOn(midiToHz(note));
+  }
+
+  keyUp(note: number): void {
+    this.held = this.held.filter((n) => n !== note);
+    const previous = this.held[this.held.length - 1];
+    if (previous === undefined) this.noteOff();
+    else this.noteOn(midiToHz(previous));
+  }
+
+  /** Reacts to a MIDI message: notes, mapped CCs and program changes on this synth's channel. */
+  handleMidi(event: MidiEvent): void {
+    if ('channel' in event && !this.transport.acceptsChannel(event.channel)) return;
+    switch (event.type) {
+      case 'noteOn':
+        this.keyDown(event.note);
+        break;
+      case 'noteOff':
+        this.keyUp(event.note);
+        break;
+      case 'cc': {
+        const id = this.ccMap.get(event.controller);
+        if (id) applyCcValue(this.control(id), event.value);
+        break;
+      }
+      case 'programChange': {
+        const preset = SYNTH_PRESETS[event.program];
+        if (preset) this.loadPreset(preset);
+        break;
+      }
     }
   }
 
@@ -218,3 +276,5 @@ function adsr(
 function mixLevel(c: Circuit, name: string, label: string, initial: number): NumberControl {
   return new NumberControl(`mix.${name}`, label, 0, 1, initial, '', (v) => c.setParam(`mix.${name}`, 'gain', v));
 }
+
+export const midiToHz = (note: number): number => A4_HZ * Math.pow(2, (note - 69) / 12);

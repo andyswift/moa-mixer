@@ -1,13 +1,21 @@
 import './ui/style.css';
 import { AudioEngine } from './audio/engine';
 import type { Synthesizer } from './domain/devices/synthesizer';
+import { MidiClock } from './domain/midi/clock';
+import { parseMidi } from './domain/midi/events';
+import { MidiMonitor } from './domain/midi/monitor';
+import { WebMidi } from './midi/webMidi';
 import { Patch } from './domain/patch/patch';
+import { renderMidiStrip } from './ui/midiStrip';
 import { mountKeyboard } from './ui/keyboard';
 import type { Mixer } from './domain/devices/mixer';
 import { renderMixerPanel } from './ui/mixerPanel';
 import { renderSynthPanel } from './ui/synthPanel';
 
-const patch = Patch.default();
+const clock = new MidiClock();
+const monitor = new MidiMonitor();
+const midi = new WebMidi();
+const patch = Patch.default(clock);
 const engine = new AudioEngine(patch);
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
@@ -21,7 +29,19 @@ start.addEventListener('click', async () => {
 });
 
 const synth = patch.device<Synthesizer>('synth');
-app.append(renderSynthPanel(synth, start));
+
+/** One entry point for every MIDI message, whether it came from a device or the dev console. */
+function handleMidiBytes(data: ArrayLike<number>, time = performance.now()): void {
+  const event = parseMidi(data);
+  if (!event) return;
+  clock.handle(event, time);
+  monitor.record(event, time);
+  synth.handleMidi(event);
+}
+midi.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
+void midi.connectIfPermitted();
+
+app.append(renderMidiStrip(midi, clock, monitor), renderSynthPanel(synth, start));
 
 const hint = document.createElement('p');
 hint.className = 'hint';
@@ -31,4 +51,4 @@ app.append(hint, mountKeyboard(synth));
 app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth']));
 
 // Dev-only handle for poking at the engine from the browser console.
-if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch } });
+if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch, midi: handleMidiBytes } });

@@ -50,11 +50,21 @@ src/
 | 3 | Synth voice: two envelopes, SH-101 oscillators and mixer, 24 dB filter, LFO, glide and legato, front panel | done |
 | 3b | 18 mono synth patches with a patch picker (controls are observable so the panel follows) | done |
 | 4 | Mixer with three stereo buses, six aux sends, meters, master section (one strip) | done |
-| 5 | **16 channels** and the full console layout | next |
+| 4b | **MIDI in** (Web MIDI): notes on a chosen channel, default CC map, program change, MIDI clock in, per-synth transport, monitor | done |
+| 4c | MIDI learn, saved CC mappings, tempo-synced LFO | next |
+| 5 | **16 channels** and the full console layout | planned |
 | 6 | **Effects** (reverb, delay) on the aux returns | planned |
 | 7 | Synth depth: polyphony, sequencer or arpeggiator | planned |
 | 8 | Presets and persistence (save/load a Patch) | planned |
 | 9 | Real inputs: audio files and microphone/line in per channel | planned |
+
+### MIDI
+
+- **Chrome or Edge** (Web MIDI; Safari has none). Click **Connect MIDI** in the strip at the top and choose the input. A Torso T-1 is picked automatically if it is the only device or its name matches.
+- **Per-synth transport**: each synth chooses *Internal* tempo or *MIDI clock*, whether it follows MIDI **start/stop**, and which **MIDI channel** it listens on (default channel 1). A synth that is not synced ignores incoming clock.
+- **Default CC map** (editable in code, MIDI learn comes next): CC 70 cutoff, 71 resonance, 72 filter env amount, 73 filter decay, 74 amp decay, 75 amp release, 76 pulse width, 77 PWM, 78 pulse level, 79 sub level, 80 noise level, 81 LFO rate, 82 vibrato, 83 glide. The Torso T-1 is reported to send CC 70-83 from a CC track, which is unconfirmed: the on-screen monitor shows what a device really sends.
+- **Program change** selects a patch (0 is Init).
+- Clock tempo is a trimmed mean of pulse spacing, so timestamp jitter does not make the BPM wobble.
 
 ### Design decisions worth knowing
 

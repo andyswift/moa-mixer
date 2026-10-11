@@ -105,3 +105,43 @@ button.start:disabled { background: #3a3d42; color: #a9adb3; cursor: default; }
 .patch-picker-row { display: flex; gap: 4px; }
 .patch-select { min-width: 220px; height: 34px; background: #2a2d31; color: #e8e4da; border: 1px solid #464a50; border-radius: 4px; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; padding: 0 8px; }
 .patch-step { flex: none; width: 34px; height: 34px; font-size: 20px; padding: 0; }
+
+/* ---- MIDI strip and transport ---- */
+.midi-strip { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; background: #24272a; border: 1px solid #3a3d42; border-radius: 8px; padding: 14px 20px; margin-bottom: 16px; font-family: 'Barlow Condensed', system-ui, sans-serif; }
+.midi-block { display: flex; flex-direction: column; gap: 6px; }
+.midi-block .fader-label, .transport .fader-label { text-align: left; }
+.midi-device { min-height: 34px; display: flex; align-items: center; }
+.midi-message { font-size: 14px; color: #c9ccd1; max-width: 260px; }
+.midi-connect { flex: none; padding: 0 16px; height: 34px; background: #4a9be0; color: #16171a; border-color: #4a9be0; }
+.midi-bpm { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 30px; line-height: 1; color: #e8e4da; }
+.midi-badges { display: flex; gap: 6px; }
+.badge { font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; padding: 3px 8px; border-radius: 3px; border: 1px solid #464a50; color: #a9adb3; }
+.badge.on { color: #16171a; background: #4fb286; border-color: #4fb286; }
+.midi-leds { display: flex; gap: 14px; height: 34px; align-items: center; }
+.led-item { display: flex; align-items: center; gap: 6px; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: #a9adb3; }
+.led { width: 10px; height: 10px; border-radius: 50%; background: #3a3d42; display: inline-block; flex: none; }
+.led.on { background: #dcb43c; box-shadow: 0 0 8px #dcb43c; }
+.midi-monitor-block { flex: 1 1 320px; min-width: 300px; }
+.midi-monitor-head { display: flex; justify-content: space-between; align-items: center; }
+.midi-clear { width: 48px; height: 22px; }
+.midi-log { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; line-height: 17px; height: 90px; overflow: hidden; background: #1a1c1e; border: 1px solid #3a3d42; border-radius: 4px; padding: 4px 8px; display: flex; flex-direction: column; justify-content: flex-end; white-space: pre; }
+.midi-line-note { color: #dcb43c; }
+.midi-line-cc { color: #4a9be0; }
+.midi-line-clock { color: #4fb286; }
+
+.transport { display: flex; gap: 20px; align-items: flex-start; margin-left: auto; margin-right: 8px; }
+.transport > div { display: flex; flex-direction: column; gap: 4px; }
+.transport-bpm { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 26px; line-height: 1; color: #e8e4da; }
+.transport-bpm.locked { color: #4fb286; }
+.transport-tempo-buttons, .transport-seg { display: flex; gap: 4px; }
+.transport .btn-small { width: auto; min-width: 32px; padding: 0 8px; height: 26px; }
+.transport .btn:disabled { opacity: 0.4; cursor: default; }
+.transport-channel-select { min-width: 84px; height: 28px; }
+.transport-pos-row { display: flex; align-items: center; gap: 8px; }
+.transport-position { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 15px; color: #e8e4da; }
+.beat-dots { display: flex; gap: 6px; }
+.beat-dot { width: 8px; height: 8px; border-radius: 50%; background: #3a3d42; }
+.beat-dot.on { background: #d9628a; box-shadow: 0 0 6px #d9628a; }
+.transport .led.on { background: #d9628a; box-shadow: 0 0 8px #d9628a; }
+.synth-header { flex-wrap: wrap; }
+.patch-picker { margin-left: 0; }

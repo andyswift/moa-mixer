@@ -1,6 +1,7 @@
 import type { Device } from '../devices/device';
 import { Mixer } from '../devices/mixer';
 import { Synthesizer } from '../devices/synthesizer';
+import { MidiClock } from '../midi/clock';
 
 export interface Connection {
   readonly from: { device: string; jack: string };
@@ -42,9 +43,9 @@ export class Patch {
     return this;
   }
 
-  static default(): Patch {
+  static default(clock = new MidiClock()): Patch {
     return new Patch()
-      .add('synth', new Synthesizer())
+      .add('synth', new Synthesizer('Synth', clock))
       .add('mixer', new Mixer(1))
       .connect({ device: 'synth', jack: 'out' }, { device: 'mixer', jack: 'ch1' })
       .setOutput('mixer', 'main');

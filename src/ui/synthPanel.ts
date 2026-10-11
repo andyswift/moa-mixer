@@ -2,6 +2,7 @@ import type { ChoiceControl, NumberControl, ToggleControl } from '../domain/devi
 import type { Device } from '../domain/devices/device';
 import type { Synthesizer } from '../domain/devices/synthesizer';
 import { SYNTH_PRESETS } from '../domain/devices/synthPresets';
+import { renderTransportBlock } from './transportBlock';
 import { el, renderFader } from './widgets';
 
 const PINK = '#d9628a';
@@ -155,6 +156,10 @@ function renderPatchPicker(synth: Synthesizer): HTMLElement {
     return b;
   };
   select.addEventListener('change', () => load(Number(select.value)));
+  // Follow patch changes made elsewhere (e.g. a MIDI program change).
+  synth.onPresetChange(() => {
+    select.value = String(SYNTH_PRESETS.indexOf(synth.currentPreset));
+  });
   row.append(step('Previous patch', '‹', -1), select, step('Next patch', '›', 1));
   wrap.append(row);
   return wrap;
@@ -166,7 +171,7 @@ export function renderSynthPanel(device: Synthesizer, headerRight: HTMLElement):
   const header = el('div', 'synth-header');
   const brand = el('div', 'synth-brand');
   brand.append(el('div', 'synth-name', 'MOA-1'), el('div', 'synth-subtitle', 'Mono Synthesizer'));
-  header.append(brand, renderPatchPicker(device), headerRight);
+  header.append(brand, renderTransportBlock(device.transport), renderPatchPicker(device), headerRight);
   panel.append(header);
   for (const row of ROWS) {
     const r = el('div', 'synth-row');
