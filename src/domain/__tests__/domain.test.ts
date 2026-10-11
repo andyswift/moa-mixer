@@ -140,6 +140,9 @@ describe('Synthesizer', () => {
       if (c.kind !== 'number') throw new Error('expected number');
       c.set(v);
     };
+    const src = s.control('osc.pwSource');
+    if (src.kind !== 'choice') throw new Error('expected choice');
+    src.set('lfo');
     set('osc.mod', 100);
     set('osc.pwm', 50);
     set('filter.lfo', 2);
@@ -214,6 +217,26 @@ describe('Synthesizer', () => {
       s.noteOn(330);
       expect(events).toContain('ampEnv.gate=1');
     });
+  });
+
+  it('pulse width source: manual has no modulation; LFO and envelope each take the PWM depth', () => {
+    const s = new Synthesizer();
+    const src = s.control('osc.pwSource');
+    const pwm = s.control('osc.pwm');
+    if (src.kind !== 'choice' || pwm.kind !== 'number') throw new Error('unexpected control kinds');
+    pwm.set(100);
+    expect(s.circuit.node('lfoPw').params.gain).toBe(0); // man
+    expect(s.circuit.node('envPw').params.gain).toBe(0);
+    src.set('lfo');
+    expect(s.circuit.node('lfoPw').params.gain).toBeCloseTo(0.9);
+    expect(s.circuit.node('envPw').params.gain).toBe(0);
+    src.set('env');
+    expect(s.circuit.node('lfoPw').params.gain).toBe(0);
+    expect(s.circuit.node('envPw').params.gain).toBeCloseTo(0.9);
+    pwm.set(50); // changing depth while in env mode updates the envelope path
+    expect(s.circuit.node('envPw').params.gain).toBeCloseTo(0.45);
+    expect(s.circuit.cables).toContainEqual({ from: 'filterEnv', to: 'envPw', port: 'in' });
+    expect(s.circuit.cables).toContainEqual({ from: 'envPw', to: 'pulseSum', port: 'in' });
   });
 
   it('wires ampEnv to the VCA and filterEnv to the filter cutoff', () => {

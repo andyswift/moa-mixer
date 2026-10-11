@@ -29,8 +29,11 @@ const ROWS: SectionSpec[][] = [
   [
     { title: 'Performance', color: PINK, grow: 2, switches: ['perf.notes'], faders: ['perf.glide'] },
     { title: 'LFO', color: GREEN, grow: 2, switches: ['lfo.wave'], faders: ['lfo.rate'] },
-    { title: 'Oscillator', color: ORANGE, grow: 3, switches: ['osc.range'], faders: ['osc.mod', 'osc.width', 'osc.pwm'] },
-    { title: 'Source mix', color: YELLOW, grow: 4, switches: ['osc.sub'], faders: ['mix.saw', 'mix.pulse', 'mix.sub', 'mix.noise'] },
+    {
+      title: 'Oscillator', color: ORANGE, grow: 5, switches: ['osc.range', 'osc.pwSource'],
+      faders: ['mix.saw', 'mix.pulse', 'osc.width', 'osc.pwm', 'osc.mod'],
+    },
+    { title: 'Sub & noise', color: YELLOW, grow: 2, switches: ['osc.sub'], faders: ['mix.sub', 'mix.noise'] },
   ],
   [
     {

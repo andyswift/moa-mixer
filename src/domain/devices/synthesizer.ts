@@ -6,6 +6,7 @@ const CENTS_PER_OCTAVE = 1200;
 
 const A4_HZ = 440;
 const LFO_DEFAULT_HZ = 4.8;
+const PW_SOURCES = ['man', 'lfo', 'env'] as const;
 const NOTE_MODES = ['legato', 'retrig'] as const;
 const LFO_WAVES = ['tri', 'sqr', 'rnd'] as const;
 const RANGES = { "16'": -1200, "8'": 0, "4'": 1200, "2'": 2400 } as const;
@@ -23,6 +24,8 @@ export class Synthesizer extends Device {
   private gateOpen = false;
   private glideSeconds = 0;
   private retrigger = false;
+  private pwSource: (typeof PW_SOURCES)[number] = 'man';
+  private pwmAmount = 0;
 
   constructor(name = 'Synth') {
     super();
@@ -60,6 +63,7 @@ export class Synthesizer extends Device {
       .add('lfo', 'gain', { gain: 1 })
       .add('lfoPitch', 'gain', { gain: 0 }) // cents
       .add('lfoPw', 'gain', { gain: 0 }) // pulse width offset
+      .add('envPw', 'gain', { gain: 0 }) // pulse width offset, driven by the filter envelope
       .add('lfoFilter', 'gain', { gain: 0 }); // cents
 
     for (const osc of ['sawOsc', 'pulseOsc', 'subOsc']) {
@@ -94,7 +98,9 @@ export class Synthesizer extends Device {
       .connect('lfo', 'lfoPitch')
       .connect('lfo', 'lfoPw')
       .connect('lfo', 'lfoFilter')
-      .connect('lfoPw', 'pulseSum');
+      .connect('lfoPw', 'pulseSum')
+      .connect('filterEnv', 'envPw')
+      .connect('envPw', 'pulseSum');
     this.outputList.push({ name: 'out', nodeId: 'level' });
 
     this.controlList.push(
@@ -132,7 +138,14 @@ export class Synthesizer extends Device {
         c.setParam('lfoRnd', 'rate', v);
       }, 'log'),
       new NumberControl('osc.mod', 'Mod', 0, 600, 0, 'ct', (v) => c.setParam('lfoPitch', 'gain', v)),
-      new NumberControl('osc.pwm', 'PWM', 0, 100, 0, '%', (v) => c.setParam('lfoPw', 'gain', (v / 100) * 0.9)),
+      new ChoiceControl('osc.pwSource', 'PW src', PW_SOURCES, 'man', (v) => {
+        this.pwSource = v as (typeof PW_SOURCES)[number];
+        this.applyPwm();
+      }),
+      new NumberControl('osc.pwm', 'PWM', 0, 100, 0, '%', (v) => {
+        this.pwmAmount = v / 100;
+        this.applyPwm();
+      }),
       new NumberControl('filter.lfo', 'LFO', 0, 4, 0, 'oct', (v) => c.setParam('lfoFilter', 'gain', v * CENTS_PER_OCTAVE)),
       new NumberControl('level', 'Level', 0, 1, 0.5, '', (v) => c.setParam('level', 'gain', v)),
       new NumberControl('filterEnv.amount', 'Amount', 0, 6, 2, 'oct', (v) =>
@@ -140,6 +153,13 @@ export class Synthesizer extends Device {
       ...adsr(c, 'filterEnv', { attack: 0.005, decay: 0.3, sustain: 0.3, release: 0.3 }),
       ...adsr(c, 'ampEnv', { attack: 0.005, decay: 0.2, sustain: 0.7, release: 0.3 }),
     );
+  }
+
+  /** Pulse width follows the chosen source: manual width only, or width modulated by the LFO / filter envelope. */
+  private applyPwm(): void {
+    const depth = this.pwmAmount * 0.9; // keep clear of fully closed (0% / 100%) pulses
+    this.circuit.setParam('lfoPw', 'gain', this.pwSource === 'lfo' ? depth : 0);
+    this.circuit.setParam('envPw', 'gain', this.pwSource === 'env' ? depth : 0);
   }
 
   /**
