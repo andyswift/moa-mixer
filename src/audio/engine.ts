@@ -88,6 +88,12 @@ export class AudioEngine {
           nodes.set(n.id, src);
           break;
         }
+        case 'delay': {
+          const d = ctx.createDelay(n.params.maxTime ?? 1);
+          d.delayTime.value = n.params.delayTime ?? 0.25;
+          nodes.set(n.id, d);
+          break;
+        }
         case 'trigger': {
           // CV source like an envelope, but fired by trigger()/choke() events rather than a gate.
           const src = ctx.createConstantSource();

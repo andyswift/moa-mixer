@@ -1,4 +1,4 @@
-import type { Synthesizer } from '../domain/devices/synthesizer';
+import type { Playable } from '../domain/devices/playable';
 import { el } from './widgets';
 import { renderWheel } from './wheel';
 
@@ -13,6 +13,9 @@ const WHITE_COUNT = IS_WHITE.reduce((n, w, i) => n + (w ? 1 : 0), 0) * 4 + 1; //
 const BLACK_WIDTH = (100 / WHITE_COUNT) * 0.6;
 const MAX_OCTAVE = 2;
 
+// Several synths can each have a keyboard bed; the computer keys play whichever panel was touched last.
+let activeBed: HTMLElement | undefined;
+
 const noteName = (note: number) => `${NAMES[note % 12]}${Math.floor(note / 12) - 1}`;
 const semitones = (bend: number) => {
   const st = Math.round(bend * 2 * 100) / 100;
@@ -22,9 +25,14 @@ const semitones = (bend: number) => {
 /**
  * The keyboard bed along the bottom of the synth panel: pitch and mod wheels with octave buttons on the
  * left, a 49-key keyboard filling the rest. Keys light for notes from anywhere, MIDI included.
+ * The computer keyboard plays the synth whose panel you last clicked (the first one until then).
  */
-export function mountKeyboardBed(synth: Synthesizer): HTMLElement {
+export function mountKeyboardBed(synth: Playable): HTMLElement {
   const bed = el('div', 'keybed');
+  activeBed ??= bed;
+  document.addEventListener('pointerdown', (e) => {
+    if (bed.parentElement?.contains(e.target as Node)) activeBed = bed;
+  }, true);
 
   // --- Wheels and octave ---
   const cheek = el('div', 'keybed-cheek');
@@ -136,7 +144,7 @@ export function mountKeyboardBed(synth: Synthesizer): HTMLElement {
 
   // Computer keyboard: the home row plays the octave from middle C.
   window.addEventListener('keydown', (e) => {
-    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.target instanceof HTMLSelectElement) return;
+    if (activeBed !== bed || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.target instanceof HTMLSelectElement) return;
     const i = LETTERS.indexOf(e.key.toLowerCase());
     if (i >= 0) press(LETTER_START + i);
   });

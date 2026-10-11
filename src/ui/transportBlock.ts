@@ -8,7 +8,10 @@ const PINK = '#d9628a';
 /** What the block shows as running and as the position; defaults to the transport's own (the MIDI clock's). */
 export interface TransportSource {
   running: () => boolean;
-  position: () => Position;
+  /** Omit for a device with nothing to count (the position display is then left out). */
+  position?: () => Position;
+  /** False for a device that has no start/stop to follow (the switch is then left out). */
+  followStartStop?: boolean;
 }
 
 /** Per-device transport: tempo, sync source, start/stop following, MIDI channel and position. */
@@ -52,7 +55,8 @@ export function renderTransportBlock(
   const follow = renderToggleButton(
     transport.followStartStop, 'Follow MIDI start and stop', (on) => `Start/stop: ${on ? 'On' : 'Off'}`, PINK, 'btn btn-small',
   );
-  sync.append(syncGroup, follow);
+  sync.append(syncGroup);
+  if (source.followStartStop !== false) sync.append(follow);
 
   const channel = el('div', 'transport-channel');
   channel.append(el('div', 'fader-label', 'MIDI ch'));
@@ -75,7 +79,8 @@ export function renderTransportBlock(
   posRow.append(led, position);
   pos.append(posRow, dotRow);
 
-  block.append(tempo, sync, channel, pos);
+  block.append(tempo, sync, channel);
+  if (source.position) block.append(pos);
 
   const paint = () => {
     const synced = transport.synced;
@@ -97,10 +102,12 @@ export function renderTransportBlock(
     const running = source.running();
     bpm.textContent = transport.bpm.toFixed(1);
     bpm.classList.toggle('locked', transport.locked);
-    const p = source.position();
-    position.textContent = `${p.bar} : ${p.beat} : ${p.sixteenth}`;
-    led.classList.toggle('on', running);
-    dots.forEach((d, i) => d.classList.toggle('on', running && p.beat === i + 1));
+    const p = source.position?.();
+    if (p) {
+      position.textContent = `${p.bar} : ${p.beat} : ${p.sixteenth}`;
+      led.classList.toggle('on', running);
+      dots.forEach((d, i) => d.classList.toggle('on', running && p.beat === i + 1));
+    }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);

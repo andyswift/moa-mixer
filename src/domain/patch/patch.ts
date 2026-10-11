@@ -1,5 +1,6 @@
 import type { Device } from '../devices/device';
 import { DRUM_VOICES, DrumMachine } from '../devices/drumMachine';
+import { PolySynth } from '../devices/polySynth';
 import { Mixer } from '../devices/mixer';
 import { Synthesizer } from '../devices/synthesizer';
 import { MidiClock } from '../midi/clock';
@@ -45,14 +46,16 @@ export class Patch {
   }
 
   static default(clock = new MidiClock()): Patch {
-    // Mixer channel 1 is the synth; channels 2-7 are the drum voices, one individual output each.
+    // Mixer channel 1 is the mono synth, 2 the poly synth, 3-8 the drum voices (one individual output each).
     const patch = new Patch()
       .add('synth', new Synthesizer('Synth', clock))
+      .add('poly', new PolySynth('Poly', clock))
       .add('drums', new DrumMachine('Drums', clock))
-      .add('mixer', new Mixer(1 + DRUM_VOICES.length))
-      .connect({ device: 'synth', jack: 'out' }, { device: 'mixer', jack: 'ch1' });
+      .add('mixer', new Mixer(2 + DRUM_VOICES.length))
+      .connect({ device: 'synth', jack: 'out' }, { device: 'mixer', jack: 'ch1' })
+      .connect({ device: 'poly', jack: 'out' }, { device: 'mixer', jack: 'ch2' });
     DRUM_VOICES.forEach((voice, i) =>
-      patch.connect({ device: 'drums', jack: voice }, { device: 'mixer', jack: `ch${i + 2}` }));
+      patch.connect({ device: 'drums', jack: voice }, { device: 'mixer', jack: `ch${i + 3}` }));
     return patch.setOutput('mixer', 'main');
   }
 }

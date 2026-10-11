@@ -220,3 +220,56 @@ button.start:disabled { background: #3a3d42; color: #a9adb3; cursor: default; }
 .wheel-markers { position: relative; width: 10px; height: 112px; }
 .wheel-marker { position: absolute; left: 0; width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-right: 8px solid #e8742c; }
 .wheel-readout { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; color: #e8e4da; height: 16px; white-space: nowrap; }
+
+/* ---- MOA-6 poly synth ---- */
+.poly-panel { background: linear-gradient(180deg, #2b2e32 0%, #24272a 100%); border-top: 6px solid #3a8fd6; border-radius: 8px; padding: 22px 28px 28px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 12px; font-family: 'Barlow Condensed', system-ui, sans-serif; }
+.poly-panel .key-white.on, .poly-panel .key-black.on { background: #3a8fd6; }
+.poly-panel .wheel-marker { border-right-color: #3a8fd6; }
+.poly-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+.poly-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.poly-section { min-width: 260px; background: #1f2124; border: 1px solid #3a3d42; border-radius: 6px; padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 10px; box-sizing: border-box; }
+.poly-section-head { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid #3a3d42; }
+.poly-section-head h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: #e8e4da; }
+.poly-bar { width: 28px; height: 5px; border-radius: 2px; flex: none; }
+.poly-section-body { display: flex; gap: 10px; align-items: center; flex: 1; min-height: 0; }
+
+.dial { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1 1 84px; min-width: 76px; }
+.dial-face { position: relative; width: 72px; height: 72px; touch-action: none; cursor: ns-resize; border-radius: 50%; }
+.dial-face:focus-visible { outline: 2px solid #e8e4da; outline-offset: 2px; }
+.dial-face svg { display: block; }
+.dial-label { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #a9adb3; height: 16px; white-space: nowrap; }
+.dial-value { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #e8e4da; height: 16px; white-space: nowrap; }
+
+.poly-selector { display: flex; gap: 10px; align-items: center; flex: none; }
+.poly-step-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.poly-mini-label { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #a9adb3; }
+.poly-key { width: 44px; height: 44px; border-radius: 5px; border: 1px solid #8a8e94; background: #d8dbe0; color: #1b1c1e; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 16px; font-weight: 500; }
+.poly-key:focus-visible, .poly-option:focus-visible, .poly-sync:focus-visible { outline: 2px solid #e8e4da; outline-offset: 2px; }
+.poly-options { display: flex; flex-direction: column; gap: 3px; }
+.poly-option { display: flex; align-items: center; gap: 6px; width: 88px; height: 22px; padding: 0 6px; border-radius: 3px; border: 1px solid #3a3d42; background: #25282c; color: #a9adb3; font-family: inherit; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; cursor: pointer; box-sizing: border-box; }
+.poly-option[aria-pressed='true'], .poly-sync[aria-pressed='true'] { background: #2f3338; color: #f1eee6; border-color: #3a8fd6; }
+.poly-led { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #3a3d42; display: inline-block; }
+.poly-led.on, [aria-pressed='true'] > .poly-led { background: #3a8fd6; box-shadow: 0 0 8px #3a8fd6; }
+.poly-led-big { width: 12px; height: 12px; }
+.poly-led-big.on { box-shadow: 0 0 10px #3a8fd6; }
+.poly-sync { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 4px; border: 1px solid #3a3d42; background: #25282c; color: #a9adb3; font-family: inherit; font-size: 14px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; cursor: pointer; flex: none; }
+
+.poly-display { width: 188px; flex: none; background: #050607; border: 1px solid #3a3d42; border-radius: 3px; overflow: hidden; }
+.poly-display-title { background: #e8e4da; color: #0c0d0e; text-align: center; font-size: 13px; font-weight: 700; letter-spacing: 0.24em; height: 18px; line-height: 18px; }
+.poly-display svg { display: block; }
+.poly-display-text { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; color: #e8e4da; white-space: pre; text-align: center; height: 18px; line-height: 14px; }
+.poly-voices { display: flex; flex-direction: column; gap: 10px; align-items: center; flex: none; padding: 0 6px; }
+.poly-voice-leds { display: flex; gap: 9px; }
+
+.poly-patch { background: #1f2124; border: 1px solid #3a3d42; border-radius: 6px; padding: 10px 16px; display: flex; align-items: center; gap: 22px; min-height: 84px; box-sizing: border-box; flex-wrap: wrap; }
+.poly-patch .poly-section-head { border-bottom: 0; padding-bottom: 0; }
+.poly-patch-display { width: 260px; height: 52px; box-sizing: border-box; background: #050607; border: 1px solid #3a3d42; border-radius: 3px; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; flex: none; }
+.poly-patch-name { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 20px; color: #8cc6f2; white-space: nowrap; }
+.poly-patch-tag { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; color: #a9adb3; white-space: nowrap; }
+.poly-bank-keys, .poly-preset-keys { display: flex; gap: 6px; flex: none; }
+.poly-preset-keys { gap: 8px; }
+.poly-preset { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.poly-key-number[aria-pressed='true'] { background: #3a8fd6; border-color: #3a8fd6; }
+.poly-save { width: auto; padding: 0 18px; font-family: inherit; font-size: 15px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; }
+.poly-spacer { flex: 1; }
+.poly-midi { display: flex; align-items: center; gap: 10px; font-size: 13px; letter-spacing: 0.2em; color: #a9adb3; text-transform: uppercase; flex: none; }
