@@ -43,6 +43,7 @@ start.addEventListener('click', async () => {
 const synth = patch.device<Synthesizer>('synth');
 const poly = patch.device<PolySynth>('poly');
 const drums = patch.device<DrumMachine>('drums');
+const granular = patch.device<GranularFx>('granular');
 const sequencer = new DrumSequencer(drums, clock, () => engine.currentTime);
 setInterval(() => sequencer.tick(), 25);
 
@@ -54,6 +55,7 @@ function handleMidiBytes(data: ArrayLike<number>, time = performance.now()): voi
   monitor.record(event, time);
   synth.handleMidi(event);
   poly.handleMidi(event);
+  granular.handleMidi(event);
   drums.handleMidi(event);
   sequencer.handleMidi(event);
 }
@@ -76,7 +78,7 @@ app.append(renderBusCompPanel(patch.device<BusCompFx>('buscomp'), patch.device<M
   { value: '2', label: 'Poly' },
 ]));
 
-app.append(renderGranularPanel(patch.device<GranularFx>('granular'), 'granular', engine));
+app.append(renderGranularPanel(granular, 'granular', engine));
 
 app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay', 'Ouroboros', 'Bus Comp', 'Granular'], { B: 'to Bus Comp', C: 'to Ouroboros' }));
 

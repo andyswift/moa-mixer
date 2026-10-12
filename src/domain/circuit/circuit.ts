@@ -20,6 +20,8 @@
 // 'granular' records its mono input into a ring buffer of `maxTime` seconds (fixed when built) and plays it back
 // as a stereo cloud of short grains. Params: position (0..1, how far back from "now"), size (s), pitch (semitones),
 // rate (grains/s), spread, cloud, detune (cents), shape, reverse (0..1 chance), feedback and freeze (>0.5 stops recording).
+// With play > 0.5 it is silent until noteOn(): 8 voices, each transposed by (note - 60) semitones, with an ADSR
+// (attack, decay, release in s; sustain a level) and velocity.
 export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular';
 
 export interface CircuitNode {
@@ -40,7 +42,8 @@ export type CircuitChange =
   | { type: 'param'; nodeId: string; name: string; value: number }
   | { type: 'option'; nodeId: string; name: string; value: string }
   | { type: 'trigger'; nodeId: string; velocity: number; when?: number }
-  | { type: 'choke'; nodeId: string; when?: number };
+  | { type: 'choke'; nodeId: string; when?: number }
+  | { type: 'note'; nodeId: string; note: number; velocity: number };
 
 export class Circuit {
   readonly nodes = new Map<string, CircuitNode>();
@@ -95,6 +98,23 @@ export class Circuit {
   choke(nodeId: string, when?: number): void {
     this.expectKind(nodeId, 'trigger');
     this.emit({ type: 'choke', nodeId, when });
+  }
+
+  /** Starts a note on a granular node (note 0-127, velocity 0..1). Velocity 0 is a note off. */
+  noteOn(nodeId: string, note: number, velocity = 1): void {
+    this.expectKind(nodeId, 'granular');
+    this.emit({ type: 'note', nodeId, note, velocity: Math.min(1, Math.max(0, velocity)) });
+  }
+
+  noteOff(nodeId: string, note: number): void {
+    this.expectKind(nodeId, 'granular');
+    this.emit({ type: 'note', nodeId, note, velocity: 0 });
+  }
+
+  /** Releases every note on a granular node. */
+  allNotesOff(nodeId: string): void {
+    this.expectKind(nodeId, 'granular');
+    this.emit({ type: 'note', nodeId, note: -1, velocity: 0 });
   }
 
   onChange(fn: (c: CircuitChange) => void): () => void {

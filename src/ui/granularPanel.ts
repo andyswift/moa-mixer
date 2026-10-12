@@ -2,6 +2,7 @@ import type { AudioEngine } from '../audio/engine';
 import type { ChoiceControl, NumberControl, ToggleControl } from '../domain/devices/controls';
 import { GRANULAR_BUFFER_SECONDS, type GranularFx } from '../domain/devices/granular';
 import { type DialFace, controlDial, renderDial } from './dial';
+import { mountKeyboardBed } from './keyboard';
 import { loadSavedPatches, persistPatch } from './patchStorage';
 import { el } from './widgets';
 
@@ -39,6 +40,29 @@ function knob(d: GranularFx, id: string, led: string, size: number): HTMLElement
   dot.style.boxShadow = `0 0 8px ${led}`;
   dial.append(dot);
   return dial;
+}
+
+/** The Keys button (cloud plays only while notes are held) and the MIDI channel those notes come from. */
+function playBlock(keys: ToggleControl, channel: ChoiceControl): HTMLElement {
+  const wrap = el('div', 'gr-keys');
+  const button = el('button', 'gr-tail-btn gr-keys-btn', 'Keys');
+  button.type = 'button';
+  button.title = 'Off: the cloud runs all the time. On: it plays only while notes are held (playing a key turns it on).';
+  button.addEventListener('click', () => keys.set(!keys.value));
+  const paint = () => button.setAttribute('aria-pressed', String(keys.value));
+  keys.onChange(paint);
+  paint();
+
+  const select = el('select', 'gr-channel');
+  select.setAttribute('aria-label', 'MIDI channel');
+  for (const c of channel.options) select.add(new Option(c === 'omni' ? 'Omni' : `Ch ${c}`, c));
+  select.value = channel.value;
+  select.addEventListener('change', () => channel.set(select.value));
+  channel.onChange(() => {
+    select.value = channel.value;
+  });
+  wrap.append(button, select, el('div', 'dial-label', 'Play'));
+  return wrap;
 }
 
 /** Three buttons for the reverb tail: small, medium, large. */
@@ -99,6 +123,13 @@ export function renderGranularPanel(d: GranularFx, deviceId: string, engine: Aud
   space.append(
     knob(d, 'gr.filter', BLUE, 64), knob(d, 'gr.reso', MAGENTA, 64), knob(d, 'gr.drive', MAGENTA, 64),
     knob(d, 'gr.reverb', BLUE, 64), knob(d, 'gr.tone', MAGENTA, 64), tailSelector(d.control('gr.tail') as ChoiceControl),
+  );
+
+  // Play: the envelope each note gets, Keys, and the MIDI channel.
+  const play = el('div', 'gr-play');
+  play.append(
+    knob(d, 'gr.attack', BLUE, 64), knob(d, 'gr.decay', MAGENTA, 64), knob(d, 'gr.sustain', BLUE, 64),
+    knob(d, 'gr.release', MAGENTA, 64), playBlock(d.control('gr.play') as ToggleControl, d.control('gr.channel') as ChoiceControl),
   );
 
   // Bottom: freeze | screen + patches | encoder + save.
@@ -194,7 +225,7 @@ export function renderGranularPanel(d: GranularFx, deviceId: string, engine: Aud
   side.append(encoder, el('div', 'gr-side-label', 'Patch'), save);
 
   bottom.append(freezeWrap, middle, side);
-  panel.append(header, rule(), main, rule('Texture'), texture, rule('Tone & space'), space, rule(), bottom);
+  panel.append(header, rule(), main, rule('Texture'), texture, rule('Tone & space'), space, rule('Play · 8 voices'), play, rule(), bottom, mountKeyboardBed(d));
 
   const paintPatches = () => {
     patchButtons.forEach((b, i) => {

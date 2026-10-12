@@ -247,6 +247,10 @@ export class AudioEngine {
     circuit.onChange((change) => {
       const node = nodes.get(change.nodeId);
       if (!node) return;
+      if (change.type === 'note') {
+        if (node instanceof AudioWorkletNode) node.port.postMessage(change);
+        return;
+      }
       if (change.type === 'trigger' || change.type === 'choke') {
         if (node instanceof ConstantSourceNode) {
           if (change.type === 'trigger') fireTrigger(ctx, node.offset, circuit.node(change.nodeId).params, circuit.node(change.nodeId).options.shape, change.velocity, change.when);

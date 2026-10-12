@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { CircuitChange } from '../circuit/circuit';
 import { GRANULAR_INIT, GRANULAR_PRESETS, GranularFx } from '../devices/granular';
+import { parseMidi } from '../midi/events';
 import type { Mixer } from '../devices/mixer';
 import { Patch } from '../patch/patch';
 
@@ -108,6 +110,126 @@ describe('Granular processor', () => {
     g.loadSlot(0);
     g.loadSlot(3);
     expect((g.control('gr.pitch') as { value: number }).value).toBe(7);
+  });
+});
+
+describe('Granular processor playing', () => {
+  const notes = (g: GranularFx) => {
+    const seen: CircuitChange[] = [];
+    g.circuit.onChange((c) => {
+      if (c.type === 'note') seen.push(c);
+    });
+    return seen;
+  };
+  const midi = (g: GranularFx, ...bytes: number[]) => g.handleMidi(parseMidi(bytes)!);
+
+  it('maps the envelope controls onto the grain engine, in seconds', () => {
+    const g = new GranularFx();
+    set(g, 'gr.attack', 250);
+    set(g, 'gr.decay', 1000);
+    set(g, 'gr.sustain', 0.4);
+    set(g, 'gr.release', 2000);
+    expect(param(g, 'grains', 'attack')).toBeCloseTo(0.25);
+    expect(param(g, 'grains', 'decay')).toBeCloseTo(1);
+    expect(param(g, 'grains', 'sustain')).toBe(0.4);
+    expect(param(g, 'grains', 'release')).toBeCloseTo(2);
+  });
+
+  it('starts with Keys off, and playing a key turns it on and sends the note', () => {
+    const g = new GranularFx();
+    const seen = notes(g);
+    expect(param(g, 'grains', 'play')).toBe(0);
+    g.keyDown(64, 0.5);
+    expect(param(g, 'grains', 'play')).toBe(1);
+    expect(g.heldNotes).toEqual([64]);
+    expect(seen).toEqual([{ type: 'note', nodeId: 'grains', note: 64, velocity: 0.5 }]);
+    g.keyUp(64);
+    expect(g.heldNotes).toEqual([]);
+    expect(seen[1]).toEqual({ type: 'note', nodeId: 'grains', note: 64, velocity: 0 });
+  });
+
+  it('turning Keys off releases every note', () => {
+    const g = new GranularFx();
+    g.keyDown(60);
+    g.keyDown(64);
+    const seen = notes(g);
+    set(g, 'gr.play', false);
+    expect(g.heldNotes).toEqual([]);
+    expect(seen).toContainEqual({ type: 'note', nodeId: 'grains', note: -1, velocity: 0 });
+  });
+
+  it('tells the keyboard bed when notes and wheels change', () => {
+    const g = new GranularFx();
+    let noteChanges = 0;
+    let wheelChanges = 0;
+    g.onNoteChange(() => noteChanges++);
+    g.onPerformanceChange(() => wheelChanges++);
+    g.keyDown(60);
+    g.keyUp(60);
+    g.setPitchBend(0.5);
+    g.setModWheel(0.3);
+    expect(noteChanges).toBe(2);
+    expect(wheelChanges).toBe(2);
+    expect(g.modWheel).toBeCloseTo(0.3);
+  });
+
+  it('pitch bend adds up to two semitones to the Pitch knob', () => {
+    const g = new GranularFx();
+    set(g, 'gr.pitch', 5);
+    g.setPitchBend(1);
+    expect(param(g, 'grains', 'pitch')).toBeCloseTo(7);
+    g.setPitchBend(-1);
+    expect(param(g, 'grains', 'pitch')).toBeCloseTo(3);
+    set(g, 'gr.pitch', -12);
+    expect(param(g, 'grains', 'pitch')).toBeCloseTo(-14);
+  });
+
+  it('listens to MIDI on channel 3 by default, with velocity, and ignores other channels', () => {
+    const g = new GranularFx();
+    const seen = notes(g);
+    midi(g, 0x92, 60, 127); // channel 3
+    midi(g, 0x91, 62, 100); // channel 2: the poly synth's
+    midi(g, 0x82, 60, 0);
+    expect(seen).toEqual([
+      { type: 'note', nodeId: 'grains', note: 60, velocity: 1 },
+      { type: 'note', nodeId: 'grains', note: 60, velocity: 0 },
+    ]);
+  });
+
+  it('the MIDI channel can be changed, or set to omni', () => {
+    const g = new GranularFx();
+    set(g, 'gr.channel', '5');
+    midi(g, 0x92, 60, 100);
+    expect(g.heldNotes).toEqual([]);
+    midi(g, 0x94, 60, 100);
+    expect(g.heldNotes).toEqual([60]);
+    set(g, 'gr.channel', 'omni');
+    midi(g, 0x9f, 61, 100);
+    expect(g.heldNotes).toEqual([60, 61]);
+  });
+
+  it('MIDI pitch bend, mod wheel and program change work on its channel', () => {
+    const g = new GranularFx();
+    midi(g, 0xe2, 0x7f, 0x7f); // pitch bend, top of the range
+    expect(g.pitchBend).toBeGreaterThan(0.99);
+    midi(g, 0xb2, 1, 127);
+    expect(g.modWheel).toBe(1);
+    midi(g, 0xc2, 3);
+    expect(g.currentSlot).toBe(3);
+    midi(g, 0xc1, 5); // wrong channel
+    expect(g.currentSlot).toBe(3);
+  });
+
+  it('patches store the envelope and Keys, but not the MIDI channel', () => {
+    const g = new GranularFx();
+    set(g, 'gr.attack', 900);
+    set(g, 'gr.channel', '7');
+    const saved = g.saveSlot(1);
+    expect(saved.values['gr.attack']).toBe(900);
+    expect(saved.values).toHaveProperty('gr.play');
+    expect(saved.values).not.toHaveProperty('gr.channel');
+    g.loadSlot(0);
+    expect((g.control('gr.channel') as { value: string }).value).toBe('7');
   });
 });
 
