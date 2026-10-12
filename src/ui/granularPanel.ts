@@ -1,5 +1,5 @@
 import type { AudioEngine } from '../audio/engine';
-import type { NumberControl, ToggleControl } from '../domain/devices/controls';
+import type { ChoiceControl, NumberControl, ToggleControl } from '../domain/devices/controls';
 import { GRANULAR_BUFFER_SECONDS, type GranularFx } from '../domain/devices/granular';
 import { type DialFace, controlDial, renderDial } from './dial';
 import { loadSavedPatches, persistPatch } from './patchStorage';
@@ -41,6 +41,25 @@ function knob(d: GranularFx, id: string, led: string, size: number): HTMLElement
   return dial;
 }
 
+/** Three buttons for the reverb tail: small, medium, large. */
+function tailSelector(c: ChoiceControl): HTMLElement {
+  const wrap = el('div', 'gr-tail');
+  const row = el('div', 'gr-tail-row');
+  const buttons = c.options.map((value) => {
+    const b = el('button', 'gr-tail-btn', value[0]!.toUpperCase());
+    b.type = 'button';
+    b.setAttribute('aria-label', `Reverb tail ${value}`);
+    b.addEventListener('click', () => c.set(value));
+    row.append(b);
+    return b;
+  });
+  const paint = () => buttons.forEach((b, i) => b.setAttribute('aria-pressed', String(c.options[i] === c.value)));
+  c.onChange(paint);
+  paint();
+  wrap.append(row, el('div', 'dial-label', 'Tail'));
+  return wrap;
+}
+
 function rule(text?: string): HTMLElement {
   const row = el('div', 'gr-rule');
   if (text) row.append(el('span', undefined, text));
@@ -73,6 +92,13 @@ export function renderGranularPanel(d: GranularFx, deviceId: string, engine: Aud
   texture.append(
     knob(d, 'gr.spread', BLUE, 64), knob(d, 'gr.cloud', MAGENTA, 64), knob(d, 'gr.detune', MAGENTA, 64),
     knob(d, 'gr.shape', BLUE, 64), knob(d, 'gr.reverse', MAGENTA, 64),
+  );
+
+  // Tone and space: the filter, the saturator and the reverb, after the grains.
+  const space = el('div', 'gr-space');
+  space.append(
+    knob(d, 'gr.filter', BLUE, 64), knob(d, 'gr.reso', MAGENTA, 64), knob(d, 'gr.drive', MAGENTA, 64),
+    knob(d, 'gr.reverb', BLUE, 64), knob(d, 'gr.tone', MAGENTA, 64), tailSelector(d.control('gr.tail') as ChoiceControl),
   );
 
   // Bottom: freeze | screen + patches | encoder + save.
@@ -168,7 +194,7 @@ export function renderGranularPanel(d: GranularFx, deviceId: string, engine: Aud
   side.append(encoder, el('div', 'gr-side-label', 'Patch'), save);
 
   bottom.append(freezeWrap, middle, side);
-  panel.append(header, rule(), main, rule('Texture'), texture, rule(), bottom);
+  panel.append(header, rule(), main, rule('Texture'), texture, rule('Tone & space'), space, rule(), bottom);
 
   const paintPatches = () => {
     patchButtons.forEach((b, i) => {

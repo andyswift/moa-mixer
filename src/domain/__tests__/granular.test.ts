@@ -3,7 +3,7 @@ import { GRANULAR_INIT, GRANULAR_PRESETS, GranularFx } from '../devices/granular
 import type { Mixer } from '../devices/mixer';
 import { Patch } from '../patch/patch';
 
-const set = (d: GranularFx, id: string, v: number | boolean) => (d.control(id) as { set(v: unknown): void }).set(v);
+const set = (d: GranularFx, id: string, v: number | boolean | string) => (d.control(id) as { set(v: unknown): void }).set(v);
 const param = (d: GranularFx, node: string, name: string) => d.circuit.node(node).params[name]!;
 
 describe('Granular processor', () => {
@@ -47,6 +47,45 @@ describe('Granular processor', () => {
     expect(param(g, 'grains', 'freeze')).toBe(1);
     set(g, 'gr.freeze', false);
     expect(param(g, 'grains', 'freeze')).toBe(0);
+  });
+
+  it('filters, saturates and adds reverb after the grains, in that order', () => {
+    const g = new GranularFx();
+    const has = (from: string, to: string) => g.circuit.cables.some((c) => c.from === from && c.to === to && c.port === 'in');
+    expect(has('grains', 'filter') && has('filter', 'preDrive') && has('preDrive', 'sat') && has('sat', 'postDrive')).toBe(true);
+    expect(has('postDrive', 'wet') && has('postDrive', 'revSend') && has('revSend', 'conv')).toBe(true);
+    expect(has('grains', 'wet')).toBe(false); // the grains no longer bypass the filter
+    set(g, 'gr.filter', 800);
+    set(g, 'gr.reso', 6);
+    set(g, 'gr.tone', 3000);
+    expect(param(g, 'filter', 'frequency')).toBe(800);
+    expect(param(g, 'filter', 'Q')).toBe(6);
+    expect(param(g, 'revTone', 'frequency')).toBe(3000);
+  });
+
+  it('the filter starts wide open, the saturator and reverb start off, and drive adds gain into the clipper', () => {
+    const g = new GranularFx();
+    expect(param(g, 'filter', 'frequency')).toBe(20000);
+    expect(param(g, 'revSend', 'gain')).toBe(0);
+    expect(param(g, 'preDrive', 'gain')).toBe(1);
+    set(g, 'gr.drive', 1);
+    expect(param(g, 'preDrive', 'gain')).toBeGreaterThan(5);
+    expect(param(g, 'postDrive', 'gain')).toBeLessThan(0.2); // makeup comes down so drive adds grit, not volume
+    set(g, 'gr.reverb', 0.4);
+    expect(param(g, 'revSend', 'gain')).toBeCloseTo(0.4);
+  });
+
+  it('Tail picks the reverb size, and patches can store it', () => {
+    const g = new GranularFx();
+    set(g, 'gr.tail', 'large');
+    expect(g.circuit.node('conv').options.size).toBe('large');
+    expect(() => set(g, 'gr.tail', 'huge')).toThrow();
+    const saved = g.saveSlot(2);
+    expect(saved.values['gr.tail']).toBe('large');
+    g.loadSlot(0);
+    expect(g.circuit.node('conv').options.size).toBe('medium');
+    g.loadSlot(2);
+    expect(g.circuit.node('conv').options.size).toBe('large');
   });
 
   it('loads every patch, resetting what the patch does not name', () => {

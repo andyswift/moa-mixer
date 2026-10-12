@@ -1,5 +1,6 @@
 import { Device } from './device';
-import { NumberControl, ToggleControl } from './controls';
+import { ChoiceControl, NumberControl, ToggleControl } from './controls';
+import { REVERB_SIZES, SOFT_UNITY } from './sendFx';
 import type { PresetValues, SynthPreset } from './synthPresets';
 
 /** Seconds of audio the capture buffer holds. */
@@ -9,25 +10,34 @@ export const GRANULAR_BUFFER_SECONDS = 20;
 export const GRANULAR_INIT: PresetValues = {
   'gr.position': 0.3, 'gr.size': 120, 'gr.pitch': 0, 'gr.rate': 12, 'gr.spread': 0.5, 'gr.cloud': 0.2,
   'gr.detune': 0, 'gr.shape': 0.3, 'gr.reverse': 0, 'gr.feedback': 0, 'gr.mix': 1, 'gr.freeze': 0,
+  'gr.filter': 20000, 'gr.reso': 0.7, 'gr.drive': 0, 'gr.reverb': 0, 'gr.tone': 8000, 'gr.tail': 'medium',
 };
+
+/** The convolver normalises its tail, so the reverb needs make-up gain (same reasoning as the send reverb). */
+const REVERB_MAKEUP = 3.5;
+const REVERB_CEILING = 2;
+/** Saturator: drive 0..1 raises the gain into the soft clipper from 1x to 1 + DRIVE_RANGE x. */
+const DRIVE_RANGE = 7;
 
 const p = (name: string, values: PresetValues): SynthPreset => ({ name, values });
 
 export const GRANULAR_PRESETS: readonly SynthPreset[] = [
   p('Init', {}),
-  p('Cloud Wash', { 'gr.position': 0.5, 'gr.size': 350, 'gr.rate': 30, 'gr.spread': 1, 'gr.cloud': 0.6, 'gr.detune': 12, 'gr.shape': 0 }),
-  p('Frozen Pad', { 'gr.position': 0.15, 'gr.size': 700, 'gr.rate': 14, 'gr.spread': 0.9, 'gr.cloud': 0.25, 'gr.detune': 6, 'gr.shape': 0, 'gr.freeze': 1 }),
+  p('Cloud Wash', { 'gr.position': 0.5, 'gr.size': 350, 'gr.rate': 30, 'gr.spread': 1, 'gr.cloud': 0.6, 'gr.detune': 12, 'gr.shape': 0, 'gr.reverb': 0.35, 'gr.tail': 'large' }),
+  p('Frozen Pad', { 'gr.position': 0.15, 'gr.size': 700, 'gr.rate': 14, 'gr.spread': 0.9, 'gr.cloud': 0.25, 'gr.detune': 6, 'gr.shape': 0, 'gr.freeze': 1, 'gr.filter': 3500, 'gr.reverb': 0.3, 'gr.tail': 'large' }),
   p('Stutter', { 'gr.position': 0.02, 'gr.size': 90, 'gr.rate': 8, 'gr.spread': 0.2, 'gr.cloud': 0, 'gr.shape': 0.7 }),
-  p('Octave Shimmer', { 'gr.position': 0.25, 'gr.size': 220, 'gr.pitch': 12, 'gr.rate': 24, 'gr.spread': 0.8, 'gr.cloud': 0.3, 'gr.detune': 8, 'gr.feedback': 0.35 }),
+  p('Octave Shimmer', { 'gr.position': 0.25, 'gr.size': 220, 'gr.pitch': 12, 'gr.rate': 24, 'gr.spread': 0.8, 'gr.cloud': 0.3, 'gr.detune': 8, 'gr.feedback': 0.35, 'gr.reverb': 0.25 }),
   p('Reverse Swell', { 'gr.position': 0.35, 'gr.size': 900, 'gr.rate': 6, 'gr.spread': 0.6, 'gr.cloud': 0.15, 'gr.shape': 0, 'gr.reverse': 1 }),
-  p('Glitch Dust', { 'gr.position': 0.6, 'gr.size': 25, 'gr.rate': 70, 'gr.spread': 1, 'gr.cloud': 0.9, 'gr.detune': 40, 'gr.shape': 0.8, 'gr.reverse': 0.3 }),
-  p('Tape Drone', { 'gr.position': 0.1, 'gr.size': 500, 'gr.pitch': -12, 'gr.rate': 18, 'gr.spread': 0.4, 'gr.cloud': 0.1, 'gr.detune': 4, 'gr.shape': 0, 'gr.feedback': 0.6 }),
+  p('Glitch Dust', { 'gr.position': 0.6, 'gr.size': 25, 'gr.rate': 70, 'gr.spread': 1, 'gr.cloud': 0.9, 'gr.detune': 40, 'gr.shape': 0.8, 'gr.reverse': 0.3, 'gr.drive': 0.35, 'gr.filter': 9000, 'gr.reso': 3 }),
+  p('Tape Drone', { 'gr.position': 0.1, 'gr.size': 500, 'gr.pitch': -12, 'gr.rate': 18, 'gr.spread': 0.4, 'gr.cloud': 0.1, 'gr.detune': 4, 'gr.shape': 0, 'gr.feedback': 0.6, 'gr.filter': 1800, 'gr.reso': 2, 'gr.drive': 0.25 }),
 ];
 
 /**
  * Granular processor: mono in, stereo out, for an aux send.
- *   in -> grains (records into a ring buffer, plays back a cloud of short windowed grains) -> wet \
- *      \-----------------------------------------------------------------------------------> dry --> out
+ *   in -> grains (records into a ring buffer, plays back a cloud of short windowed grains)
+ *      -> filter -> saturator -> wet ----------------------------\
+ *                          \-> reverb send -> reverb -> tone ----> out
+ *   in -> dry ---------------------------------------------------/
  * The buffer always records the live input, so Position reaches back in time from "now" (0) to the oldest audio
  * (1). Freeze stops recording and holds the buffer still. Feedback writes the output back into the buffer, softly
  * clipped inside the engine, so it stays bounded. Mix 1 is all grains (what you want on an aux send).
@@ -50,6 +60,16 @@ export class GranularFx extends Device {
         maxTime: GRANULAR_BUFFER_SECONDS, position: 0.3, size: 0.12, pitch: 0, rate: 12, spread: 0.5, cloud: 0.2,
         detune: 0, shape: 0.3, reverse: 0, feedback: 0, freeze: 0,
       })
+      .add('filter', 'filter', { frequency: 20000, Q: 0.7, gain: 0, detune: 0 }, { type: 'lowpass' })
+      .add('preDrive', 'gain', { gain: 1 })
+      .add('sat', 'waveshaper', {}, { curve: 'soft' })
+      .add('postDrive', 'gain', { gain: SOFT_UNITY })
+      .add('revSend', 'gain', { gain: 0 })
+      .add('conv', 'convolver', {}, { size: 'medium' })
+      .add('revTone', 'filter', { frequency: 8000, Q: 0.707, gain: 0, detune: 0 }, { type: 'lowpass' })
+      .add('revDrive', 'gain', { gain: (REVERB_MAKEUP * SOFT_UNITY) / REVERB_CEILING })
+      .add('revSat', 'waveshaper', {}, { curve: 'soft' })
+      .add('revOut', 'gain', { gain: REVERB_CEILING })
       .add('wet', 'gain', { gain: 1 })
       .add('dry', 'gain', { gain: 0 })
       .add('out', 'gain', { gain: 1 })
@@ -59,8 +79,19 @@ export class GranularFx extends Device {
       .connect('in', 'grains')
       .connect('in', 'dry')
       .connect('in', 'inMeter')
-      .connect('grains', 'wet')
+      .connect('grains', 'filter')
+      .connect('filter', 'preDrive')
+      .connect('preDrive', 'sat')
+      .connect('sat', 'postDrive')
+      .connect('postDrive', 'wet')
       .connect('wet', 'out')
+      .connect('postDrive', 'revSend')
+      .connect('revSend', 'conv')
+      .connect('conv', 'revTone')
+      .connect('revTone', 'revDrive')
+      .connect('revDrive', 'revSat')
+      .connect('revSat', 'revOut')
+      .connect('revOut', 'out')
       .connect('dry', 'out')
       .connect('out', 'meterL')
       .connect('out', 'meterR');
@@ -91,11 +122,20 @@ export class GranularFx extends Device {
     grain('gr.shape', 'Shape', 0, 1, '', 'shape');
     grain('gr.reverse', 'Reverse', 0, 1, '', 'reverse');
     grain('gr.feedback', 'Feedback', 0, 0.95, '', 'feedback');
+    num('gr.filter', 'Filter', 40, 20000, 'Hz', (v) => c.setParam('filter', 'frequency', v), 'log');
+    num('gr.reso', 'Reso', 0.7, 12, '', (v) => c.setParam('filter', 'Q', v), 'log');
+    num('gr.drive', 'Drive', 0, 1, '', (v) => {
+      c.setParam('preDrive', 'gain', 1 + DRIVE_RANGE * v);
+      c.setParam('postDrive', 'gain', SOFT_UNITY / (1 + 2 * v)); // drive adds grit, not much loudness
+    });
+    num('gr.reverb', 'Reverb', 0, 1, '', (v) => c.setParam('revSend', 'gain', v));
+    num('gr.tone', 'Tone', 1000, 16000, 'Hz', (v) => c.setParam('revTone', 'frequency', v), 'log');
     num('gr.mix', 'Mix', 0, 1, '', (v) => {
       c.setParam('wet', 'gain', v);
       c.setParam('dry', 'gain', 1 - v);
     });
     this.controlList.push(
+      new ChoiceControl('gr.tail', 'Tail', REVERB_SIZES, 'medium', (v) => c.setOption('conv', 'size', v)),
       new ToggleControl('gr.freeze', 'Freeze', false, (on) => c.setParam('grains', 'freeze', on ? 1 : 0)),
     );
   }
@@ -108,6 +148,7 @@ export class GranularFx extends Device {
       const c = this.control(id);
       if (c.kind === 'number' && typeof value === 'number') c.set(value);
       else if (c.kind === 'toggle' && typeof value === 'number') c.set(value > 0);
+      else if (c.kind === 'choice' && typeof value === 'string') c.set(value);
       else throw new Error(`Preset "${preset.name}": bad value for ${id}`);
     }
     for (const l of this.presetListeners) l();
@@ -125,7 +166,7 @@ export class GranularFx extends Device {
   snapshot(): PresetValues {
     const values: PresetValues = {};
     for (const c of this.controlList) {
-      values[c.id] = c.kind === 'toggle' ? (c.value ? 1 : 0) : (c.value as number);
+      values[c.id] = c.kind === 'toggle' ? (c.value ? 1 : 0) : c.value;
     }
     return values;
   }
