@@ -1,6 +1,7 @@
 import { BusCompFx } from '../devices/busComp';
 import type { Device } from '../devices/device';
 import { DRUM_VOICES, DrumMachine } from '../devices/drumMachine';
+import { GranularFx } from '../devices/granular';
 import { OuroborosFx } from '../devices/ouroboros';
 import { PolySynth } from '../devices/polySynth';
 import { DelayFx, ReverbFx } from '../devices/sendFx';
@@ -59,7 +60,8 @@ export class Patch {
       .add('delay', new DelayFx('Delay'))
       .add('ouroboros', new OuroborosFx('Ouroboros'))
       .add('buscomp', new BusCompFx('Bus Comp'))
-      .add('mixer', new Mixer(2 + DRUM_VOICES.length, 'Mixer', 4, { 3: 'C', 4: 'B' }))
+      .add('granular', new GranularFx('Granular'))
+      .add('mixer', new Mixer(2 + DRUM_VOICES.length, 'Mixer', 5, { 3: 'C', 4: 'B' }))
       .connect({ device: 'synth', jack: 'out' }, { device: 'mixer', jack: 'ch1' })
       .connect({ device: 'poly', jack: 'out' }, { device: 'mixer', jack: 'ch2' });
     DRUM_VOICES.forEach((voice, i) =>
@@ -80,6 +82,10 @@ export class Patch {
       .connect({ device: 'mixer', jack: 'busB' }, { device: 'buscomp', jack: 'in' })
       .connect({ device: 'mixer', jack: 'key' }, { device: 'buscomp', jack: 'key' })
       .connect({ device: 'buscomp', jack: 'out' }, { device: 'mixer', jack: 'ret4' });
+    // The granular processor takes aux 3 and comes back on return 5.
+    patch
+      .connect({ device: 'mixer', jack: 'aux3' }, { device: 'granular', jack: 'in' })
+      .connect({ device: 'granular', jack: 'out' }, { device: 'mixer', jack: 'ret5' });
     const mixer = patch.device<Mixer>('mixer');
     (mixer.control('busC.main') as ToggleControl).set(false);
     (mixer.control('busB.main') as ToggleControl).set(false);

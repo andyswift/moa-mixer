@@ -407,7 +407,7 @@ describe('Mixer routing', () => {
 describe('Patch', () => {
   it('default patch routes the synth to mixer channel 1, the poly synth to 2 and each drum voice to its own channel', () => {
     const p = Patch.default();
-    expect(p.connections).toHaveLength(17); // 8 sources, aux1>reverb, aux2>delay and their returns, busC>Ouroboros and its return, busB>Bus Comp, its key and its return
+    expect(p.connections).toHaveLength(19); // 8 sources, aux1>reverb, aux2>delay and their returns, busC>Ouroboros and its return, busB>Bus Comp, its key and its return, aux3>Granular and its return
     expect(p.connections[0]).toEqual({ from: { device: 'synth', jack: 'out' }, to: { device: 'mixer', jack: 'ch1' } });
     expect(p.connections[1]).toEqual({ from: { device: 'poly', jack: 'out' }, to: { device: 'mixer', jack: 'ch2' } });
     expect(p.connections[2]).toEqual({ from: { device: 'drums', jack: 'kick' }, to: { device: 'mixer', jack: 'ch3' } });

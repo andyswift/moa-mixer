@@ -1,12 +1,20 @@
 import type { Circuit } from '../domain/circuit/circuit';
 import type { Patch } from '../domain/patch/patch';
+import { GRANULAR_NAME, GRANULAR_SOURCE } from './granularWorklet';
 
 const SMOOTHING = 0.01; // seconds; avoids zipper noise on param changes
+
+/** What a granular node reports for display: buffer peaks (oldest to newest) and live grains as [x, width] pairs. */
+export interface GrainView {
+  peaks: Float32Array;
+  grains: number[];
+}
 
 /** Compiles a Patch into Web Audio nodes and keeps them in sync with domain state. */
 export class AudioEngine {
   private ctx?: AudioContext;
   private readonly compressors = new Map<string, DynamicsCompressorNode>();
+  private readonly grainViews = new Map<string, GrainView>();
   private readonly meters = new Map<string, { analyser: AnalyserNode; buffer: Float32Array<ArrayBuffer> }>();
 
   constructor(private readonly patch: Patch) {}
@@ -14,7 +22,7 @@ export class AudioEngine {
   async start(): Promise<void> {
     if (!this.ctx) {
       const ctx = new AudioContext();
-      await ctx.audioWorklet.addModule(followerModuleUrl());
+      await ctx.audioWorklet.addModule(workletModuleUrl());
       this.build(ctx);
     }
     await this.ctx?.resume();
@@ -37,6 +45,11 @@ export class AudioEngine {
     let peak = 0;
     for (const v of m.buffer) peak = Math.max(peak, Math.abs(v));
     return peak;
+  }
+
+  /** The latest buffer and grain snapshot from a granular node; undefined until audio has started. */
+  readGranular(deviceId: string, nodeId: string): GrainView | undefined {
+    return this.grainViews.get(`${deviceId}/${nodeId}`);
   }
 
   /** Current gain reduction of a compressor node in dB (0 or negative); 0 until audio starts. */
@@ -110,6 +123,16 @@ export class AudioEngine {
             parameterData: { attack: n.params.attack ?? 0.003, release: n.params.release ?? 0.12 },
           });
           nodes.set(n.id, f);
+          break;
+        }
+        case 'granular': {
+          const { maxTime, ...params } = n.params;
+          const g = new AudioWorkletNode(ctx, GRANULAR_NAME, {
+            numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+            parameterData: params, processorOptions: { seconds: maxTime ?? 20 },
+          });
+          g.port.onmessage = (e: MessageEvent<GrainView>) => this.grainViews.set(`${deviceId}/${n.id}`, e.data);
+          nodes.set(n.id, g);
           break;
         }
         case 'compressor': {
@@ -489,7 +512,7 @@ class MoaFollower extends AudioWorkletProcessor {
 registerProcessor('${FOLLOWER_NAME}', MoaFollower);
 `;
 
-/** The follower's processor is a worklet module, loaded from an in-memory script. */
-function followerModuleUrl(): string {
-  return URL.createObjectURL(new Blob([FOLLOWER_SOURCE], { type: 'text/javascript' }));
+/** The processors are one worklet module, loaded from an in-memory script. */
+function workletModuleUrl(): string {
+  return URL.createObjectURL(new Blob([FOLLOWER_SOURCE, GRANULAR_SOURCE], { type: 'text/javascript' }));
 }

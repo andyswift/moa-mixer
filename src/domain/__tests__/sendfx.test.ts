@@ -232,6 +232,6 @@ describe('Default patch send effects', () => {
     expect(has(['mixer', 'aux2'], ['delay', 'in'])).toBe(true);
     expect(has(['reverb', 'out'], ['mixer', 'ret1'])).toBe(true);
     expect(has(['delay', 'out'], ['mixer', 'ret2'])).toBe(true);
-    expect((p.device('mixer') as Mixer).returnCount).toBe(4); // reverb, delay, Ouroboros and the bus compressor
+    expect((p.device('mixer') as Mixer).returnCount).toBe(5); // reverb, delay, Ouroboros, the bus compressor and Granular
   });
 });

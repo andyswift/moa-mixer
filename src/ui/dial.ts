@@ -34,7 +34,10 @@ export function controlDial(c: NumberControl, color: string, label = c.label): D
   };
 }
 
-const svg = (t: number, color: string) => {
+/** Draws a dial face as SVG markup for a value `t` in 0..1 (built from numbers and our own colours only). */
+export type DialFace = (t: number, color: string) => string;
+
+const svg: DialFace = (t, color) => {
   const deg = Math.round((-SWEEP / 2 + t * SWEEP) * 10) / 10;
   return `<svg aria-hidden="true" width="72" height="72" viewBox="0 0 80 80">
     <path d="M16.34 64.42 A34 34 0 1 1 63.66 64.42" fill="none" stroke="#6b6f75" stroke-width="4" stroke-dasharray="1.2 14.8"></path>
@@ -47,24 +50,24 @@ const svg = (t: number, color: string) => {
 };
 
 /** Flat rotary dial: drag vertically (Shift for fine), arrow keys, Home/End, double-click resets. */
-export function renderDial(model: DialModel, section: string): HTMLElement {
+export function renderDial(model: DialModel, section: string, face: DialFace = svg): HTMLElement {
   const wrap = el('div', 'dial');
-  const face = el('div', 'dial-face');
-  face.tabIndex = 0;
-  face.setAttribute('role', 'slider');
-  face.setAttribute('aria-label', `${section} ${model.label}`);
-  face.setAttribute('aria-orientation', 'vertical');
-  face.setAttribute('aria-valuemin', '0');
-  face.setAttribute('aria-valuemax', '100');
+  const knob = el('div', 'dial-face');
+  knob.tabIndex = 0;
+  knob.setAttribute('role', 'slider');
+  knob.setAttribute('aria-label', `${section} ${model.label}`);
+  knob.setAttribute('aria-orientation', 'vertical');
+  knob.setAttribute('aria-valuemin', '0');
+  knob.setAttribute('aria-valuemax', '100');
   const label = el('div', 'dial-label', model.label);
   const readout = el('div', 'dial-value');
 
   const sync = () => {
     const t = model.get();
-    face.innerHTML = svg(t, model.color); // static markup built from numbers and our own colours only
+    knob.innerHTML = face(t, model.color); // static markup built from numbers and our own colours only
     readout.textContent = model.text();
-    face.setAttribute('aria-valuenow', String(Math.round(t * 100)));
-    face.setAttribute('aria-valuetext', readout.textContent);
+    knob.setAttribute('aria-valuenow', String(Math.round(t * 100)));
+    knob.setAttribute('aria-valuetext', readout.textContent);
   };
   const setT = (t: number) => {
     model.set(Math.min(1, Math.max(0, t)));
@@ -72,25 +75,25 @@ export function renderDial(model: DialModel, section: string): HTMLElement {
   };
 
   let drag: { y: number; t: number } | undefined;
-  face.addEventListener('pointerdown', (e) => {
+  knob.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    face.focus();
-    face.setPointerCapture(e.pointerId);
+    knob.focus();
+    knob.setPointerCapture(e.pointerId);
     drag = { y: e.clientY, t: model.get() };
   });
-  face.addEventListener('pointermove', (e) => {
+  knob.addEventListener('pointermove', (e) => {
     if (drag) setT(drag.t + (drag.y - e.clientY) / (e.shiftKey ? FINE_PIXELS : DRAG_PIXELS));
   });
   const end = () => {
     drag = undefined;
   };
-  face.addEventListener('pointerup', end);
-  face.addEventListener('pointercancel', end);
-  face.addEventListener('dblclick', () => {
+  knob.addEventListener('pointerup', end);
+  knob.addEventListener('pointercancel', end);
+  knob.addEventListener('dblclick', () => {
     model.reset();
     sync();
   });
-  face.addEventListener('keydown', (e) => {
+  knob.addEventListener('keydown', (e) => {
     const step = (e.shiftKey ? 5 : 1) * (model.step ?? 0.02);
     const t = model.get();
     const next: Record<string, number> = {
@@ -104,6 +107,6 @@ export function renderDial(model: DialModel, section: string): HTMLElement {
   model.subscribe(sync);
   sync();
 
-  wrap.append(face, label, readout);
+  wrap.append(knob, label, readout);
   return wrap;
 }

@@ -2,6 +2,7 @@ import './ui/style.css';
 import { AudioEngine } from './audio/engine';
 import type { BusCompFx } from './domain/devices/busComp';
 import type { DrumMachine } from './domain/devices/drumMachine';
+import type { GranularFx } from './domain/devices/granular';
 import type { OuroborosFx } from './domain/devices/ouroboros';
 import type { PolySynth } from './domain/devices/polySynth';
 import type { DelayFx, ReverbFx } from './domain/devices/sendFx';
@@ -19,6 +20,7 @@ import { renderPolyPanel } from './ui/polyPanel';
 import type { Mixer } from './domain/devices/mixer';
 import { renderDrumPanel } from './ui/drumPanel';
 import { renderFxPanel } from './ui/fxPanel';
+import { renderGranularPanel } from './ui/granularPanel';
 import { renderMixerPanel } from './ui/mixerPanel';
 import { renderSynthPanel } from './ui/synthPanel';
 
@@ -74,7 +76,9 @@ app.append(renderBusCompPanel(patch.device<BusCompFx>('buscomp'), patch.device<M
   { value: '2', label: 'Poly' },
 ]));
 
-app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay', 'Ouroboros', 'Bus Comp'], { B: 'to Bus Comp', C: 'to Ouroboros' }));
+app.append(renderGranularPanel(patch.device<GranularFx>('granular'), 'granular', engine));
+
+app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay', 'Ouroboros', 'Bus Comp', 'Granular'], { B: 'to Bus Comp', C: 'to Ouroboros' }));
 
 // Dev-only handle for poking at the engine from the browser console.
 if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch, sequencer, midi: handleMidiBytes } });

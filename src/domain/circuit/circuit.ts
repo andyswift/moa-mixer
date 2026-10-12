@@ -17,7 +17,10 @@
 // 'follower' is a peak envelope follower: it takes the loudest channel of its input and outputs a mono CV that
 // rises with `attack` (s) and falls with `release` (s). It runs as an audio worklet.
 // 'delay' is a delay line: `delayTime` (s, also a CV target) up to `maxTime` (s, fixed when the node is built).
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower';
+// 'granular' records its mono input into a ring buffer of `maxTime` seconds (fixed when built) and plays it back
+// as a stereo cloud of short grains. Params: position (0..1, how far back from "now"), size (s), pitch (semitones),
+// rate (grains/s), spread, cloud, detune (cents), shape, reverse (0..1 chance), feedback and freeze (>0.5 stops recording).
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular';
 
 export interface CircuitNode {
   readonly id: string;
