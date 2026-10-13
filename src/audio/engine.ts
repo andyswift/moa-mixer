@@ -1,6 +1,7 @@
 import type { Circuit } from '../domain/circuit/circuit';
 import type { Patch } from '../domain/patch/patch';
 import { GRANULAR_NAME, GRANULAR_SOURCE } from './granularWorklet';
+import { PIPE_NAME, PIPE_SOURCE, SPRING_NAME } from './pipeWorklet';
 
 const SMOOTHING = 0.01; // seconds; avoids zipper noise on param changes
 
@@ -10,11 +11,17 @@ export interface GrainView {
   grains: number[];
 }
 
+/** What a pipe node reports for display: which of its eight voices are sounding. */
+export interface PipeView {
+  active: boolean[];
+}
+
 /** Compiles a Patch into Web Audio nodes and keeps them in sync with domain state. */
 export class AudioEngine {
   private ctx?: AudioContext;
   private readonly compressors = new Map<string, DynamicsCompressorNode>();
   private readonly grainViews = new Map<string, GrainView>();
+  private readonly pipeViews = new Map<string, PipeView>();
   private readonly meters = new Map<string, { analyser: AnalyserNode; buffer: Float32Array<ArrayBuffer> }>();
 
   constructor(private readonly patch: Patch) {}
@@ -50,6 +57,11 @@ export class AudioEngine {
   /** The latest buffer and grain snapshot from a granular node; undefined until audio has started. */
   readGranular(deviceId: string, nodeId: string): GrainView | undefined {
     return this.grainViews.get(`${deviceId}/${nodeId}`);
+  }
+
+  /** The latest voice activity from a pipe node; undefined until audio has started. */
+  readPipe(deviceId: string, nodeId: string): PipeView | undefined {
+    return this.pipeViews.get(`${deviceId}/${nodeId}`);
   }
 
   /** Current gain reduction of a compressor node in dB (0 or negative); 0 until audio starts. */
@@ -133,6 +145,20 @@ export class AudioEngine {
           });
           g.port.onmessage = (e: MessageEvent<GrainView>) => this.grainViews.set(`${deviceId}/${n.id}`, e.data);
           nodes.set(n.id, g);
+          break;
+        }
+        case 'pipe': {
+          const node = new AudioWorkletNode(ctx, PIPE_NAME, {
+            numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], parameterData: n.params,
+          });
+          node.port.onmessage = (e: MessageEvent<PipeView>) => this.pipeViews.set(`${deviceId}/${n.id}`, e.data);
+          nodes.set(n.id, node);
+          break;
+        }
+        case 'spring': {
+          nodes.set(n.id, new AudioWorkletNode(ctx, SPRING_NAME, {
+            numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], parameterData: n.params,
+          }));
           break;
         }
         case 'compressor': {
@@ -518,5 +544,5 @@ registerProcessor('${FOLLOWER_NAME}', MoaFollower);
 
 /** The processors are one worklet module, loaded from an in-memory script. */
 function workletModuleUrl(): string {
-  return URL.createObjectURL(new Blob([FOLLOWER_SOURCE, GRANULAR_SOURCE], { type: 'text/javascript' }));
+  return URL.createObjectURL(new Blob([FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE], { type: 'text/javascript' }));
 }

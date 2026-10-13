@@ -22,7 +22,12 @@
 // rate (grains/s), spread, cloud, detune (cents), shape, reverse (0..1 chance), feedback and freeze (>0.5 stops recording).
 // With play > 0.5 it is silent until noteOn(): 8 voices, each transposed by (note - 60) semitones, with an ADSR
 // (attack, decay, release in s; sustain a level) and velocity.
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular';
+// 'pipe' is the MOA-PIPE physical-modelling engine: eight voices of steam into a tuned feedback pipe, no input,
+// stereo out. It takes notes like a granular node (noteOn / noteOff / allNotesOff, and pedal for the sustain pedal);
+// its params are listed in `pipeWorklet.ts`.
+// 'spring' is the spring reverb: mono-summed input into two dispersive feedback springs, stereo out.
+// Params: tension, drip, decay (s), tilt (-1..1) and dwell (input drive).
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring';
 
 export interface CircuitNode {
   readonly id: string;
@@ -100,21 +105,27 @@ export class Circuit {
     this.emit({ type: 'choke', nodeId, when });
   }
 
-  /** Starts a note on a granular node (note 0-127, velocity 0..1). Velocity 0 is a note off. */
+  /** Starts a note on a granular or pipe node (note 0-127, velocity 0..1). Velocity 0 is a note off. */
   noteOn(nodeId: string, note: number, velocity = 1): void {
-    this.expectKind(nodeId, 'granular');
+    this.expectKind(nodeId, 'granular', 'pipe');
     this.emit({ type: 'note', nodeId, note, velocity: Math.min(1, Math.max(0, velocity)) });
   }
 
   noteOff(nodeId: string, note: number): void {
-    this.expectKind(nodeId, 'granular');
+    this.expectKind(nodeId, 'granular', 'pipe');
     this.emit({ type: 'note', nodeId, note, velocity: 0 });
   }
 
-  /** Releases every note on a granular node. */
+  /** Releases every note on a granular or pipe node. */
   allNotesOff(nodeId: string): void {
-    this.expectKind(nodeId, 'granular');
+    this.expectKind(nodeId, 'granular', 'pipe');
     this.emit({ type: 'note', nodeId, note: -1, velocity: 0 });
+  }
+
+  /** The sustain pedal on a pipe node: while down, released notes keep sounding. */
+  pedal(nodeId: string, down: boolean): void {
+    this.expectKind(nodeId, 'pipe');
+    this.emit({ type: 'note', nodeId, note: -2, velocity: down ? 1 : 0 });
   }
 
   onChange(fn: (c: CircuitChange) => void): () => void {
@@ -128,8 +139,8 @@ export class Circuit {
     return n;
   }
 
-  private expectKind(nodeId: string, kind: NodeKind): void {
-    if (this.node(nodeId).kind !== kind) throw new Error(`Node ${nodeId} is not a ${kind}`);
+  private expectKind(nodeId: string, ...kinds: NodeKind[]): void {
+    if (!kinds.includes(this.node(nodeId).kind)) throw new Error(`Node ${nodeId} is not a ${kinds.join(' or ')}`);
   }
 
   private emit(c: CircuitChange): void {

@@ -3,7 +3,9 @@ import type { Device } from '../devices/device';
 import { DRUM_VOICES, DrumMachine } from '../devices/drumMachine';
 import { GranularFx } from '../devices/granular';
 import { OuroborosFx } from '../devices/ouroboros';
+import { PipeSynth } from '../devices/pipeSynth';
 import { PolySynth } from '../devices/polySynth';
+import { SpringReverb } from '../devices/springReverb';
 import { DelayFx, ReverbFx } from '../devices/sendFx';
 import { Mixer } from '../devices/mixer';
 import type { ChoiceControl, ToggleControl } from '../devices/controls';
@@ -48,6 +50,15 @@ export class Patch {
     this.device(device).jack('out', jack);
     this.output = { device, jack };
     return this;
+  }
+
+  /** The MOA-PIPE page: the pipe synth into a spring reverb, which goes straight to the speakers. */
+  static pipe(clock = new MidiClock()): Patch {
+    return new Patch()
+      .add('pipe', new PipeSynth('Pipe', clock))
+      .add('spring', new SpringReverb('Spring'))
+      .connect({ device: 'pipe', jack: 'out' }, { device: 'spring', jack: 'in' })
+      .setOutput('spring', 'out');
   }
 
   static default(clock = new MidiClock()): Patch {
