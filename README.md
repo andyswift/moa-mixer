@@ -22,6 +22,12 @@ Live: **https://moaswift.no/mixer/**
   - **Effects**: chorus (two LFO-modulated delays) and an echo with a darkened feedback loop.
   - **16 patches** in two banks of eight, and a **Save** button that stores the current sound in the selected slot (kept in the browser's local storage). Listens on MIDI channel 2 by default: notes, pitch bend, mod wheel (CC 1) and program change.
   - Shares the keyboard bed (wheels, octave buttons, 49 keys) with the MOA-1. The computer keys play whichever synth panel you clicked last.
+- **MOA-PIPE, a physical-modelling synthesizer on its own page** (`pipe.html`, live at **https://moaswift.no/pipe/**)
+  - Eight voices of a Karplus-Strong model, no oscillators. **Steam** (noise or DC pressure, low-passed and shaped by an ADSR) is blown into a **pipe**: a tuned delay with feedback through polarity, high-pass, low-pass, dispersion and a saturator (soft to hard, symmetric to asymmetric). **Push** feeds the pipe's contents back into the steam so the loop sings on its own (flutes, reeds, organ pipes); **Decay** and **Release** set how long the fundamental rings; **Delay box** stretches the partials (Harmonics, and a Split mode with two unequal sections for bells and wood).
+  - The loop length is the note's period minus the delay its own filters and dispersion add, so notes stay in tune whatever the tone settings; HP and LP "comp" fade that compensation out for an overblown, slightly off-pitch pipe. Filters sit relative to the played note, so the tone follows the keyboard.
+  - Poly, mono and unison (with glide, legato and detune), one LFO (pitch, filter, steam, saturation or push; free or tempo-synced; the mod wheel adds to its amount, so with the LFO on Filter it overblows), pitch bend, sustain pedal (CC 64), a built-in reverb, 16 patches in two banks with Save, and the shared keyboard bed. Listens on any MIDI channel by default.
+  - **Spring reverb** behind it with a dry/wet mix: Length, Tension, Drip, Tilt and Dwell. Two springs of slightly different length (stereo), each a feedback loop around a delay and a long allpass chain that makes the chirpy "drip", with a tilt filter and damping in the loop and a saturating drive at the input. It is a separate device (`SpringReverb`), so it can go on the mixer later.
+  - The engine runs sample by sample in an audio worklet (a feedback loop shorter than 128 samples cannot be built from DelayNodes); `pipeWorklet.ts` holds it as source text that the tests evaluate too.
 - **MOA-DR, a 909-style drum machine**
   - Six synthesised voices, each with its own output into its own mixer channel: kick, snare, clap, closed hat, open hat and ride. Kick is a sine with a pitch drop plus a click, snare is two triangles plus noise, clap is band-passed noise through a stuttering burst envelope, hats and ride are six detuned squares through band-pass and high-pass filters (a synthesised stand-in for the 909's sampled cymbals).
   - Velocity scales level (and the kick click and snare snap a little more). A closed hat chokes the open hat (switchable). Per-voice tune, decay, character control, level, mute and solo.
@@ -82,6 +88,8 @@ src/
 | 4c | MIDI learn, saved CC mappings, tempo-synced LFO | next |
 | 5 | **16 channels** and the full console layout | planned |
 | 4h | **Ouroboros** feedback delay on bus C with its own FX return strip, and a per-bus "To main" switch | done |
+| 4i | **MOA-PIPE** physical-modelling synth (Karplus-Strong, 8 voices, 16 patches) with a **spring reverb**, on its own page | done |
+| 4j | MOA-PIPE modulation matrix (five LFOs, CC sources A-D), external audio as the exciter, spring reverb in the mixer | planned |
 | 6 | **Bus processing**: a compressor with sidechain on bus B | done |
 | 6b | More effects | next |
 | 7 | Synth depth: polyphony, sequencer or arpeggiator | planned |
@@ -117,4 +125,4 @@ npm run build
 
 In dev mode, `window.__mixer` exposes the engine and patch for experimenting from the browser console.
 
-The site is a static build. It is deployed to `moaswift.no/mixer/` by building with `vite build --base=/mixer/` and copying `dist/` into the `www/mixer/` folder of the moaswift site repo.
+The site is a static build with two pages. The mixer is deployed to `moaswift.no/mixer/` by building with `npm run build -- --base=/mixer/` and copying `dist/` into the `www/mixer/` folder of the moaswift site repo. MOA-PIPE has its own build, `npm run build:pipe` (base `/pipe/`, output `dist-pipe/`), whose `pipe.html` is copied to `www/pipe/index.html` with its assets. `npm run dev` serves both: `/` is the mixer and `/pipe.html` is MOA-PIPE.
