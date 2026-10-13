@@ -24,7 +24,7 @@ export const SPRING_NAME = 'moa-spring';
  * arrive before lows), with a tilt filter and damping in the loop, and a saturating "dwell" drive at the input.
  */
 export const PIPE_SOURCE = `
-const VOICES = 8;
+const PIPE_NUM_VOICES = 8;
 const LINE = 16384;
 const MASK = LINE - 1;
 const CHUNK = 32;
@@ -92,7 +92,7 @@ class PipeCore {
     this.sr = sampleRate;
     this.rnd = random || Math.random;
     this.voices = [];
-    for (let i = 0; i < VOICES; i++) this.voices.push(new PipeVoice());
+    for (let i = 0; i < PIPE_NUM_VOICES; i++) this.voices.push(new PipeVoice());
     this.seq = 0;
     this.stack = [];
     this.pedal = false;
@@ -163,7 +163,7 @@ class PipeCore {
     const stackWasEmpty = this.stack.length === 0;
     this.stack = this.stack.filter((s) => s.note !== note);
     this.stack.push({ note, velocity });
-    const used = mode === 1 ? 1 : VOICES;
+    const used = mode === 1 ? 1 : PIPE_NUM_VOICES;
     for (let i = 0; i < used; i++) {
       const v = this.voices[i];
       const sounding = v.active && v.gate;
@@ -178,7 +178,7 @@ class PipeCore {
       return;
     }
     this.stack = this.stack.filter((s) => s.note !== note);
-    const used = this.mode === 1 ? 1 : VOICES;
+    const used = this.mode === 1 ? 1 : PIPE_NUM_VOICES;
     if (this.stack.length > 0) {
       const top = this.stack[this.stack.length - 1];
       for (let i = 0; i < used; i++) {
@@ -249,10 +249,10 @@ class PipeCore {
         sat: dest === 3 ? l * 0.5 : 0,
         push: dest === 4 ? l * 0.5 : 0,
       };
-      for (let vi = 0; vi < VOICES; vi++) {
+      for (let vi = 0; vi < PIPE_NUM_VOICES; vi++) {
         const v = this.voices[vi];
         if (!v.active) continue;
-        const pan = VOICES > 1 ? (vi / (VOICES - 1)) * 2 - 1 : 0;
+        const pan = PIPE_NUM_VOICES > 1 ? (vi / (PIPE_NUM_VOICES - 1)) * 2 - 1 : 0;
         const ang = (pan * spread * 0.5 + 0.5) * (Math.PI / 2);
         this.voiceChunk(v, m, p, mods, Math.cos(ang) * modeLevel * p.volume, Math.sin(ang) * modeLevel * p.volume, outL, outR, s);
       }

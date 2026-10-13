@@ -514,7 +514,7 @@ function timeConstant(circuit: Circuit, nodeId: string, param: string): number {
 }
 
 const FOLLOWER_NAME = 'moa-follower';
-const FOLLOWER_SOURCE = `
+export const FOLLOWER_SOURCE = `
 class MoaFollower extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
@@ -542,7 +542,10 @@ class MoaFollower extends AudioWorkletProcessor {
 registerProcessor('${FOLLOWER_NAME}', MoaFollower);
 `;
 
+/** Every processor, as the one script the audio worklet loads. Top-level names must not clash between them. */
+export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE].join('\n');
+
 /** The processors are one worklet module, loaded from an in-memory script. */
 function workletModuleUrl(): string {
-  return URL.createObjectURL(new Blob([FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE], { type: 'text/javascript' }));
+  return URL.createObjectURL(new Blob([WORKLET_SOURCE], { type: 'text/javascript' }));
 }

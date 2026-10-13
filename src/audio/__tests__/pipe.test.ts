@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { WORKLET_SOURCE } from '../engine';
 import { PIPE_SOURCE } from '../pipeWorklet';
 
 type Params = Record<string, number>;
@@ -80,6 +81,14 @@ function magAt(x: Float32Array, from: number, len: number, f: number): number {
   }
   return Math.hypot(re, im) / len;
 }
+
+describe('the worklet module', () => {
+  it('parses as one script: no top-level name is declared twice across the processors', () => {
+    // The browser loads every processor in a single module. A repeated `const` is a SyntaxError that stops all
+    // audio from starting, and only shows up there: compiling the combined source (without running it) catches it.
+    expect(() => new Function(WORKLET_SOURCE)).not.toThrow();
+  });
+});
 
 describe('PipeCore', () => {
   it('plays in tune across the keyboard', () => {
