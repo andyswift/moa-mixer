@@ -66,7 +66,7 @@ describe('oscillators', () => {
     }
   });
 
-  it('osc 2 follows its own note, the detune slider raises it, and tune moves both', () => {
+  it('osc 2 follows its own note, the detune slider raises it, and tune moves osc 2 only', () => {
     const core = newCore();
     core.play(60, 69, true, true);
     const p = base({ o1Lvl: 0, o2Lvl: 1 });
@@ -76,9 +76,13 @@ describe('oscillators', () => {
     expect(Math.abs(pitch(run(up, 0.6, { ...p, o2Dtn: 12 }).l, SR / 4) / 440 - 1)).toBeLessThan(0.01);
     const tuned = newCore();
     tuned.play(69, 69, true, true);
-    const sharp = pitch(run(tuned, 0.6, base({ tune: 100 })).l, SR / 4);
+    const sharp = pitch(run(tuned, 0.6, base({ o1Lvl: 0, o2Lvl: 1, tune: 100 })).l, SR / 4);
     expect(sharp / 440).toBeGreaterThan(1.05);
     expect(sharp / 440).toBeLessThan(1.07);
+    // osc 1 does not move with it
+    const untouched = newCore();
+    untouched.play(69, 69, true, true);
+    expect(Math.abs(pitch(run(untouched, 0.6, base({ tune: 100 })).l, SR / 4) / 440 - 1)).toBeLessThan(0.01);
   });
 
   it('hard sync locks osc 2 to osc 1’s pitch', () => {

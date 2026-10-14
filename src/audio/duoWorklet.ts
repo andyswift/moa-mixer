@@ -222,9 +222,10 @@ class DuoCore {
       const vib = Math.sin(DUO_TWO_PI * this.vibPh) * vibDepth;
       this.drift += (rnd() * 2 - 1 - this.drift) * 0.00002;
       this.drift2 += (rnd() * 2 - 1 - this.drift2) * 0.00002;
-      const semi = p.bend + p.tune * 0.01 + vib;
+      const semi = p.bend + vib;
       const hz1 = 440 * Math.pow(2, (this.p1 + p.o1Off - 69 + semi + this.drift * 0.08) / 12);
-      const hz2 = 440 * Math.pow(2, (this.p2 + p.o2Off + p.o2Dtn - 69 + semi + this.drift2 * 0.08) / 12);
+      // TUNE moves oscillator 2 only, so it detunes against oscillator 1
+      const hz2 = 440 * Math.pow(2, (this.p2 + p.o2Off + p.o2Dtn - 69 + semi + p.tune * 0.01 + this.drift2 * 0.08) / 12);
       const dt1 = Math.min(0.45, hz1 / sr), dt2 = Math.min(0.45, hz2 / sr);
 
       // osc 1: saw or pulse

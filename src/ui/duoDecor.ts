@@ -29,7 +29,7 @@ export const DUO_DECOR = `<svg class="duo-decor" viewBox="25 18 1965 1167" aria-
     <line x1="1272" y1="207" x2="1572" y2="207" stroke="#e6e6e2" stroke-width="4"/>
     <g fill="#f2f2ee" font-size="22" text-anchor="middle" letter-spacing="1"><text x="1422" y="102" font-size="36" letter-spacing="2">SETTINGS</text><text x="1310" y="143">OFF</text><text x="1418" y="143">MONO</text><text x="1527" y="143">OMNI</text><text x="1310" y="276">LEG</text><text x="1418" y="276">DUO</text><text x="1527" y="276">CHAN</text></g>
     <!-- osc box -->
-    <polygon points="238,330 276,330 250,362" fill="#e6e6e2"/><polygon points="440,330 478,330 464,362" fill="#e6e6e2"/>
+    
     <g fill="#cfcfcf" font-size="34" letter-spacing="3"><text x="114" y="366">OSC 1</text><text x="466" y="366">OSC 2</text></g>
     <g fill="#f2f2ee" font-size="22" text-anchor="middle" letter-spacing="1"><text x="355" y="584" font-size="28">TUNE</text><text x="355" y="702" font-size="22">SYNC</text><text x="298" y="656" text-anchor="end">OFF</text><text x="408" y="656" text-anchor="start">ON</text>
       <text x="170" y="446">32 16 8</text><text x="526" y="446">16 8 4</text>
@@ -43,7 +43,7 @@ export const DUO_DECOR = `<svg class="duo-decor" viewBox="25 18 1965 1167" aria-
     <!-- wave icons -->
     <g fill="none" stroke="#f2f2ee" stroke-width="4" stroke-linejoin="round"><path d="M203 878 L222 862 V878"/><path d="M200 983 V965 H208 V983 H216 V965 H224"/><path d="M483 878 L502 862 V878"/><path d="M486 982 L500 966 L514 982"/></g>
     <!-- dual filter -->
-    <polygon points="700,334 740,334 722,362" fill="#e6e6e2"/><polygon points="852,334 888,334 870,362" fill="#e6e6e2"/>
+    
     <g fill="#cfcfcf" font-size="38" letter-spacing="4" text-anchor="end"><text x="1202" y="366">DUAL FILTER</text></g>
     <g fill="#f2f2ee" font-size="26" text-anchor="middle" letter-spacing="1"><text x="793" y="584" font-size="28">CUTOFF</text><text x="1060" y="689">POST</text><text x="1157" y="689">RES</text></g>
     <g stroke="#e6e6e2" stroke-width="3"><line x1="1030" y1="545" x2="1050" y2="545"/><line x1="1072" y1="545" x2="1092" y2="545"/></g>
@@ -58,7 +58,7 @@ export const DUO_DECOR = `<svg class="duo-decor" viewBox="25 18 1965 1167" aria-
     <!-- vca -->
     <path d="M1264 640 H1580 V1068 Q1580 1096 1552 1096 H1406 Q1378 1096 1378 1068 V798 Q1378 770 1346 770 H1292 Q1264 770 1264 742 Z" fill="#e9e9e9"/>
     <path d="M1264 640 Q1264 700 1300 710 H1316" fill="none"/>
-    <polygon points="1292,336 1346,336 1330,376" fill="#e6e6e2"/><polygon points="1510,336 1552,336 1538,376" fill="#e6e6e2"/>
+    
     <g fill="#f2f2ee" font-size="36" text-anchor="middle" letter-spacing="3"><text x="1426" y="366">VCA</text></g>
     <g fill="#f2f2ee" font-size="28" text-anchor="middle" letter-spacing="2"><text x="1426" y="630">LEVEL</text></g>
     <g fill="#141414" font-size="22" text-anchor="middle" letter-spacing="1"><text x="1368" y="692" text-anchor="start">HOLD</text><text x="1464" y="692" text-anchor="start">LFO</text><text x="1441" y="1071">RISE</text><text x="1537" y="1071">FALL</text></g>

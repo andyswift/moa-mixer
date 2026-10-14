@@ -297,7 +297,7 @@ function buildDesktop(d: DuoSynth): HTMLElement {
   // oscillators, tune and vibrato
   add(place(metalToggle(choiceToggle(choice(d, 'osc1.octave'), 'Oscillator 1 octave'), false), 150, 400, 44));
   add(place(metalToggle(choiceToggle(choice(d, 'osc2.octave'), 'Oscillator 2 octave'), false), 527, 400, 44));
-  add(place(knob(num(d, 'tune'), 'Oscillators', 'Tune'), 355, 445, 215));
+  add(place(knob(num(d, 'tune'), 'Oscillator 2', 'Tune'), 355, 445, 215));
   add(place(metalToggle(toggleModel(toggle(d, 'sync'), 'Oscillator sync'), false), 352, 652, 44));
   add(place(led(() => toggle(d, 'sync').value, (fn) => void toggle(d, 'sync').onChange(fn)), 355, 740, 16));
   add(place(metalToggle(choiceToggle(choice(d, 'osc1.wave'), 'Oscillator 1 wave'), true), 213, 925, 44));
