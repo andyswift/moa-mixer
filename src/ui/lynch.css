@@ -1,0 +1,107 @@
+/* the links above the panel */
+.pipe-nav { display: flex; gap: 18px; margin: 0 0 12px; font-family: 'Barlow Condensed', system-ui, sans-serif; font-size: 15px; letter-spacing: 0.16em; text-transform: uppercase; }
+.pipe-nav a { color: #a9adb3; text-decoration: none; }
+.pipe-nav a:hover, .pipe-nav a:focus-visible { color: #e8e4da; }
+
+/* ---- Lynch 106: a dark charcoal panel with red section bars, black flat-capped sliders and coloured keys ---- */
+.ly-case { display: flex; margin-bottom: 16px; font-family: 'Barlow Condensed', system-ui, sans-serif; color: #f0eee8; }
+.ly-end { width: 34px; flex: none; }
+.ly-end-left { background: linear-gradient(90deg, #050506, #161617); border-radius: 8px 0 0 8px; }
+.ly-end-right { background: linear-gradient(90deg, #161617, #050506); border-radius: 0 8px 8px 0; }
+.ly-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #3e3e44; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); }
+
+/* header: patch name on the left, the logo block on the right */
+.ly-header { min-height: 104px; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 8px 28px; background: linear-gradient(180deg, #46464d, #3d3d44); border-bottom: 1px solid #1d1d21; }
+.ly-patch-name { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ly-small-label { font-size: 12px; font-weight: 500; letter-spacing: 0.3em; color: #bdbbb6; text-transform: uppercase; }
+.ly-patch-text { font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 20px; letter-spacing: 0.1em; color: #f0eee8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ly-channel { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; color: #bdbbb6; text-transform: uppercase; }
+.ly-channel select { background: #2c2c31; color: #f0eee8; border: 1px solid #62626b; border-radius: 3px; padding: 3px 6px; font: inherit; font-size: 13px; }
+.ly-brand { width: min(560px, 55%); display: flex; flex-direction: column; gap: 6px; flex: none; }
+.ly-stripe { height: 6px; background: #3a64b8; }
+.ly-stripe-thin { height: 3px; }
+.ly-logo { display: block; width: 100%; max-width: 420px; height: auto; }
+.ly-tagline { font-size: 12px; font-weight: 600; letter-spacing: 0.26em; color: #f0eee8; text-transform: uppercase; }
+
+/* the rows of sections, each under a red bar */
+.ly-row { display: flex; padding: 14px 28px 12px; background: linear-gradient(180deg, #47474e 0%, #3e3e44 100%); border-bottom: 3px solid #b3363b; box-shadow: 0 2px 0 #1d1d21; }
+.ly-section { display: flex; flex-direction: column; min-width: 0; }
+.ly-bar { height: 22px; display: flex; align-items: center; justify-content: center; background: #b3363b; color: #fff; font-size: 14px; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase; box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.22); white-space: nowrap; padding: 0 8px; }
+.ly-bar-blue { background: #3a64b8; }
+.ly-section-body { display: flex; flex-wrap: wrap; gap: 10px 8px; padding: 10px 10px 4px; border-right: 1px solid rgba(255, 255, 255, 0.4); flex-grow: 1; align-items: flex-start; justify-content: center; align-content: flex-start; }
+.ly-top-row { flex: 0 0 100%; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end; justify-content: center; }
+.ly-section-body > .ly-key-wrap, .ly-section-body > .ly-group, .ly-section-body > .ly-display { margin-top: 14px; }
+
+/* sliders: a black slot, white tick lines across it, a short flat black cap */
+.ly-slider { width: 40px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ly-slider-label { font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; color: #f0eee8; text-transform: uppercase; height: 13px; white-space: nowrap; }
+.ly-slider-slot { position: relative; width: 40px; height: var(--h); touch-action: none; }
+.ly-slider-ticks { position: absolute; left: 1px; right: 1px; top: 0; bottom: 0; background: repeating-linear-gradient(to bottom, #f6f6f6 0 1px, transparent 1px calc(var(--h) / 10)); opacity: 0.85; }
+.ly-slider-ticks::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: #f6f6f6; }
+.ly-slider-track { position: absolute; left: 17px; top: 0; width: 6px; height: 100%; border-radius: 3px; background: #0a0a0b; box-shadow: inset 0 0 0 1px #62626b; }
+.ly-slider-cap { position: absolute; left: 8px; width: 24px; height: var(--cap); border-radius: 2px; background: linear-gradient(180deg, #323235 0%, #141415 55%, #0a0a0b 100%); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.22); display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.ly-slider-cap span { width: 22px; height: 2px; background: #f4f1ea; }
+.ly-slider-input { position: absolute; left: 0; top: var(--h); width: var(--h); height: 40px; margin: 0; transform-origin: 0 0; transform: rotate(-90deg); opacity: 0; cursor: pointer; }
+.ly-slider-input::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 40px; }
+.ly-slider-input::-moz-range-thumb { width: 24px; height: 40px; border: 0; }
+.ly-slider-slot:focus-within .ly-slider-cap { outline: 2px solid #f0eee8; outline-offset: 2px; }
+
+/* keys: light grey / cream, orange and pale blue, with a red LED above */
+.ly-key-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.ly-led { width: 6px; height: 6px; border-radius: 50%; background: #4b1f1d; display: block; }
+.ly-key-wrap.lit .ly-led { background: #ff3b2f; box-shadow: 0 0 6px 1px rgba(255, 59, 47, 0.9); }
+.ly-key { min-width: 28px; height: 22px; padding: 0 4px; border-radius: 2px; border: 1px solid rgba(0, 0, 0, 0.55); color: #2a2528; font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.5); }
+.ly-key-cream { background: linear-gradient(180deg, #efe6c2, #d6cb9f); }
+.ly-key-orange { background: linear-gradient(180deg, #f1a242, #e08a22); }
+.ly-key-blue { background: linear-gradient(180deg, #a9c3ec, #88a5d9); }
+.ly-key[aria-pressed='true'] { transform: translateY(1px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5); }
+.ly-key:focus-visible, .ly-trig-switch:focus-visible, .ly-lever:focus-visible { outline: 2px solid #f0eee8; outline-offset: 2px; }
+.ly-group { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.ly-group-title { font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: #f0eee8; text-transform: uppercase; min-height: 12px; }
+.ly-group-title:empty { display: none; }
+.ly-group-row { display: flex; gap: 5px; align-items: flex-end; }
+.ly-stack .ly-group-row { flex-direction: column; align-items: center; }
+.ly-display { display: flex; gap: 4px; padding: 6px 12px; background: #0b0606; border: 2px solid #55525a; box-shadow: inset 0 0 12px rgba(255, 50, 40, 0.2); font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 34px; line-height: 1; color: #ff3b2f; text-shadow: 0 0 9px rgba(255, 59, 47, 0.85); }
+
+/* the black cheek beside the keys */
+.ly-panel .keybed { height: 280px; margin: 0; padding: 0; border-top: 0; border-radius: 0; background: #2f2d2f; font-family: inherit; }
+.ly-panel .keybed-keys { margin: 0; padding-top: 0; border-radius: 0; }
+.ly-cheek { width: 270px; flex: none; box-sizing: border-box; padding: 12px 18px 10px 22px; background: linear-gradient(180deg, #1d1d1f, #161617); border-right: 1px solid #050506; display: flex; flex-direction: column; align-items: center; gap: 4px; box-shadow: inset -2px 0 4px rgba(0, 0, 0, 0.5); overflow: hidden; }
+.ly-knobs { display: flex; gap: 14px; justify-content: center; }
+.ly-knob { flex: none; min-width: 0; gap: 0; }
+.ly-knob .dial-face { width: 76px; height: 66px; }
+.ly-knob .dial-label { order: -1; color: #f4f1ea; font-weight: 700; height: 14px; }
+.ly-knob .dial-value { color: #bdbbb6; font-size: 10px; height: 12px; }
+.ly-bender { display: flex; gap: 4px; align-items: flex-start; margin-top: 2px; }
+.ly-bender-scale { width: 16px; height: 56px; margin-top: 19px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; font-size: 10px; font-weight: 600; color: #f4f1ea; }
+.ly-bender-sliders { display: flex; gap: 4px; }
+.ly-bender .ly-slider { width: 34px; }
+.ly-bender .ly-slider-label { font-size: 11px; font-weight: 700; color: #f4f1ea; }
+.ly-bender .ly-slider-slot { width: 34px; }
+.ly-bender .ly-slider-track { left: 14px; width: 5px; }
+.ly-bender .ly-slider-cap { left: 5px; }
+.ly-bender .ly-slider-ticks { background: repeating-linear-gradient(to bottom, #d9d5ce 0 1px, transparent 1px calc(var(--h) / 10)); }
+.ly-trig { display: flex; flex-direction: column; align-items: center; margin: 8px 0 0 12px; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: #f4f1ea; }
+.ly-trig-switch { position: relative; width: 22px; height: 30px; margin: 3px 0; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.ly-trig-switch::before { content: ''; position: absolute; left: 8px; top: 0; width: 6px; height: 30px; border-radius: 3px; background: #050506; box-shadow: inset 0 0 0 1px #4a484d; }
+.ly-trig-switch i { position: absolute; left: 3px; top: 0; width: 16px; height: 15px; border-radius: 2px; background: linear-gradient(180deg, #34343a, #0e0e10); box-shadow: 0 2px 3px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.2); transition: top 0.1s; }
+.ly-trig-switch[aria-pressed='true'] i { top: 14px; }
+.ly-routing { margin-top: -2px; line-height: 0; }
+.ly-bender-name { font-size: 12px; font-weight: 700; letter-spacing: 0.2em; color: #f4f1ea; margin-top: -2px; }
+.ly-lever-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-top: 2px; line-height: 0; }
+.ly-lever { position: relative; width: 150px; height: 30px; background: #08080a; border-radius: 4px; box-shadow: inset 0 0 0 2px #2c2b2e, inset 0 3px 8px rgba(0, 0, 0, 0.9); touch-action: none; cursor: grab; }
+.ly-lever-handle { position: absolute; left: 60px; top: 4px; width: 30px; height: 21px; border-radius: 3px; background: linear-gradient(180deg, #3a3a3e, #121214); box-shadow: 0 2px 5px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.25); pointer-events: none; transition: transform 0.12s; }
+
+/* narrower windows and phones: the rows stack, keys get bigger, the keyboard scrolls */
+@media (max-width: 1000px) {
+  .ly-end { width: 14px; }
+  .ly-header { flex-direction: column; align-items: stretch; padding: 14px 12px; gap: 14px; }
+  .ly-brand { width: 100%; }
+  .ly-row { flex-direction: column; padding: 10px 12px; }
+  .ly-section { flex: none !important; }
+  .ly-section-body { border-right: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.3); padding-bottom: 10px; }
+  .ly-key { height: 44px; min-width: 44px; font-size: 13px; }
+  .ly-panel .keybed { flex-direction: column; height: auto; overflow-x: auto; }
+  .ly-cheek { width: 100%; border-right: 0; flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 8px 20px; padding: 14px 12px; }
+  .ly-panel .keybed-keys { height: 190px; flex: none; min-width: 640px; }
+}
