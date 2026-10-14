@@ -8,6 +8,7 @@ import { MidiClock } from './domain/midi/clock';
 import { parseMidi } from './domain/midi/events';
 import { MidiMonitor } from './domain/midi/monitor';
 import { Patch } from './domain/patch/patch';
+import { MidiBus } from './midi/bus';
 import { WebMidi } from './midi/webMidi';
 import { renderDfPanel } from './ui/dfPanel';
 import { loadSavedPatches } from './ui/dfStorage';
@@ -48,9 +49,13 @@ function handleMidiBytes(data: ArrayLike<number>, time = performance.now()): voi
 midi.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
 void midi.connectIfPermitted();
 
+// MIDI from the sequencer page in another tab arrives over the bus, like a MIDI input.
+const bus = new MidiBus();
+bus.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
+
 const nav = document.createElement('nav');
 nav.className = 'pipe-nav';
-nav.innerHTML = '<a href="/lynch/">Lynch 106</a><a href="/mixer/">The mixer</a><a href="/pipe/">MOA-PIPE</a><a href="/">moaswift.no</a>';
+nav.innerHTML = '<a href="/lynch/">Lynch 106</a><a href="/mixer/">The mixer</a><a href="/seq/">MOA-SEQ</a><a href="/pipe/">MOA-PIPE</a><a href="/">moaswift.no</a>';
 
 const patchbay = document.createElement('div');
 patchbay.className = 'df-patchbay';
@@ -59,7 +64,7 @@ patchbay.innerHTML = '<span><i></i>Lynch L &rarr; Filter I</span><span><i></i>Ly
 loadSavedPatches(box);
 box.loadSlot(box.currentSlot);
 
-app.append(nav, renderMidiStrip(midi, clock, monitor, start), renderLynchPanel(lynch), patchbay, renderDfPanel(box, engine));
+app.append(nav, renderMidiStrip(midi, clock, monitor, start, bus), renderLynchPanel(lynch), patchbay, renderDfPanel(box, engine));
 
 // Dev-only handle for poking at the engine from the browser console.
 if (import.meta.env.DEV) Object.assign(window, { __df2: { engine, patch, midi: handleMidiBytes } });

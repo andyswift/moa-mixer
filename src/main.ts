@@ -11,6 +11,7 @@ import type { Synthesizer } from './domain/devices/synthesizer';
 import { MidiClock } from './domain/midi/clock';
 import { parseMidi } from './domain/midi/events';
 import { MidiMonitor } from './domain/midi/monitor';
+import { MidiBus } from './midi/bus';
 import { WebMidi } from './midi/webMidi';
 import { Patch } from './domain/patch/patch';
 import { renderMidiStrip } from './ui/midiStrip';
@@ -62,7 +63,11 @@ function handleMidiBytes(data: ArrayLike<number>, time = performance.now()): voi
 midi.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
 void midi.connectIfPermitted();
 
-app.append(renderMidiStrip(midi, clock, monitor, start), renderSynthPanel(synth));
+// MIDI from the sequencer page in another tab arrives over the bus, like a MIDI input.
+const bus = new MidiBus();
+bus.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
+
+app.append(renderMidiStrip(midi, clock, monitor, start, bus), renderSynthPanel(synth));
 
 app.append(renderPolyPanel(poly));
 

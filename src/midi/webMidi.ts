@@ -6,12 +6,16 @@ export interface MidiInputInfo {
 }
 
 const STORAGE_KEY = 'moa.midiInput';
+const OUTPUT_KEY = 'moa.midiOutput';
 
 /** Browser adapter: Web MIDI access, input discovery and selection. Parsing lives in the domain layer. */
 export class WebMidi {
   status: MidiStatus = typeof navigator !== 'undefined' && 'requestMIDIAccess' in navigator ? 'idle' : 'unsupported';
   inputs: MidiInputInfo[] = [];
   selectedId?: string;
+  /** Output ports (hardware and loopback), for sequencers that send MIDI. */
+  outputs: MidiInputInfo[] = [];
+  selectedOutputId?: string;
   /** Raw message bytes with the browser's timestamp (same time base as performance.now()). */
   onMessage?: (data: Uint8Array, timeStamp: number) => void;
   private access?: MIDIAccess;
@@ -62,6 +66,24 @@ export class WebMidi {
     this.emit();
   }
 
+  selectOutput(id: string | undefined): void {
+    this.selectedOutputId = id;
+    try {
+      if (id) localStorage.setItem(OUTPUT_KEY, id);
+      else localStorage.removeItem(OUTPUT_KEY);
+    } catch {
+      // not remembered
+    }
+    this.emit();
+  }
+
+  /** Sends MIDI to the selected output, due at a wall-clock time (ms since the epoch; default now). */
+  send(data: number[], at?: number): void {
+    const out = this.selectedOutputId ? this.access?.outputs.get(this.selectedOutputId) : undefined;
+    if (!out) return;
+    out.send(data, at === undefined ? undefined : at - performance.timeOrigin);
+  }
+
   onChange(fn: () => void): () => void {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
@@ -69,6 +91,16 @@ export class WebMidi {
 
   private refresh(): void {
     this.inputs = [...(this.access?.inputs.values() ?? [])].map((i) => ({ id: i.id, name: i.name ?? i.id }));
+    this.outputs = [...(this.access?.outputs.values() ?? [])].map((o) => ({ id: o.id, name: o.name ?? o.id }));
+    if (this.selectedOutputId && !this.outputs.some((o) => o.id === this.selectedOutputId)) this.selectedOutputId = undefined;
+    if (!this.selectedOutputId) {
+      try {
+        const remembered = localStorage.getItem(OUTPUT_KEY);
+        if (remembered && this.outputs.some((o) => o.id === remembered)) this.selectedOutputId = remembered;
+      } catch {
+        // ignore
+      }
+    }
     const stillThere = this.selectedId && this.inputs.some((i) => i.id === this.selectedId);
     if (!stillThere) this.select(this.pickDefault());
     else this.emit();

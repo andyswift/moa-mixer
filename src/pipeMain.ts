@@ -7,6 +7,7 @@ import { MidiClock } from './domain/midi/clock';
 import { parseMidi } from './domain/midi/events';
 import { MidiMonitor } from './domain/midi/monitor';
 import { Patch } from './domain/patch/patch';
+import { MidiBus } from './midi/bus';
 import { WebMidi } from './midi/webMidi';
 import { renderMidiStrip } from './ui/midiStrip';
 import { renderPipePanel } from './ui/pipePanel';
@@ -42,11 +43,15 @@ function handleMidiBytes(data: ArrayLike<number>, time = performance.now()): voi
 midi.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
 void midi.connectIfPermitted();
 
+// MIDI from the sequencer page in another tab arrives over the bus, like a MIDI input.
+const bus = new MidiBus();
+bus.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
+
 const nav = document.createElement('nav');
 nav.className = 'pipe-nav';
-nav.innerHTML = '<a href="/mixer/">The mixer</a><a href="/">moaswift.no</a>';
+nav.innerHTML = '<a href="/mixer/">The mixer</a><a href="/seq/">MOA-SEQ</a><a href="/">moaswift.no</a>';
 
-app.append(nav, renderMidiStrip(midi, clock, monitor, start), renderPipePanel(pipe, spring, engine));
+app.append(nav, renderMidiStrip(midi, clock, monitor, start, bus), renderPipePanel(pipe, spring, engine));
 
 // Dev-only handle for poking at the engine from the browser console.
 if (import.meta.env.DEV) Object.assign(window, { __pipe: { engine, patch, midi: handleMidiBytes } });

@@ -438,3 +438,4 @@ button.bc-knob:focus-visible, .bc-knob-cap:focus-visible { outline: 2px solid #f
 .gr-channel { height: 30px; min-width: 84px; background: #f6efe6; color: var(--ink); border: 2px solid var(--ink); border-radius: 6px; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; padding: 0 6px; }
 .gr-keys .dial-label { color: var(--ink); font-size: 20px; font-weight: 700; letter-spacing: 0.03em; height: auto; }
 .gr-panel .keybed { margin: 4px -40px -32px; padding: 0 40px; border-top: 2px solid var(--ink); border-radius: 0 0 18px 18px; background: #1d1918; }
+.midi-bus { display: flex; align-items: center; gap: 8px; }

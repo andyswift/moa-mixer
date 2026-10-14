@@ -7,6 +7,7 @@ import { MidiClock } from './domain/midi/clock';
 import { parseMidi } from './domain/midi/events';
 import { MidiMonitor } from './domain/midi/monitor';
 import { Patch } from './domain/patch/patch';
+import { MidiBus } from './midi/bus';
 import { WebMidi } from './midi/webMidi';
 import { renderDuoPanel } from './ui/duoPanel';
 import { loadSavedPatches } from './ui/duoStorage';
@@ -45,15 +46,19 @@ function handleMidiBytes(data: ArrayLike<number>, time = performance.now()): voi
 midi.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
 void midi.connectIfPermitted();
 
+// MIDI from the sequencer page in another tab arrives over the bus, like a MIDI input.
+const bus = new MidiBus();
+bus.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
+
 const nav = document.createElement('nav');
 nav.className = 'pipe-nav';
-nav.innerHTML = '<a href="/lynch/">Lynch 106</a><a href="/df2/">MOA-DF2</a><a href="/mixer/">The mixer</a><a href="/pipe/">MOA-PIPE</a><a href="/">moaswift.no</a>';
+nav.innerHTML = '<a href="/lynch/">Lynch 106</a><a href="/df2/">MOA-DF2</a><a href="/seq/">MOA-SEQ</a><a href="/mixer/">The mixer</a><a href="/pipe/">MOA-PIPE</a><a href="/">moaswift.no</a>';
 
 const wrap = document.createElement('div');
 wrap.className = 'duo-wrap';
 wrap.append(renderDuoPanel(duo, engine), mountKeyboardBed(duo));
 
-app.append(nav, renderMidiStrip(midi, clock, monitor, start), wrap);
+app.append(nav, renderMidiStrip(midi, clock, monitor, start, bus), wrap);
 
 // Dev-only handle for poking at the engine from the browser console.
 if (import.meta.env.DEV) Object.assign(window, { __duo: { engine, patch, midi: handleMidiBytes } });

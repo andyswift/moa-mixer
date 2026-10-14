@@ -1,5 +1,6 @@
 import type { MidiClock } from '../domain/midi/clock';
 import type { MidiMonitor } from '../domain/midi/monitor';
+import type { MidiBus } from '../midi/bus';
 import type { WebMidi } from '../midi/webMidi';
 import { el } from './widgets';
 
@@ -7,7 +8,7 @@ const MONITOR_ROWS = 5;
 const LED_MS = 150;
 
 /** Top control strip: the audio start button, MIDI device, incoming clock status, activity LEDs and a monitor. */
-export function renderMidiStrip(midi: WebMidi, clock: MidiClock, monitor: MidiMonitor, audioButton: HTMLElement): HTMLElement {
+export function renderMidiStrip(midi: WebMidi, clock: MidiClock, monitor: MidiMonitor, audioButton: HTMLElement, bus?: MidiBus): HTMLElement {
   const strip = el('section', 'midi-strip');
 
   // --- Audio ---
@@ -43,6 +44,28 @@ export function renderMidiStrip(midi: WebMidi, clock: MidiClock, monitor: MidiMo
   };
   midi.onChange(renderDevice);
   renderDevice();
+
+  // --- Sequencer bus: MIDI from the sequencer page, no device needed ---
+  let busBlock: HTMLElement | undefined;
+  let busLed: HTMLElement | undefined;
+  if (bus?.supported) {
+    busBlock = el('div', 'midi-block');
+    busBlock.append(el('div', 'fader-label', 'Sequencer bus'));
+    const row = el('div', 'midi-bus');
+    busLed = el('span', 'led');
+    const toggle = el('button', 'btn btn-small midi-bus-toggle');
+    toggle.type = 'button';
+    toggle.setAttribute('aria-label', 'Listen to MIDI from the sequencer page in another tab');
+    const paint = () => {
+      toggle.textContent = bus.enabled ? 'On' : 'Off';
+      toggle.setAttribute('aria-pressed', String(bus.enabled));
+    };
+    toggle.addEventListener('click', () => bus.setEnabled(!bus.enabled));
+    bus.onChange(paint);
+    paint();
+    row.append(busLed, toggle);
+    busBlock.append(row);
+  }
 
   // --- Clock status ---
   const clockBlock = el('div', 'midi-block');
@@ -90,7 +113,7 @@ export function renderMidiStrip(midi: WebMidi, clock: MidiClock, monitor: MidiMo
   monitor.onChange(renderLog);
   renderLog();
 
-  strip.append(audio, device, clockBlock, leds, mon);
+  strip.append(audio, device, ...(busBlock ? [busBlock] : []), clockBlock, leds, mon);
 
   const tick = () => {
     const now = performance.now();
@@ -101,6 +124,7 @@ export function renderMidiStrip(midi: WebMidi, clock: MidiClock, monitor: MidiMo
     locked.classList.toggle('on', isLocked);
     running.textContent = clock.running ? 'Running' : 'Stopped';
     running.classList.toggle('on', clock.running);
+    if (bus && busLed) busLed.classList.toggle('on', now - bus.lastSeen < LED_MS);
     for (const kind of ['note', 'cc', 'clock'] as const) {
       ledEls[kind].classList.toggle('on', now - monitor.lastSeen[kind] < LED_MS);
     }
