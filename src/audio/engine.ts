@@ -1,5 +1,6 @@
 import type { Circuit } from '../domain/circuit/circuit';
 import type { Patch } from '../domain/patch/patch';
+import { DF_NAME, DF_SOURCE } from './dfWorklet';
 import { GRANULAR_NAME, GRANULAR_SOURCE } from './granularWorklet';
 import { PIPE_NAME, PIPE_SOURCE, SPRING_NAME } from './pipeWorklet';
 
@@ -16,12 +17,20 @@ export interface PipeView {
   active: boolean[];
 }
 
+/** What a filter-box node reports for display: envelope levels, whether each envelope's gate is open, S&H value. */
+export interface DFView {
+  env: number[];
+  gate: boolean[];
+  sh: number;
+}
+
 /** Compiles a Patch into Web Audio nodes and keeps them in sync with domain state. */
 export class AudioEngine {
   private ctx?: AudioContext;
   private readonly compressors = new Map<string, DynamicsCompressorNode>();
   private readonly grainViews = new Map<string, GrainView>();
   private readonly pipeViews = new Map<string, PipeView>();
+  private readonly dfViews = new Map<string, DFView>();
   private readonly meters = new Map<string, { analyser: AnalyserNode; buffer: Float32Array<ArrayBuffer> }>();
 
   constructor(private readonly patch: Patch) {}
@@ -62,6 +71,11 @@ export class AudioEngine {
   /** The latest voice activity from a pipe node; undefined until audio has started. */
   readPipe(deviceId: string, nodeId: string): PipeView | undefined {
     return this.pipeViews.get(`${deviceId}/${nodeId}`);
+  }
+
+  /** The latest envelope and gate state of a filter-box node; undefined until audio has started. */
+  readDF(deviceId: string, nodeId: string): DFView | undefined {
+    return this.dfViews.get(`${deviceId}/${nodeId}`);
   }
 
   /** Current gain reduction of a compressor node in dB (0 or negative); 0 until audio starts. */
@@ -159,6 +173,15 @@ export class AudioEngine {
           nodes.set(n.id, new AudioWorkletNode(ctx, SPRING_NAME, {
             numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], parameterData: n.params,
           }));
+          break;
+        }
+        case 'df': {
+          const node = new AudioWorkletNode(ctx, DF_NAME, {
+            numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], channelCount: 2, channelCountMode: 'explicit',
+            parameterData: n.params,
+          });
+          node.port.onmessage = (e: MessageEvent<DFView>) => this.dfViews.set(`${deviceId}/${n.id}`, e.data);
+          nodes.set(n.id, node);
           break;
         }
         case 'compressor': {
@@ -273,7 +296,7 @@ export class AudioEngine {
     circuit.onChange((change) => {
       const node = nodes.get(change.nodeId);
       if (!node) return;
-      if (change.type === 'note') {
+      if (change.type === 'note' || change.type === 'gate') {
         if (node instanceof AudioWorkletNode) node.port.postMessage(change);
         return;
       }
@@ -310,6 +333,10 @@ export class AudioEngine {
         return;
       }
       const param = audioParam(node, change.name);
+      if (circuit.node(change.nodeId).kind === 'df' && DF_SWITCHES.test(change.name)) {
+        param?.setValueAtTime(change.value, ctx.currentTime); // a switch position, not something to glide through
+        return;
+      }
       param?.setTargetAtTime(change.value, ctx.currentTime, timeConstant(circuit, change.nodeId, change.name));
     });
 
@@ -324,6 +351,9 @@ function audioParam(node: AudioNode, name: string): AudioParam | undefined {
 }
 
 const MIN_TIME = 0.001;
+
+/** Filter-box params that are switch positions (filter type, sources, on/off), so they jump rather than glide. */
+const DF_SWITCHES = /Type$|Src$|Inv$|Vca$|Gate$|Loop$|Exp$|Trig$|Link$|^mono$/;
 
 /** Schedules ADSR on `offset`, starting from wherever it currently is (so retriggers don't click). */
 function applyEnvelope(
@@ -543,7 +573,7 @@ registerProcessor('${FOLLOWER_NAME}', MoaFollower);
 `;
 
 /** Every processor, as the one script the audio worklet loads. Top-level names must not clash between them. */
-export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE].join('\n');
+export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE].join('\n');
 
 /** The processors are one worklet module, loaded from an in-memory script. */
 function workletModuleUrl(): string {

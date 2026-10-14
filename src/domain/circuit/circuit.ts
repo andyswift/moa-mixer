@@ -27,7 +27,10 @@
 // its params are listed in `pipeWorklet.ts`.
 // 'spring' is the spring reverb: mono-summed input into two dispersive feedback springs, stereo out.
 // Params: tension, drip, decay (s), tilt (-1..1) and dwell (input drive).
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring';
+// 'df' is the MOA-DF2 filter box: two multimode filters, two envelopes, a sample-and-hold, a delay and a mixer in
+// one worklet; stereo in, stereo out. Its params are listed in `dfWorklet.ts`. `gate(id, target, on)` drives its
+// envelope gates: 'keys' (the held keys) or 'open1' / 'open2' (the OPEN buttons).
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df';
 
 export interface CircuitNode {
   readonly id: string;
@@ -48,7 +51,8 @@ export type CircuitChange =
   | { type: 'option'; nodeId: string; name: string; value: string }
   | { type: 'trigger'; nodeId: string; velocity: number; when?: number }
   | { type: 'choke'; nodeId: string; when?: number }
-  | { type: 'note'; nodeId: string; note: number; velocity: number };
+  | { type: 'note'; nodeId: string; note: number; velocity: number }
+  | { type: 'gate'; nodeId: string; target: 'keys' | 'open1' | 'open2'; on: boolean };
 
 export class Circuit {
   readonly nodes = new Map<string, CircuitNode>();
@@ -126,6 +130,12 @@ export class Circuit {
   pedal(nodeId: string, down: boolean): void {
     this.expectKind(nodeId, 'pipe');
     this.emit({ type: 'note', nodeId, note: -2, velocity: down ? 1 : 0 });
+  }
+
+  /** Opens or closes an envelope gate on a filter-box node. */
+  gate(nodeId: string, target: 'keys' | 'open1' | 'open2', on: boolean): void {
+    this.expectKind(nodeId, 'df');
+    this.emit({ type: 'gate', nodeId, target, on });
   }
 
   onChange(fn: (c: CircuitChange) => void): () => void {
