@@ -117,7 +117,7 @@ describe('controls and patches', () => {
     expect(s.circuit.node('synth').params.vcfRoute).toBe(3);
   });
 
-  it('has sixteen slots; every factory patch loads and round-trips; a patch resets what it does not mention', () => {
+  it('has its slots (24); every factory patch loads and round-trips; a patch resets what it does not mention', () => {
     const s = new DuoSynth();
     expect(s.slots).toHaveLength(DUO_SLOTS);
     expect(DUO_FACTORY.length).toBeLessThanOrEqual(DUO_SLOTS);

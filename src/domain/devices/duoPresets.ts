@@ -17,7 +17,7 @@ export const DUO_INIT: PresetValues = {
 
 /** Like the hardware's panel switches, the MIDI channel lock is not part of a patch (mode and legato are). */
 export const DUO_NOT_IN_PATCH = ['play.channel'] as const;
-export const DUO_SLOTS = 16;
+export const DUO_SLOTS = 24;
 
 const p = (name: string, values: PresetValues): SynthPreset => ({ name, values });
 
@@ -41,6 +41,7 @@ export const DUO_FACTORY: readonly SynthPreset[] = [
   p('Pulse Sweep', { 'osc1.wave': 'square', 'osc1.pw': 0.7, 'osc1.octave': '16', 'osc2.octave': '16', 'filter.cutoff': 500, 'filter.res': 0.4, 'mod1.rise': 1.4, 'mod1.fall': 1.8, 'mod1.hold': 1, 'mod1.level': 0.7, 'vca.rise': 0.3 }),
   p('Glide Mono', { 'osc1.octave': '16', 'osc2.octave': '16', 'osc2.detune': 0.01, 'osc1.glide': 0.35, 'osc2.glide': 0.35, 'filter.cutoff': 1100, 'filter.res': 0.45, 'mod1.level': 0.4, 'mod1.fall': 0.4, 'play.mode': 'mono', 'play.legato': 1 }),
   p('Dual Detune Strings', { 'osc1.octave': '8', 'osc2.octave': '8', 'osc2.detune': 0.12, 'filter.cutoff': 1900, 'mod1.level': 0.15, 'vca.rise': 0.25, 'vca.fall': 0.9, 'vib.level': 0.15, 'vib.rate': 5.8, 'reverb.mix': 0.3, 'reverb.decay': 0.55 }),
+  p('Hoover', { 'osc1.wave': 'square', 'osc1.pw': 0.35, 'osc1.octave': '16', 'osc2.wave': 'saw', 'osc2.octave': '16', 'osc2.detune': 0, 'tune': 42, 'osc1.glide': 0.45, 'osc2.glide': 0.5, 'osc1.level': 0.8, 'osc2.level': 0.8, 'filter.cutoff': 2600, 'filter.res': 0.45, 'route.mod': 'dual', 'mod1.level': 0.15, 'mod1.fall': 0.6, 'mod1.hold': 1, 'mod2.lfo': 1, 'mod2.rise': 0.4, 'mod2.fall': 0.4, 'mod2.level': 0.5, 'vib.level': 0.3, 'vib.rate': 6.5, 'vca.fall': 0.5, 'reverb.mix': 0.3, 'reverb.decay': 0.45, 'reverb.time': 0.2, 'play.legato': 1 }),
   p('Filter Echo', { 'osc1.octave': '16', 'osc2.octave': '8', 'osc2.detune': 12, 'route.mod': 'dual', 'filter.cutoff': 800, 'filter.res': 0.55, 'mod2.lfo': 1, 'mod2.rise': 0.25, 'mod2.fall': 0.4, 'mod2.level': 0.5, 'mod1.level': 0.4, 'reverb.mix': 0.4, 'reverb.decay': 0.75, 'reverb.time': 0.4 }),
 ];
 export const DUO_PRESETS: readonly SynthPreset[] = Array.from({ length: DUO_SLOTS }, (_, i) => DUO_FACTORY[i] ?? p('Init', {}));
