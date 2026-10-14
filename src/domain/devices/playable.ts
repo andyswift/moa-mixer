@@ -5,6 +5,8 @@ export interface Playable {
   /** MIDI notes currently held, oldest first. */
   readonly heldNotes: readonly number[];
   onNoteChange(fn: () => void): () => void;
+  /** Semitones the pitch wheel reaches either way (default 2), for its readout. */
+  readonly bendRange?: number;
   readonly pitchBend: number;
   setPitchBend(value: number): void;
   readonly modWheel: number;

@@ -3,6 +3,7 @@ import type { Device } from '../devices/device';
 import { DRUM_VOICES, DrumMachine } from '../devices/drumMachine';
 import { GranularFx } from '../devices/granular';
 import { OuroborosFx } from '../devices/ouroboros';
+import { DuoSynth } from '../devices/duoSynth';
 import { FilterBox } from '../devices/filterBox';
 import { LynchSynth } from '../devices/lynchSynth';
 import { PipeSynth } from '../devices/pipeSynth';
@@ -57,6 +58,11 @@ export class Patch {
   /** The Lynch 106 page: just the synth, straight to the speakers. */
   static lynch(clock = new MidiClock()): Patch {
     return new Patch().add('lynch', new LynchSynth('Lynch', clock)).setOutput('lynch', 'out');
+  }
+
+  /** The MOA-DUO page: the synth straight to the speakers. */
+  static duo(): Patch {
+    return new Patch().add('duo', new DuoSynth('MOA-DUO')).setOutput('duo', 'out');
   }
 
   /** The MOA-DF2 page: the Lynch 106 into the filter box (left to filter I, right to filter II), then the speakers. */

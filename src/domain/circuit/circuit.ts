@@ -27,10 +27,13 @@
 // its params are listed in `pipeWorklet.ts`.
 // 'spring' is the spring reverb: mono-summed input into two dispersive feedback springs, stereo out.
 // Params: tension, drip, decay (s), tilt (-1..1) and dwell (input drive).
+// 'duo' is the MOA-DUO synth: two oscillators, two routable filters, three modulators and a reverb in one worklet,
+// stereo out, no input. `play(id, n1, n2, gate, retrig)` sets the two oscillator notes and the gate; its params are
+// listed in `duoWorklet.ts`.
 // 'df' is the MOA-DF2 filter box: two multimode filters, two envelopes, a sample-and-hold, a delay and a mixer in
 // one worklet; stereo in, stereo out. Its params are listed in `dfWorklet.ts`. `gate(id, target, on)` drives its
 // envelope gates: 'keys' (the held keys) or 'open1' / 'open2' (the OPEN buttons).
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df';
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df' | 'duo';
 
 export interface CircuitNode {
   readonly id: string;
@@ -52,7 +55,8 @@ export type CircuitChange =
   | { type: 'trigger'; nodeId: string; velocity: number; when?: number }
   | { type: 'choke'; nodeId: string; when?: number }
   | { type: 'note'; nodeId: string; note: number; velocity: number }
-  | { type: 'gate'; nodeId: string; target: 'keys' | 'open1' | 'open2'; on: boolean };
+  | { type: 'gate'; nodeId: string; target: 'keys' | 'open1' | 'open2'; on: boolean }
+  | { type: 'play'; nodeId: string; n1: number; n2: number; gate: boolean; retrig: boolean };
 
 export class Circuit {
   readonly nodes = new Map<string, CircuitNode>();
@@ -130,6 +134,12 @@ export class Circuit {
   pedal(nodeId: string, down: boolean): void {
     this.expectKind(nodeId, 'pipe');
     this.emit({ type: 'note', nodeId, note: -2, velocity: down ? 1 : 0 });
+  }
+
+  /** Sets the two oscillator notes and the gate on a duo-synth node; `retrig` restarts the modulators. */
+  play(nodeId: string, n1: number, n2: number, gate: boolean, retrig: boolean): void {
+    this.expectKind(nodeId, 'duo');
+    this.emit({ type: 'play', nodeId, n1, n2, gate, retrig });
   }
 
   /** Opens or closes an envelope gate on a filter-box node. */

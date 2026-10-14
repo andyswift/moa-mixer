@@ -17,8 +17,8 @@ const MAX_OCTAVE = 2;
 let activeBed: HTMLElement | undefined;
 
 const noteName = (note: number) => `${NAMES[note % 12]}${Math.floor(note / 12) - 1}`;
-const semitones = (bend: number) => {
-  const st = Math.round(bend * 2 * 100) / 100;
+const semitones = (bend: number, range = 2) => {
+  const st = Math.round(bend * range * 100) / 100;
   return `${st > 0 ? '+' : ''}${st.toFixed(2)} st`;
 };
 
@@ -40,9 +40,9 @@ export function mountKeyboardBed(synth: Playable, customCheek?: HTMLElement): HT
   const wheels = el('div', 'keybed-wheels');
   wheels.append(
     renderWheel({
-      label: 'Bend', ariaLabel: 'Pitch bend', bipolar: true, scale: ['+2', '0', '-2'], springBack: true, keyStep: 0.125,
+      label: 'Bend', ariaLabel: 'Pitch bend', bipolar: true, scale: [`+${synth.bendRange ?? 2}`, '0', `-${synth.bendRange ?? 2}`], springBack: true, keyStep: 0.125,
       get: () => synth.pitchBend, set: (v) => synth.setPitchBend(v),
-      subscribe: (fn) => synth.onPerformanceChange(fn), format: semitones,
+      subscribe: (fn) => synth.onPerformanceChange(fn), format: (v) => semitones(v, synth.bendRange ?? 2),
     }),
     renderWheel({
       label: 'Mod', ariaLabel: 'Modulation, LFO vibrato depth', bipolar: false, scale: ['100', '0'], springBack: false, keyStep: 0.1,

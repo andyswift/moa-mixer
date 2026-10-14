@@ -1,0 +1,70 @@
+/* ---- MOA-DUO: a black panel with white outlines, silver-capped fluted knobs, black sliders and metal toggles ---- */
+.duo-wrap { margin-bottom: 16px; font-family: 'Barlow Semi Condensed', 'Barlow Condensed', system-ui, sans-serif; color: #f4f4f0; }
+.duo-wrap .keybed { margin: 0; border-radius: 0 0 14px 14px; }
+.duo-case { background: #0c0c0d; border-radius: 14px 14px 0 0; border: 1px solid #2a2a2d; border-bottom: 0; overflow: hidden; }
+
+/* wide screens: the photo-faithful layout, scaled to the container width */
+.duo-desktop { position: relative; container-type: inline-size; width: 100%; aspect-ratio: 1965 / 1167; }
+.duo-decor { position: absolute; left: 0; top: 0; width: 100%; height: 100%; font-family: 'Barlow Semi Condensed', system-ui, sans-serif; font-weight: 700; }
+.duo-desktop .duo-placed { position: absolute; box-sizing: border-box; }
+.duo-desktop .dial { flex: none; min-width: 0; gap: 0; }
+.duo-desktop .dial-face { width: 100%; height: 100%; }
+.duo-desktop .dial-label, .duo-desktop .dial-value { display: none; }
+.duo-desktop .duo-slider { --cap: 1.7cqw; }
+.duo-desktop .duo-pick { background: transparent; border: 0; padding: 0; border-radius: 0.5cqw; cursor: pointer; color: transparent; }
+.duo-desktop .duo-pick.on { box-shadow: inset 0 0 0 2px #f0883e; background: rgba(240, 136, 62, 0.2); }
+.duo-desktop .duo-pick:focus-visible { outline: 2px solid #f4f4f0; }
+.duo-patch-desktop { display: flex; align-items: center; padding: 0 1cqw; background: #0b0b0c; border-radius: 0.8cqw; font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 1.4cqw; letter-spacing: 0.06em; color: #f0883e; white-space: nowrap; overflow: hidden; }
+.duo-desktop .duo-patch-btn { background: #1b1b1d; font-size: 1.3cqw; border-radius: 0.6cqw; padding: 0; }
+
+/* shared pieces */
+.duo-knob { touch-action: none; }
+.duo-slider { position: relative; width: var(--w); height: var(--h); touch-action: none; }
+.duo-desktop .duo-slider { width: 100%; height: 100%; }
+.duo-slider-track { position: absolute; left: 50%; top: 0; width: calc(var(--w) * 0.45); height: var(--h); transform: translateX(-50%); border-radius: 4px; background: #050506; box-shadow: inset 0 0 0 1px #3a3a3d; }
+.duo-slider-cap { position: absolute; left: 50%; top: calc((1 - var(--t, 0)) * (var(--h) - var(--cap))); width: calc(var(--w) * 0.8); height: var(--cap); transform: translateX(-50%); border-radius: 3px; background: #161617; box-shadow: 0 2px 3px rgba(0, 0, 0, 0.8), inset 0 0 0 1px #4a4a4d; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.duo-slider-cap span { width: 80%; height: 2px; background: #f4f4f0; }
+.duo-slider-input { position: absolute; left: 0; top: var(--h); width: var(--h); height: var(--w); margin: 0; transform-origin: 0 0; transform: rotate(-90deg); opacity: 0; cursor: pointer; }
+.duo-slider:focus-within .duo-slider-cap { outline: 2px solid #f4f4f0; outline-offset: 2px; }
+
+.duo-toggle { position: relative; width: 100%; height: 100%; min-width: 30px; min-height: 30px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.duo-toggle::before { content: ''; position: absolute; left: 22%; top: 22%; width: 56%; height: 56%; border-radius: 50%; background: #1b1b1d; box-shadow: inset 0 0 0 2px #6a6a6e; }
+.duo-toggle i { position: absolute; left: 50%; bottom: 50%; width: 22%; height: 62%; margin-left: -11%; transform-origin: 50% 100%; transform: rotate(var(--a, 0deg)); border-radius: 3px; background: linear-gradient(90deg, #8d8d8d, #f1f1f1, #8d8d8d); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); transition: transform 0.08s; }
+.duo-toggle:focus-visible { outline: 2px solid #f4f4f0; outline-offset: 2px; border-radius: 6px; }
+
+.duo-led { display: block; width: 100%; height: 100%; min-width: 9px; min-height: 9px; border-radius: 50%; background: #4b1f1d; }
+.duo-led.on { background: #ff3b30; box-shadow: 0 0 8px 2px rgba(255, 59, 48, 0.75); }
+.duo-patch-btn { border: 1.5px solid #6a6a6e; color: #f4f4f0; font-family: inherit; font-weight: 700; letter-spacing: 0.1em; cursor: pointer; min-width: 0; }
+.duo-patch-btn:hover { border-color: #f4f4f0; }
+
+/* narrow screens: stacked sections */
+.duo-mobile { display: none; padding: 18px 14px 20px; flex-direction: column; gap: 22px; }
+.duo-card { position: relative; box-sizing: border-box; padding: 22px 12px 14px; border: 1.8px solid #f4f4f0; border-radius: 12px; display: flex; flex-direction: column; gap: 16px; }
+.duo-card-title { position: absolute; top: -11px; left: 16px; margin: 0; padding: 0 8px; background: #0c0c0d; font-size: 13px; font-weight: 700; letter-spacing: 0.22em; line-height: 20px; }
+.duo-row { display: flex; flex-wrap: wrap; gap: 14px 12px; align-items: flex-start; justify-content: space-around; }
+.duo-item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.duo-item-switch { gap: 4px; min-width: 52px; }
+.duo-item-label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; color: #e9e9e4; text-align: center; }
+.duo-mobile .duo-slider { --h: 110px; --w: 44px; --cap: 22px; }
+.duo-mobile .duo-toggle { width: 48px; height: 48px; }
+.duo-mobile .duo-knob { width: 76px; height: auto; display: flex; flex-direction: column; align-items: center; }
+.duo-mobile .duo-knob .dial-face { width: 76px; height: 76px; }
+.duo-mobile .dial { flex: none; min-width: 0; }
+.duo-mobile .dial-label { display: none; }
+.duo-mobile .dial-value { height: auto; font-size: 10px; color: #8e8e92; }
+.duo-sub { position: relative; padding: 18px 10px 10px; border: 1.2px solid #8d8d90; border-radius: 10px; }
+.duo-sub-title { position: absolute; top: -9px; left: 14px; margin: 0; padding: 0 6px; background: #0c0c0d; font-size: 11px; font-weight: 700; letter-spacing: 0.2em; color: #c9c9c4; }
+.duo-segmented { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.duo-segmented-name { width: 44px; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; }
+.duo-mobile .duo-pick { min-width: 52px; min-height: 44px; padding: 0 10px; border: 1px solid #55555a; border-radius: 6px; background: transparent; color: #e9e9e4; font: 700 12px/1 inherit; font-family: inherit; letter-spacing: 0.1em; cursor: pointer; }
+.duo-mobile .duo-pick.on { background: #f4f4f0; color: #101012; }
+.duo-patch-row { display: flex; gap: 6px; align-items: stretch; }
+.duo-patch-mobile { flex: 1; display: flex; align-items: center; padding: 0 12px; background: #0b0b0c; border: 1px solid #3a3a3e; border-radius: 6px; font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 15px; color: #f0883e; min-height: 44px; white-space: nowrap; overflow: hidden; }
+.duo-mobile .duo-patch-btn { min-width: 44px; min-height: 44px; padding: 0 10px; background: #1b1b1d; border-radius: 6px; font-size: 13px; }
+.duo-led-item { display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 14px; }
+.duo-led-item .duo-led { width: 12px; height: 12px; }
+
+@media (max-width: 899px) {
+  .duo-desktop { display: none; }
+  .duo-mobile { display: flex; }
+}
