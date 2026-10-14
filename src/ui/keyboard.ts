@@ -26,8 +26,9 @@ const semitones = (bend: number) => {
  * The keyboard bed along the bottom of the synth panel: pitch and mod wheels with octave buttons on the
  * left, a 49-key keyboard filling the rest. Keys light for notes from anywhere, MIDI included.
  * The computer keyboard plays the synth whose panel you last clicked (the first one until then).
+ * A synth with its own controls beside the keys (the Lynch 106) passes them as `customCheek`, replacing the wheels.
  */
-export function mountKeyboardBed(synth: Playable): HTMLElement {
+export function mountKeyboardBed(synth: Playable, customCheek?: HTMLElement): HTMLElement {
   const bed = el('div', 'keybed');
   activeBed ??= bed;
   document.addEventListener('pointerdown', (e) => {
@@ -153,6 +154,6 @@ export function mountKeyboardBed(synth: Playable): HTMLElement {
     if (i >= 0) release(LETTER_START + i);
   });
 
-  bed.append(cheek, keys);
+  bed.append(customCheek ?? cheek, keys);
   return bed;
 }

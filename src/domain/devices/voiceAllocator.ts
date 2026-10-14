@@ -20,6 +20,8 @@ interface Voice {
  */
 export class VoiceAllocator {
   mode: VoiceMode = 'poly';
+  /** Which free voice a new poly note takes: the one released longest ago (default), or the lowest-numbered one. */
+  prefer: 'oldest' | 'lowest' = 'oldest';
   private readonly voices: Voice[];
   private held: number[] = []; // mono/unison note stack, most recent last
   private clock = 0;
@@ -68,7 +70,9 @@ export class VoiceAllocator {
     if (index < 0) {
       const free = this.voices.map((v, i) => ({ v, i })).filter((x) => !x.v.gate);
       const pool = free.length ? free : this.voices.map((v, i) => ({ v, i }));
-      index = pool.reduce((best, x) => (x.v.since < best.v.since ? x : best)).i;
+      index = this.prefer === 'lowest' && free.length
+        ? free[0]!.i
+        : pool.reduce((best, x) => (x.v.since < best.v.since ? x : best)).i;
     }
     const voice = this.voices[index]!;
     voice.note = note;
