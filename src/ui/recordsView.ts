@@ -47,8 +47,11 @@ export function renderRecords(root: HTMLElement, songs: Song[], band: Band, play
   const dropButton = el('button', 'rec-button rec-button-go', 'Drop the needle');
   dropButton.type = 'button';
   dropButton.addEventListener('click', () => void drop());
-  const go = el('div', 'rec-go'); // a dark plaque set into the crate front
-  go.append(dropButton);
+  const go = el('div', 'rec-go'); // sits on the crate front, with an arrow that points at the button
+  const arrow = el('span', 'rec-arrow');
+  arrow.setAttribute('aria-hidden', 'true');
+  arrow.innerHTML = '<svg viewBox="0 0 120 70" width="120" height="70"><path d="M6 33C20 28 40 38 62 31L60 12C70 14 96 28 114 36C98 46 76 58 62 62L63 45C42 50 22 42 6 33Z" fill="#e53935" stroke="#fff4df" stroke-width="4" stroke-linejoin="round"/></svg>';
+  go.append(arrow, dropButton);
   const front = el('div', 'rec-crate-front');
   front.append(el('div', 'rec-crate-label', 'MOA RECORDS · SIDE A'), go);
   crate.append(sleeves, front);
