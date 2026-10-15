@@ -30,6 +30,8 @@ body { margin: 0; background: radial-gradient(ellipse at 50% 30%, #3b2740 0%, #1
 .rec-pick-title, .rec-deck-title { font-family: 'Alfa Slab One', serif; font-size: 34px; line-height: 1.1; }
 .rec-meta { margin-top: 6px; font-family: 'Share Tech Mono', monospace; font-size: 16px; letter-spacing: 0.08em; color: #a99fb4; }
 .rec-chips { display: flex; flex-wrap: wrap; gap: 8px; max-width: 520px; }
+.rec-pick-right { display: flex; flex-direction: column; align-items: flex-end; gap: 16px; margin-left: auto; }
+.rec-pick-right .rec-chips { justify-content: flex-end; }
 .rec-chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 999px; background: #2a2432; font-size: 17px; letter-spacing: 0.1em; }
 .rec-led { width: 9px; height: 9px; border-radius: 50%; background: #5a4f66; }
 .rec-led.on { background: #4fd69c; box-shadow: 0 0 8px #4fd69c; }

@@ -57,7 +57,9 @@ export function renderRecords(root: HTMLElement, songs: Song[], band: Band, play
   const dropButton = el('button', 'rec-button rec-button-go', 'Drop the needle');
   dropButton.type = 'button';
   dropButton.addEventListener('click', () => void drop());
-  pick.append(pickInfo, pickChips, dropButton);
+  const pickRight = el('div', 'rec-pick-right');
+  pickRight.append(pickChips, dropButton);
+  pick.append(pickInfo, pickRight);
 
   // ---- the turntable ----
   const deck = el('section', 'rec-deck');
