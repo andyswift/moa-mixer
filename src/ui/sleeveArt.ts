@@ -46,6 +46,13 @@ export function sleeveSvg(song: Song): string {
         <path d="M0 250 L0 222 L40 204 L84 226 L134 208 L190 232 L250 214 L250 250 Z" fill="#02030a"/>
         ${label(song, 16, 30, c)}`;
       break;
+    case 'frost':
+      body = `<rect width="250" height="250" fill="${a}"/>
+        <circle cx="165" cy="84" r="50" fill="${b}"/><circle cx="150" cy="70" r="11" fill="${c}" fill-opacity=".3"/><circle cx="178" cy="98" r="15" fill="${c}" fill-opacity=".25"/><circle cx="182" cy="62" r="6" fill="${c}" fill-opacity=".3"/>
+        <g fill="${c}" fill-opacity=".3"><path d="M24 0 L34 120 L14 120 Z"/><path d="M62 0 L68 96 L54 96 Z"/><path d="M104 0 L110 70 L98 70 Z"/><path d="M226 0 L231 80 L221 80 Z"/></g>
+        <path d="M0 250 L0 196 L12 168 L20 190 L30 146 L40 190 L50 160 L60 196 L72 132 L84 196 L96 160 L106 198 L120 124 L134 198 L146 160 L158 200 L172 140 L186 200 L198 164 L210 202 L222 150 L234 202 L244 176 L250 198 L250 250 Z" fill="#000"/>
+        ${label(song, 16, 30, '#e8eef7')}`;
+      break;
     case 'flats':
     default:
       body = `<rect width="250" height="250" fill="${a}"/><rect y="132" width="250" height="118" fill="${b}"/><circle cx="170" cy="100" r="22" fill="${c}"/>
