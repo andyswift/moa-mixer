@@ -55,6 +55,11 @@ export class Patch {
     return this;
   }
 
+  /** The mono synth page: just the synth, straight to the speakers. */
+  static synth(clock = new MidiClock()): Patch {
+    return new Patch().add('synth', new Synthesizer('Synth', clock)).setOutput('synth', 'out');
+  }
+
   /** The Lynch 106 page: just the synth, straight to the speakers. */
   static lynch(clock = new MidiClock()): Patch {
     return new Patch().add('lynch', new LynchSynth('Lynch', clock)).setOutput('lynch', 'out');

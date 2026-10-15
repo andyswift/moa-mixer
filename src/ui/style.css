@@ -439,3 +439,18 @@ button.bc-knob:focus-visible, .bc-knob-cap:focus-visible { outline: 2px solid #f
 .gr-keys .dial-label { color: var(--ink); font-size: 20px; font-weight: 700; letter-spacing: 0.03em; height: auto; }
 .gr-panel .keybed { margin: 4px -40px -32px; padding: 0 40px; border-top: 2px solid var(--ink); border-radius: 0 0 18px 18px; background: #1d1918; }
 .midi-bus { display: flex; align-items: center; gap: 8px; }
+
+/* Audio bus: mixer strip input chooser and the instrument pages' bus block. */
+.mix-input { display: flex; align-items: center; gap: 6px; width: 100%; }
+.mix-input-select { min-width: 0; flex: 1; height: 26px; font-size: 11px; padding: 0 4px; }
+.input-led-live { background: #4fb286; box-shadow: 0 0 8px #4fb286; }
+.input-led-internal, .input-led-connecting { background: #6b7077; }
+.input-led-missing { background: #e8a23c; box-shadow: 0 0 8px #e8a23c; }
+.bus-monitor { display: flex; align-items: center; gap: 6px; }
+.bus-monitor .btn[aria-pressed='true'] { background: #4a9be0; color: #101214; }
+.bus-listening { font-size: 13px; color: #a9adb3; }
+
+/* Page navigation row used by the instrument pages. */
+.pipe-nav { display: flex; gap: 18px; margin: 0 0 12px; font-family: 'Barlow Condensed', system-ui, sans-serif; font-size: 15px; letter-spacing: 0.16em; text-transform: uppercase; }
+.pipe-nav a { color: #a9adb3; text-decoration: none; }
+.pipe-nav a:hover, .pipe-nav a:focus-visible { color: #e8e4da; }

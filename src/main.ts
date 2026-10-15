@@ -11,6 +11,8 @@ import type { Synthesizer } from './domain/devices/synthesizer';
 import { MidiClock } from './domain/midi/clock';
 import { parseMidi } from './domain/midi/events';
 import { MidiMonitor } from './domain/midi/monitor';
+import { MixerInputs, type InputHost } from './audio/mixerInputs';
+import { PcmBus } from './audio/pcmBus';
 import { MidiBus } from './midi/bus';
 import { WebMidi } from './midi/webMidi';
 import { Patch } from './domain/patch/patch';
@@ -32,11 +34,39 @@ const patch = Patch.default(clock);
 const engine = new AudioEngine(patch);
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
+// Audio from instrument pages in other tabs arrives over the audio bus into the channel strips.
+const pcm = new PcmBus();
+const host: InputHost = {
+  ports: () => pcm.ports,
+  setInternal: (jack, on) => {
+    const cable = patch.connections.find((c) => c.to.device === 'mixer' && c.to.jack === jack);
+    if (cable) engine.setCable(cable.from, cable.to, on);
+  },
+  attach: async (jack, portId) => {
+    const ctx = engine.context;
+    const target = engine.jackNode('mixer', 'in', jack);
+    if (!ctx || !target) throw new Error('Audio is not running');
+    const received = await pcm.subscribe(ctx, portId);
+    // Channel strips are mono (the pan stage treats a stereo input differently), so fold the pair down.
+    const mono = ctx.createGain();
+    mono.channelCount = 1;
+    mono.channelCountMode = 'explicit';
+    received.node.connect(mono).connect(target);
+    return () => {
+      mono.disconnect();
+      received.close();
+    };
+  },
+};
+const inputs = new MixerInputs(host, Array.from({ length: 8 }, (_, i) => `ch${i + 1}`));
+pcm.onChange(() => inputs.reconcile());
+
 const start = document.createElement('button');
 start.className = 'start';
 start.textContent = 'Start audio';
 start.addEventListener('click', async () => {
   await engine.start();
+  inputs.start();
   start.textContent = 'Audio running';
   start.disabled = true;
 });
@@ -85,7 +115,7 @@ app.append(renderBusCompPanel(patch.device<BusCompFx>('buscomp'), patch.device<M
 
 app.append(renderGranularPanel(granular, 'granular', engine));
 
-app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay', 'Ouroboros', 'Bus Comp', 'Granular'], { B: 'to Bus Comp', C: 'to Ouroboros' }));
+app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay', 'Ouroboros', 'Bus Comp', 'Granular'], { B: 'to Bus Comp', C: 'to Ouroboros' }, inputs));
 
 // Dev-only handle for poking at the engine from the browser console.
 if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch, sequencer, midi: handleMidiBytes } });

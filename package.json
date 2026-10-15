@@ -12,7 +12,8 @@
     "build:lynch": "tsc --noEmit && vite build --config vite.lynch.config.ts",
     "build:df2": "tsc --noEmit && vite build --config vite.df2.config.ts",
     "build:duo": "tsc --noEmit && vite build --config vite.duo.config.ts",
-    "build:seq": "tsc --noEmit && vite build --config vite.seq.config.ts"
+    "build:seq": "tsc --noEmit && vite build --config vite.seq.config.ts",
+    "build:synth": "tsc --noEmit && vite build --config vite.synth.config.ts"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

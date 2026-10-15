@@ -35,6 +35,8 @@ export interface DuoView {
 export class AudioEngine {
   private ctx?: AudioContext;
   private compiled = new Map<string, Map<string, AudioNode>>();
+  private monitor?: GainNode;
+  private monitorOn = true;
   private readonly compressors = new Map<string, DynamicsCompressorNode>();
   private readonly grainViews = new Map<string, GrainView>();
   private readonly pipeViews = new Map<string, PipeView>();
@@ -60,6 +62,12 @@ export class AudioEngine {
   /** The running AudioContext; undefined until `start()`. */
   get context(): AudioContext | undefined {
     return this.ctx;
+  }
+
+  /** Turns this page's own speakers on or off without affecting what is tapped from its jacks. */
+  setMonitor(on: boolean): void {
+    this.monitorOn = on;
+    if (this.monitor && this.ctx) this.monitor.gain.setTargetAtTime(on ? 1 : 0, this.ctx.currentTime, 0.02);
   }
 
   /** The Web Audio node behind a device's jack, for tapping it or feeding it from outside the patch (the audio bus). */
@@ -137,7 +145,12 @@ export class AudioEngine {
     }
     if (this.patch.output) {
       const { device, jack } = this.patch.output;
-      jackNode(device, 'out', jack).connect(ctx.destination);
+      // The patch output reaches the speakers through a gain stage, so a page can silence its own speakers while
+      // its audio is being played elsewhere (the audio bus taps the jack itself, before this).
+      this.monitor = ctx.createGain();
+      this.monitor.gain.value = this.monitorOn ? 1 : 0;
+      this.monitor.connect(ctx.destination);
+      jackNode(device, 'out', jack).connect(this.monitor);
     }
   }
 

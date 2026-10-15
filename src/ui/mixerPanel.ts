@@ -1,6 +1,8 @@
 import type { AudioEngine } from '../audio/engine';
 import type { NumberControl, ToggleControl } from '../domain/devices/controls';
 import { AUX_PAIRS, BUSES, type Mixer } from '../domain/devices/mixer';
+import type { MixerInputs } from '../audio/mixerInputs';
+import { renderAudioInputSelect } from './audioInputSelect';
 import { el, renderFader, renderKnob, renderToggleButton } from './widgets';
 
 const BLUE = '#4a9be0';
@@ -54,7 +56,7 @@ function meter(label: string, height = METER_HEIGHT): { element: HTMLElement; up
 
 /** One strip: a mono channel (`ch1`...) or a stereo FX return (`ret1`...). */
 function renderStrip(m: Mixer, prefix: string, i: number, isReturn: boolean, name: string, deviceId: string,
-  engine: AudioEngine, tickers: (() => void)[]): HTMLElement {
+  engine: AudioEngine, tickers: (() => void)[], inputs?: MixerInputs): HTMLElement {
   const id = (n: string) => `${prefix}.${n}`;
   const section = isReturn ? `FX return ${i}` : `Channel ${i}`;
   const strip = el('section', isReturn ? 'mix-strip mix-strip-return' : 'mix-strip');
@@ -62,6 +64,7 @@ function renderStrip(m: Mixer, prefix: string, i: number, isReturn: boolean, nam
   const header = el('header', 'mix-strip-head');
   header.append(el('h2', undefined, isReturn ? `FX${i}` : String(i)), el('div', 'mix-strip-name', name));
   strip.append(header);
+  if (inputs && !isReturn) strip.append(renderAudioInputSelect(inputs, prefix, name || section, 'Built-in'));
 
   strip.append(renderToggleButton(toggle(m, id('lowcutOn')), `${section} low cut 75 Hz`, () => 'Low cut', BLUE, 'btn btn-wide'));
 
@@ -131,7 +134,7 @@ function renderStrip(m: Mixer, prefix: string, i: number, isReturn: boolean, nam
 /** The mixer console: channel strips on the left, master section on the right. */
 export function renderMixerPanel(
   m: Mixer, deviceId: string, engine: AudioEngine, channelNames: string[] = [], returnNames: string[] = [],
-  busTags: Partial<Record<(typeof BUSES)[number], string>> = {},
+  busTags: Partial<Record<(typeof BUSES)[number], string>> = {}, inputs?: MixerInputs,
 ): HTMLElement {
   const panel = el('div', 'mix-panel');
 
@@ -149,7 +152,7 @@ export function renderMixerPanel(
 
   const strips = el('div', 'mix-strips');
   for (let i = 1; i <= m.channelCount; i++) {
-    strips.append(renderStrip(m, `ch${i}`, i, false, channelNames[i - 1] ?? '', deviceId, engine, tickers));
+    strips.append(renderStrip(m, `ch${i}`, i, false, channelNames[i - 1] ?? '', deviceId, engine, tickers, inputs));
   }
   for (let r = 1; r <= m.returnCount; r++) {
     strips.append(renderStrip(m, `ret${r}`, r, true, returnNames[r - 1] ?? '', deviceId, engine, tickers));

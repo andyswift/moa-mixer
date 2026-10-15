@@ -79,6 +79,8 @@ export class PcmBus {
     if (this.channel) {
       this.channel.onmessage = (e) => this.handle(e.data);
       this.send({ type: 'hello', from: this.id });
+      // A closing tab leaves the bus, so other tabs see its ports go.
+      if (typeof window !== 'undefined') window.addEventListener('pagehide', (e) => { if (!e.persisted) this.close(); });
     }
   }
 
