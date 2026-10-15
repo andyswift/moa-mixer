@@ -32,3 +32,9 @@ export function mixerSettings(o: MixOptions): PageSettings {
     buscomp: { controls: { 'bc.duck.depth': duck, 'bc.duck.release': 220, 'bc.threshold': -10, 'bc.ratio': 2, 'bc.makeup': 1 } },
   };
 }
+
+/**
+ * Drum voice levels that let the kit snap: the drum machine's snare, clap and cymbals start well below its kick, so
+ * every song raises them at the source and then balances the strips by measured RMS.
+ */
+export const DRUM_PUNCH: PageSettings = { drums: { controls: { 'snare.level': 1, 'clap.level': 1, 'closedHat.level': 1, 'openHat.level': 1, 'ride.level': 1 } } };

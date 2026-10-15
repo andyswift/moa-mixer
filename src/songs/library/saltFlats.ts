@@ -1,5 +1,5 @@
 import { at16, chordAt, DRUM, note, steps } from '../generators';
-import { mixerSettings } from '../mixes';
+import { DRUM_PUNCH, mixerSettings } from '../mixes';
 import type { NoteEvent, Song } from '../types';
 
 /** An original driving trance tune: 138 bpm, F# minor, the loop F#m - D - A - E, a bar a chord. Sixteen bars. */
@@ -86,6 +86,7 @@ export function saltFlats(): Song {
     sleeve: { art: 'flats', colors: ['#f3e3c1', '#e6c88e', '#3a1d46'] },
     band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe'],
     setup: {
+      drums: DRUM_PUNCH,
       synth: { synth: { preset: 6 } }, // Rubber Bass
       poly: { poly: { preset: 9 } }, // Analog Poly
       lynch: { lynch: { preset: 12 } }, // Lead Pulse

@@ -1,5 +1,5 @@
 import { arpeggio, at16, chordAt, DRUM, note, steps } from '../generators';
-import { mixerSettings } from '../mixes';
+import { DRUM_PUNCH, mixerSettings } from '../mixes';
 import type { NoteEvent, Song } from '../types';
 
 /** An original synth-pop tune: 118 bpm, D minor, the loop Dm - Bb - F - C, a bar a chord. Twelve bars. */
@@ -80,6 +80,7 @@ export function neonHands(): Song {
     sleeve: { art: 'hands', colors: ['#3a1d6e', '#ff4fa3', '#59d8e6'] },
     band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe'],
     setup: {
+      drums: DRUM_PUNCH,
       synth: { synth: { preset: 3 } }, // Fat Pulse Bass
       poly: { poly: { preset: 4 } }, // Slow Strings
       lynch: { lynch: { preset: 11 } }, // Lead Saw

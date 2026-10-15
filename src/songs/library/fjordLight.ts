@@ -1,5 +1,5 @@
 import { arpeggio, at16, chordAt, DRUM, note, steps } from '../generators';
-import { mixerSettings } from '../mixes';
+import { DRUM_PUNCH, mixerSettings } from '../mixes';
 import type { NoteEvent, Song } from '../types';
 
 /**
@@ -92,6 +92,7 @@ export function fjordLight(): Song {
     sleeve: { art: 'aurora', colors: ['#0b2a4a', '#5cffb1', '#e9eef5'] },
     band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe'],
     setup: {
+      drums: DRUM_PUNCH,
       synth: { synth: { preset: 6 } }, // Rubber Bass
       poly: { poly: { preset: 9 } }, // Analog Poly
       lynch: { lynch: { preset: 11 } }, // Lead Saw

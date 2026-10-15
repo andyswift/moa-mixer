@@ -1,5 +1,5 @@
 import { arpeggio, at16, chordAt, DRUM, note, steps } from '../generators';
-import { mixerSettings } from '../mixes';
+import { DRUM_PUNCH, mixerSettings } from '../mixes';
 import type { NoteEvent, Song } from '../types';
 
 /** An original dream-trance tune: 132 bpm, B minor, the loop Bm - G - D - A, two bars a chord. Sixteen bars. */
@@ -87,6 +87,7 @@ export function glassGarden(): Song {
     sleeve: { art: 'garden', colors: ['#1f7a74', '#ff8fb1', '#fff4df'] },
     band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe'],
     setup: {
+      drums: DRUM_PUNCH,
       synth: { synth: { preset: 1 } }, // Sub Bass
       poly: { poly: { preset: 0 } }, // Soft Pad
       lynch: { lynch: { preset: 17 } }, // Harp

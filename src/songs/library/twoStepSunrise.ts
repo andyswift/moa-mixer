@@ -1,4 +1,5 @@
 import { arpeggio, at16, chordAt, DRUM, note, steps } from '../generators';
+import { DRUM_PUNCH } from '../mixes';
 import type { NoteEvent, Song } from '../types';
 
 /**
@@ -115,6 +116,7 @@ export function twoStepSunrise(): Song {
     sleeve: { art: 'sunrise', colors: ['#ff7a3d', '#ffd25e', '#3a1d46'] },
     band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe'],
     setup: {
+      drums: DRUM_PUNCH,
       synth: { synth: { preset: 1 } }, // Sub Bass
       poly: { poly: { preset: 13 } }, // Dream Wash
       lynch: { lynch: { preset: 21 } }, // Vibes
