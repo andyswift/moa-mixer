@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Circuit } from '../circuit/circuit';
+import type { ChoiceControl } from '../devices/controls';
 import { Mixer } from '../devices/mixer';
 import { Synthesizer } from '../devices/synthesizer';
 import { INIT, SYNTH_PRESETS } from '../devices/synthPresets';
@@ -401,6 +402,39 @@ describe('Mixer routing', () => {
     expect(m.soloActive).toBe(false);
     toggle(m, 'ch2.solo').set(true);
     expect(m.soloActive).toBe(true);
+  });
+});
+
+describe('Mixer stereo inputs', () => {
+  const mixer = new Mixer(2, 'Mixer', 1, {}, 2);
+
+  it('adds stereo line strips with balance, mute, buses and aux sends, but no solo', () => {
+    expect(mixer.lineCount).toBe(2);
+    expect(mixer.jack('in', 'line1').nodeId).toBe('line1.lowcut');
+    expect(mixer.jack('in', 'line2').nodeId).toBe('line2.lowcut');
+    const ids = mixer.controls.map((c) => c.id);
+    for (const id of ['line1.fader', 'line1.pan', 'line1.mute', 'line1.busA', 'line1.busB', 'line1.busC', 'line1.aux6', 'line2.eqMid']) expect(ids).toContain(id);
+    expect(ids).not.toContain('line1.solo');
+    expect(mixer.control('line1.pan').label).toBe('Balance');
+  });
+
+  it('meters each side of a stereo input', () => {
+    const names = mixer.meters.map((m) => m.name);
+    expect(names).toContain('line1.L');
+    expect(names).toContain('line2.R');
+  });
+
+  it('keeps the key source to the mono channels, and a mixer with no lines unchanged', () => {
+    const options = (mixer.control('key.source') as ChoiceControl).options;
+    expect([...options]).toEqual(['off', '1', '2']);
+    expect(new Mixer(2, 'Mixer', 1).lineCount).toBe(0);
+  });
+
+  it('the mixer page patch has four stereo inputs and no instruments', () => {
+    const rack = Patch.mixerRack();
+    expect([...rack.devices.keys()]).toEqual(['reverb', 'delay', 'ouroboros', 'buscomp', 'granular', 'mixer']);
+    expect((rack.device('mixer') as Mixer).lineCount).toBe(4);
+    expect(rack.connections.some((c) => c.to.jack.startsWith('ch') || c.to.jack.startsWith('line'))).toBe(false);
   });
 });
 

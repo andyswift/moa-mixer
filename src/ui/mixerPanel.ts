@@ -55,16 +55,19 @@ function meter(label: string, height = METER_HEIGHT): { element: HTMLElement; up
 }
 
 /** One strip: a mono channel (`ch1`...) or a stereo FX return (`ret1`...). */
-function renderStrip(m: Mixer, prefix: string, i: number, isReturn: boolean, name: string, deviceId: string,
+type StripKind = 'channel' | 'return' | 'line';
+
+function renderStrip(m: Mixer, prefix: string, i: number, kind: StripKind, name: string, deviceId: string,
   engine: AudioEngine, tickers: (() => void)[], inputs?: MixerInputs): HTMLElement {
   const id = (n: string) => `${prefix}.${n}`;
-  const section = isReturn ? `FX return ${i}` : `Channel ${i}`;
-  const strip = el('section', isReturn ? 'mix-strip mix-strip-return' : 'mix-strip');
+  const stereo = kind !== 'channel';
+  const section = kind === 'return' ? `FX return ${i}` : kind === 'line' ? `Stereo input ${i}` : `Channel ${i}`;
+  const strip = el('section', kind === 'return' ? 'mix-strip mix-strip-return' : kind === 'line' ? 'mix-strip mix-strip-line' : 'mix-strip');
 
   const header = el('header', 'mix-strip-head');
-  header.append(el('h2', undefined, isReturn ? `FX${i}` : String(i)), el('div', 'mix-strip-name', name));
+  header.append(el('h2', undefined, kind === 'return' ? `FX${i}` : kind === 'line' ? `ST${i}` : String(i)), el('div', 'mix-strip-name', name));
   strip.append(header);
-  if (inputs && !isReturn) strip.append(renderAudioInputSelect(inputs, prefix, name || section, 'Built-in'));
+  if (inputs && kind !== 'return') strip.append(renderAudioInputSelect(inputs, prefix, name || section, 'Built-in'));
 
   strip.append(renderToggleButton(toggle(m, id('lowcutOn')), `${section} low cut 75 Hz`, () => 'Low cut', BLUE, 'btn btn-wide'));
 
@@ -90,11 +93,11 @@ function renderStrip(m: Mixer, prefix: string, i: number, isReturn: boolean, nam
   }
   strip.append(aux);
 
-  strip.append(renderKnob(number(m, id('pan')), section, isReturn ? 'Bal' : 'Pan', 32));
+  strip.append(renderKnob(number(m, id('pan')), section, stereo ? 'Bal' : 'Pan', 32));
 
   const ms = el('div', 'mix-row');
   ms.append(renderToggleButton(toggle(m, id('mute')), `${section} mute`, () => 'Mute', '#e0524a', 'btn'));
-  if (!isReturn) ms.append(renderToggleButton(toggle(m, id('solo')), `${section} solo`, () => 'Solo', YELLOW, 'btn'));
+  if (kind === 'channel') ms.append(renderToggleButton(toggle(m, id('solo')), `${section} solo`, () => 'Solo', YELLOW, 'btn'));
   strip.append(ms);
 
   const buses = el('div', 'mix-group');
@@ -111,7 +114,7 @@ function renderStrip(m: Mixer, prefix: string, i: number, isReturn: boolean, nam
   const faderRow = el('div', 'mix-fader-row');
   const fader = renderFader(number(m, id('fader')), section, 'Level', FADER);
   faderRow.append(fader);
-  if (isReturn) {
+  if (stereo) {
     const pair = el('div', 'meter-pair');
     for (const side of ['L', 'R'] as const) {
       const mt = meter(`${section} ${side} level`);
@@ -134,7 +137,7 @@ function renderStrip(m: Mixer, prefix: string, i: number, isReturn: boolean, nam
 /** The mixer console: channel strips on the left, master section on the right. */
 export function renderMixerPanel(
   m: Mixer, deviceId: string, engine: AudioEngine, channelNames: string[] = [], returnNames: string[] = [],
-  busTags: Partial<Record<(typeof BUSES)[number], string>> = {}, inputs?: MixerInputs,
+  busTags: Partial<Record<(typeof BUSES)[number], string>> = {}, inputs?: MixerInputs, lineNames: string[] = [],
 ): HTMLElement {
   const panel = el('div', 'mix-panel');
 
@@ -142,7 +145,7 @@ export function renderMixerPanel(
   const brand = el('div', 'mix-brand');
   brand.append(
     el('div', 'mix-name', 'MOA-MIX'),
-    el('div', 'mix-subtitle', `${m.channelCount} channel${m.channelCount === 1 ? '' : 's'} · ${m.returnCount} FX return${m.returnCount === 1 ? '' : 's'} · 3 stereo buses · 6 aux sends`),
+    el('div', 'mix-subtitle', `${m.channelCount} channel${m.channelCount === 1 ? '' : 's'} · ${m.lineCount > 0 ? `${m.lineCount} stereo input${m.lineCount === 1 ? '' : 's'} · ` : ''}${m.returnCount} FX return${m.returnCount === 1 ? '' : 's'} · 3 stereo buses · 6 aux sends`),
   );
   header.append(brand);
   panel.append(header);
@@ -152,10 +155,13 @@ export function renderMixerPanel(
 
   const strips = el('div', 'mix-strips');
   for (let i = 1; i <= m.channelCount; i++) {
-    strips.append(renderStrip(m, `ch${i}`, i, false, channelNames[i - 1] ?? '', deviceId, engine, tickers, inputs));
+    strips.append(renderStrip(m, `ch${i}`, i, 'channel', channelNames[i - 1] ?? '', deviceId, engine, tickers, inputs));
+  }
+  for (let l = 1; l <= m.lineCount; l++) {
+    strips.append(renderStrip(m, `line${l}`, l, 'line', lineNames[l - 1] ?? '', deviceId, engine, tickers, inputs));
   }
   for (let r = 1; r <= m.returnCount; r++) {
-    strips.append(renderStrip(m, `ret${r}`, r, true, returnNames[r - 1] ?? '', deviceId, engine, tickers));
+    strips.append(renderStrip(m, `ret${r}`, r, 'return', returnNames[r - 1] ?? '', deviceId, engine, tickers));
   }
   body.append(strips);
 

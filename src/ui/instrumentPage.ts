@@ -17,8 +17,8 @@ export interface PagePort {
 }
 
 const PAGES: [href: string, label: string][] = [
-  ['/mixer/', 'The mixer'], ['/synth/', 'MOA-1'], ['/poly/', 'MOA-6'], ['/drums/', 'Drums'],
-  ['/seq/', 'MOA-SEQ'], ['/lynch/', 'Lynch 106'], ['/', 'moaswift.no'],
+  ['/mixer/', 'The mixer'], ['/synth/', 'MOA-1'], ['/poly/', 'MOA-6'], ['/drums/', 'MOA-DR'], ['/lynch/', 'Lynch 106'],
+  ['/duo/', 'MOA-DUO'], ['/df2/', 'MOA-DF2'], ['/pipe/', 'MOA-PIPE'], ['/seq/', 'MOA-SEQ'], ['/', 'moaswift.no'],
 ];
 
 /** The row of links to the other pages, leaving out the page it is on. */
@@ -39,7 +39,8 @@ export function mountInstrumentPage(opts: {
   clock: MidiClock;
   ports: PagePort[];
   onMidi: (event: MidiEvent) => void;
-  panel: HTMLElement;
+  /** What goes under the strip: the panel, or several elements in order. */
+  panel: HTMLElement | HTMLElement[];
   /** This page's own link, left out of the navigation row. */
   self: string;
 }): { handleMidiBytes: (data: ArrayLike<number>, time?: number) => void; pcm: PcmBus } {
@@ -85,6 +86,6 @@ export function mountInstrumentPage(opts: {
 
   const strip = renderMidiStrip(midi, clock, monitor, start, bus);
   strip.append(renderAudioBusBlock(pcm, speakers));
-  app.append(renderPageNav(opts.self), strip, opts.panel);
+  app.append(renderPageNav(opts.self), strip, ...(Array.isArray(opts.panel) ? opts.panel : [opts.panel]));
   return { handleMidiBytes, pcm };
 }

@@ -45,6 +45,8 @@ export class Mixer extends Device {
     name = 'Mixer',
     readonly returnCount = 0,
     private readonly returnFeeds: Partial<Record<number, Bus>> = {},
+    /** Stereo line inputs for instruments: the same strip as a return, but fed from outside and not by a bus. */
+    readonly lineCount = 0,
   ) {
     super();
     this.name = name;
@@ -88,8 +90,9 @@ export class Mixer extends Device {
       );
     }
 
-    for (let i = 1; i <= channelCount; i++) this.addStrip(`ch${i}`, i, false);
-    for (let r = 1; r <= returnCount; r++) this.addStrip(`ret${r}`, r, true);
+    for (let i = 1; i <= channelCount; i++) this.addStrip(`ch${i}`, i, 'channel');
+    for (let r = 1; r <= returnCount; r++) this.addStrip(`ret${r}`, r, 'return');
+    for (let l = 1; l <= lineCount; l++) this.addStrip(`line${l}`, l, 'line');
 
     this.controlList.push(
       new ChoiceControl('key.source', 'Key source', ['off', ...Array.from({ length: channelCount }, (_, k) => `${k + 1}`)], 'off',
@@ -99,9 +102,10 @@ export class Mixer extends Device {
     );
   }
 
-  /** Builds one strip. Channels are mono with solo; returns are stereo, with mute only. */
-  private addStrip(prefix: string, i: number, isReturn: boolean): void {
+  /** Builds one strip. Channels are mono with solo; returns and line inputs are stereo, with mute only. */
+  private addStrip(prefix: string, i: number, kind: 'channel' | 'return' | 'line'): void {
     const c = this.circuit;
+    const stereo = kind !== 'channel';
     const id = (n: string) => `${prefix}.${n}`;
 
     c.add(id('lowcut'), 'filter', { frequency: LOW_CUT_OFF_HZ, Q: 0.707, gain: 0 }, { type: 'highpass' })
@@ -121,7 +125,7 @@ export class Mixer extends Device {
       .connect(id('sat'), id('mute'))
       .connect(id('mute'), id('fader'))
       .connect(id('fader'), id('pan'));
-    if (isReturn) {
+    if (stereo) {
       // Stereo: a meter per side, after the balance control.
       c.add(id('meterL'), 'meter', {}, { channel: 'left' })
         .add(id('meterR'), 'meter', {}, { channel: 'right' })
@@ -136,7 +140,7 @@ export class Mixer extends Device {
     this.inputList.push({ name: prefix, nodeId: id('lowcut') });
 
     // Bus assigns: pan -> gate -> bus. (Not the bus that feeds this return: that would be an endless loop.)
-    const assignable = BUSES.filter((bus) => !(isReturn && this.returnFeeds[i] === bus));
+    const assignable = BUSES.filter((bus) => !(kind === 'return' && this.returnFeeds[i] === bus));
     for (const bus of assignable) {
       c.add(id(`assign${bus}`), 'gain', { gain: 0 }).connect(id('pan'), id(`assign${bus}`)).connect(id(`assign${bus}`), `bus${bus}`);
     }
@@ -182,8 +186,8 @@ export class Mixer extends Device {
       );
     }
 
-    this.controlList.push(num('pan', isReturn ? 'Balance' : 'Pan', -1, 1, 0, '', (v) => c.setParam(id('pan'), 'pan', v)));
-    if (isReturn) {
+    this.controlList.push(num('pan', stereo ? 'Balance' : 'Pan', -1, 1, 0, '', (v) => c.setParam(id('pan'), 'pan', v)));
+    if (stereo) {
       this.controlList.push(new ToggleControl(id('mute'), 'Mute', false, (on) => c.setParam(id('mute'), 'gain', on ? 0 : 1)));
     } else {
       this.controlList.push(

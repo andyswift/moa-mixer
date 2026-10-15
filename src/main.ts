@@ -32,6 +32,8 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 
 // Each channel starts on the port its instrument page publishes (a choice made in the strip is remembered instead).
 const CHANNEL_PORTS = ['Synth', 'Poly', 'Drums: Kick', 'Drums: Snare', 'Drums: Clap', 'Drums: Closed Hat', 'Drums: Open Hat', 'Drums: Ride'];
+// The four stereo inputs take the other synths, which have a stereo sound of their own.
+const LINE_PORTS = ['Lynch 106', 'MOA-DUO', 'MOA-DF2', 'MOA-PIPE'];
 const pcm = new PcmBus();
 const host: InputHost = {
   ports: () => pcm.ports,
@@ -45,6 +47,10 @@ const host: InputHost = {
     const target = engine.jackNode('mixer', 'in', jack);
     if (!ctx || !target) throw new Error('Audio is not running');
     const received = await pcm.subscribe(ctx, portId);
+    if (jack.startsWith('line')) {
+      received.node.connect(target); // stereo input strips take the pair as it is
+      return () => received.close();
+    }
     // Channel strips are mono (the pan stage treats a stereo input differently), so fold the pair down.
     const mono = ctx.createGain();
     mono.channelCount = 1;
@@ -56,7 +62,11 @@ const host: InputHost = {
     };
   },
 };
-const inputs = new MixerInputs(host, CHANNEL_PORTS.map((_, i) => `ch${i + 1}`), Object.fromEntries(CHANNEL_PORTS.map((name, i) => [`ch${i + 1}`, name])));
+const inputs = new MixerInputs(
+  host,
+  [...CHANNEL_PORTS.map((_, i) => `ch${i + 1}`), ...LINE_PORTS.map((_, i) => `line${i + 1}`)],
+  Object.fromEntries([...CHANNEL_PORTS.map((name, i) => [`ch${i + 1}`, name]), ...LINE_PORTS.map((name, i) => [`line${i + 1}`, name])]),
+);
 pcm.onChange(() => inputs.reconcile());
 
 const start = document.createElement('button');
@@ -100,7 +110,7 @@ app.append(renderBusCompPanel(patch.device<BusCompFx>('buscomp'), patch.device<M
 
 app.append(renderGranularPanel(granular, 'granular', engine));
 
-app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay', 'Ouroboros', 'Bus Comp', 'Granular'], { B: 'to Bus Comp', C: 'to Ouroboros' }, inputs));
+app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay', 'Ouroboros', 'Bus Comp', 'Granular'], { B: 'to Bus Comp', C: 'to Ouroboros' }, inputs, ['Lynch 106', 'DUO', 'DF2', 'Pipe']));
 
 // Dev-only handle for poking at the engine from the browser console.
 if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch, pcm, midi: handleMidiBytes } });

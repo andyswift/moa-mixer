@@ -110,7 +110,7 @@ export class Patch {
 
   /** The mixer page: the mixer and its effects, with no instruments (their audio arrives over the audio bus). */
   static mixerRack(): Patch {
-    return Patch.wireRack(Patch.addRack(new Patch()));
+    return Patch.wireRack(Patch.addRack(new Patch(), 4));
   }
 
   /** The whole rig in one patch: the instruments feed the mixer directly. Used by tests and as the reference wiring. */
@@ -128,15 +128,15 @@ export class Patch {
     return Patch.wireRack(patch);
   }
 
-  /** The mixer (channels 1-8: synth, poly, six drum voices) and its effects, not yet wired. */
-  private static addRack(patch: Patch): Patch {
+  /** The mixer (channels 1-8: synth, poly, six drum voices; four stereo inputs for the other synths) and its effects, not yet wired. */
+  private static addRack(patch: Patch, lineCount = 0): Patch {
     return patch
       .add('reverb', new ReverbFx('Reverb'))
       .add('delay', new DelayFx('Delay'))
       .add('ouroboros', new OuroborosFx('Ouroboros'))
       .add('buscomp', new BusCompFx('Bus Comp'))
       .add('granular', new GranularFx('Granular'))
-      .add('mixer', new Mixer(2 + DRUM_VOICES.length, 'Mixer', 5, { 3: 'C', 4: 'B' }));
+      .add('mixer', new Mixer(2 + DRUM_VOICES.length, 'Mixer', 5, { 3: 'C', 4: 'B' }, lineCount));
   }
 
   /** Sends, returns, buses and the keyed compressor, plus the mixer's starting settings and its output. */
