@@ -15,11 +15,10 @@ if (!supported) {
   root.innerHTML = '<div class="rec-sorry"><h1>moa records</h1><p>This record shop runs eight synthesizers in your browser at once, so it needs desktop Chrome or a similar browser. Try it on a computer.</p><p><a href="/">Back to moaswift.no</a></p></div>';
 } else {
   const holder = document.createElement('div');
-  holder.className = 'rec-band-holder';
-  document.body.append(holder);
+  holder.className = 'rec-frames';
   const band = new Band(holder);
-  band.mount(); // load the pages now, so they are ready when a record is picked
   const player = new SongPlayer(browserHost());
-  renderRecords(root, library(), band, player);
+  renderRecords(root, library(), band, player, holder); // puts the holder in the page, where the band's pages live
+  band.mount(); // load the pages now, so they are ready when a record is picked
   if (import.meta.env.DEV) Object.assign(window, { __records: { band, player } });
 }

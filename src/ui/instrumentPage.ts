@@ -9,6 +9,7 @@ import { MidiBus } from '../midi/bus';
 import { announceStatus, applySettings, captureSettings, listenForControl, type PageId, songChannelName } from '../songs/control';
 import { WebMidi } from '../midi/webMidi';
 import { renderAudioBusBlock } from './audioBusBlock';
+import { applyEmbedMode } from './embed';
 import { renderMidiStrip } from './midiStrip';
 
 export interface PagePort {
@@ -50,6 +51,7 @@ export function mountInstrumentPage(opts: {
   patch: Patch;
 }): { handleMidiBytes: (data: ArrayLike<number>, time?: number) => void; pcm: PcmBus } {
   const { engine, clock } = opts;
+  applyEmbedMode();
   const monitor = new MidiMonitor();
   const midi = new WebMidi();
   const pcm = new PcmBus();

@@ -138,3 +138,88 @@ describe('SongPlayer', () => {
     expect(p.state).toBe('idle');
   });
 });
+
+describe('SongPlayer looping', () => {
+  // 120 bpm, one bar of 4 beats: a pass is 2000 ms
+  const loopSong = (over: Partial<Song> = {}) => song({ bars: 1, tracks: { synth: [{ t: 0, len: 1, note: 60, vel: 100 }, { t: 2, len: 1, note: 64, vel: 100 }] }, ...over });
+
+  it('starts each pass exactly one loop length after the last, with no gap', () => {
+    const f = fakeHost();
+    const p = new SongPlayer(f.host, 250, 30, 500);
+    p.loop = true;
+    p.play(loopSong());
+    for (let i = 0; i < 400; i++) f.advance(30); // 12 s: six passes
+    const starts = f.notes.filter((n) => n.page === 'synth' && n.data[1] === 60 && (n.data[0]! & 0xf0) === 0x90).map((n) => n.at);
+    expect(starts.length).toBeGreaterThanOrEqual(5);
+    for (let i = 1; i < starts.length; i++) expect(starts[i]! - starts[i - 1]!).toBe(2000);
+    expect(p.state).toBe('playing');
+  });
+
+  it('keeps playing past the end of the song, and stops at the end of the pass when looping is switched off', () => {
+    const f = fakeHost();
+    let ended = false;
+    const p = new SongPlayer(f.host, 250, 30, 500);
+    p.onEnd = () => { ended = true; };
+    p.loop = true;
+    p.play(loopSong());
+    for (let i = 0; i < 250; i++) f.advance(30); // 7.5 s
+    expect(ended).toBe(false);
+    p.loop = false;
+    for (let i = 0; i < 250 && !ended; i++) f.advance(30);
+    expect(ended).toBe(true);
+    expect(p.state).toBe('idle');
+  });
+
+  it('humanises each pass differently, from the same seed sequence every time', () => {
+    const run = () => {
+      const f = fakeHost();
+      const p = new SongPlayer(f.host, 250, 30, 500);
+      p.loop = true;
+      p.play(loopSong({ humanise: { timing: { synth: 9 }, velocity: 0.2 } }), 5);
+      for (let i = 0; i < 300; i++) f.advance(30);
+      return f.notes.filter((n) => (n.data[0]! & 0xf0) === 0x90).map((n) => `${n.at}:${n.data[2]}`);
+    };
+    const a = run();
+    expect(a).toEqual(run()); // the same seed gives the same performance
+    // within one run, each pass is a little different from the one before
+    const ons = a.map((x) => x.split(':').map(Number) as [number, number]).filter((_, i) => i % 2 === 0); // the first note of each pass
+    const rel = ons.map(([at], k) => at - ons[0]![0] - k * 2000);
+    expect(new Set(rel).size).toBeGreaterThan(2);
+  });
+
+  it('starts a sweep over with each pass and can hold a page\'s automation back while it is being tweaked', () => {
+    const f = fakeHost();
+    const p = new SongPlayer(f.host, 250, 30, 500);
+    p.loop = true;
+    const a = { page: 'df2' as PageId, device: 'box', control: 'f1.cutoff', points: [[0, 100], [4, 500]] as [number, number][] };
+    p.play(loopSong({ automation: [a] }));
+    const values = () => f.controls.filter((c) => c.page === 'df2').map((c) => (c.message as Extract<ControlMessage, { type: 'apply' }>).settings!.box!.controls!['f1.cutoff'] as number);
+    for (let i = 0; i < 200; i++) f.advance(30); // 6 s: a bit over two passes
+    const v = values();
+    expect(v.some((x, i) => i > 0 && x < v[i - 1]! - 100)).toBe(true); // it fell back to the start at a pass boundary
+    p.pauseAutomation('df2');
+    const before = values().length;
+    for (let i = 0; i < 100; i++) f.advance(30);
+    expect(values().length).toBe(before);
+    p.resumeAutomation('df2');
+    f.advance(30);
+    expect(values().length).toBeGreaterThan(before);
+  });
+
+  it('carries a release that falls past the loop point into the next pass, so no note is cut', () => {
+    const f = fakeHost();
+    const p = new SongPlayer(f.host, 250, 30, 500);
+    p.loop = true;
+    // a note that starts in the last beat and lasts two beats: its release is due 1 beat after the loop point
+    p.play(loopSong({ tracks: { synth: [{ t: 3, len: 2, note: 60, vel: 100 }] } }));
+    for (let i = 0; i < 250; i++) f.advance(30);
+    const ons = f.notes.filter((n) => (n.data[0]! & 0xf0) === 0x90).length;
+    const offs = f.notes.filter((n) => (n.data[0]! & 0xf0) === 0x80).length;
+    expect(ons).toBeGreaterThanOrEqual(3);
+    expect(offs).toBeGreaterThanOrEqual(ons - 1); // every note but the one still sounding has its release
+    p.stop();
+    const total = f.notes.filter((n) => (n.data[0]! & 0xf0) === 0x80).length;
+    expect(total).toBeGreaterThanOrEqual(ons); // stopping releases the last one
+  });
+});
+

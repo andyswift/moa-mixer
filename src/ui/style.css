@@ -455,3 +455,7 @@ button.bc-knob:focus-visible, .bc-knob-cap:focus-visible { outline: 2px solid #f
 .pipe-nav { display: flex; gap: 18px; margin: 0 0 12px; font-family: 'Barlow Condensed', system-ui, sans-serif; font-size: 15px; letter-spacing: 0.16em; text-transform: uppercase; }
 .pipe-nav a { color: #a9adb3; text-decoration: none; }
 .pipe-nav a:hover, .pipe-nav a:focus-visible { color: #e8e4da; }
+
+/* A page shown inside the records page (?embed=1): just the instrument, no navigation or MIDI strip. */
+.embed .pipe-nav, .embed .midi-strip { display: none; }
+.embed #app { padding-top: 10px; }

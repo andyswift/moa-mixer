@@ -44,6 +44,8 @@ body { margin: 0; background: radial-gradient(ellipse at 50% 30%, #3b2740 0%, #1
 .rec-button:disabled { opacity: 0.45; cursor: default; }
 .rec-button-go { border-color: transparent; background: #ffc23d; color: #1b1722; font-weight: 700; padding: 16px 34px; box-shadow: 0 5px 0 #a87a14; }
 .rec-button-go:hover:not(:disabled), .rec-button-go:focus-visible { background: #ffd35f; }
+.rec-loop { padding: 14px 20px; font-size: 20px; }
+.rec-loop[aria-pressed='true'] { border-color: #2de2e6; color: #2de2e6; }
 .rec-button-quiet { border-color: transparent; font-size: 20px; padding-left: 0; color: #ffc23d; }
 .rec-status { min-height: 28px; margin-top: 20px; font-family: 'Share Tech Mono', monospace; font-size: 16px; letter-spacing: 0.08em; color: #a99fb4; }
 
@@ -81,8 +83,19 @@ body { margin: 0; background: radial-gradient(ellipse at 50% 30%, #3b2740 0%, #1
 .rec-sorry { max-width: 560px; margin: 80px auto; font-size: 26px; line-height: 1.3; }
 .rec-sorry h1 { font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 44px; }
 
-/* the band lives here, out of sight */
-.rec-band-holder { position: fixed; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+/* the band's pages live in the rack: a 1 px invisible box until one is opened for tweaking, never display:none */
+.rec-rack { position: fixed; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+.rec-rack.open { position: relative; width: auto; height: auto; overflow: visible; opacity: 1; pointer-events: auto; margin-top: 28px; border-radius: 20px; background: #0d0b1a; border: 1px solid rgba(233, 238, 245, 0.16); box-shadow: 0 0 50px rgba(255, 46, 147, 0.1); }
+.rec-rack-head { display: none; }
+.rec-rack.open .rec-rack-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 20px; border-bottom: 1px solid #272043; }
+.rec-rack-title { flex: 1; min-width: 200px; font-family: 'Alfa Slab One', serif; font-size: 22px; }
+.rec-rack-head .rec-button-quiet { padding: 8px 14px; font-size: 18px; }
+.rec-frames { position: relative; width: 1px; height: 1px; }
+.rec-rack.open .rec-frames { width: 100%; height: min(78vh, 860px); }
+.rec-rack.open .rec-frames iframe { border-radius: 0 0 20px 20px; }
+.rec-chip-btn { min-height: 44px; padding: 4px 14px; border: 1px solid #3a3050; color: inherit; font-family: inherit; cursor: pointer; }
+.rec-chip-btn:hover, .rec-chip-btn:focus-visible { background: #382f4a; outline: none; }
+.rec-chip-btn[aria-pressed='true'] { background: #ffc23d; border-color: #ffc23d; color: #1b1722; }
 
 @media (max-width: 980px) {
   .rec-deck { grid-template-columns: 1fr; }

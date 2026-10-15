@@ -14,6 +14,7 @@ import { Patch } from './domain/patch/patch';
 import { MidiBus } from './midi/bus';
 import { WebMidi } from './midi/webMidi';
 import { announceStatus, applySettings, captureSettings, listenForControl } from './songs/control';
+import { applyEmbedMode } from './ui/embed';
 import { renderBusCompPanel } from './ui/busCompPanel';
 import { renderFxPanel } from './ui/fxPanel';
 import { renderGranularPanel } from './ui/granularPanel';
@@ -24,6 +25,7 @@ import { renderOuroPanel } from './ui/ouroborosPanel';
 
 // The mixer page: the mixer and its effects only. The instruments (MOA-1, MOA-6, the drum machine) are pages of their
 // own; their audio arrives over the audio bus into the channel strips.
+applyEmbedMode();
 const clock = new MidiClock();
 const monitor = new MidiMonitor();
 const midi = new WebMidi();

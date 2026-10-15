@@ -6,7 +6,7 @@ import { SongPlayer } from './songs/player';
 // Dev-only test page for the song engine: pick a song, start the band in hidden iframes, play it. The records page does
 // the same with a record collection on top.
 const app = document.querySelector<HTMLDivElement>('#app')!;
-app.innerHTML = '<h1 style="font-size:18px">MOA song test</h1><div id="songs"></div><pre id="out">idle</pre><div id="band" style="position:relative"></div>';
+app.innerHTML = '<h1 style="font-size:18px">MOA song test</h1><div id="songs"></div><pre id="out">idle</pre><div id="band" style="position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;opacity:0"></div>';
 const out = app.querySelector<HTMLPreElement>('#out')!;
 const band = new Band(app.querySelector<HTMLElement>('#band')!);
 const player = new SongPlayer(browserHost());

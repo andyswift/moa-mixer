@@ -82,12 +82,19 @@ export class SongPlayer {
   onEnd?: () => void;
   /** Called on every tick while playing, with the current beat. */
   onTick?: (beat: number) => void;
+  /** Repeat the song until stopped. Can be switched while playing; turning it off lets the current pass finish. */
+  loop = false;
   private timer?: unknown;
   private song?: Song;
   private messages: ScheduledMessage[] = [];
   private next = 0;
   private startAt = 0;
+  /** Wall-clock start of the pass being sent (startAt plus whole loops). */
+  private cycleStart = 0;
+  private cycle = 0;
+  private seed = 1;
   private lastDue = 0;
+  private readonly paused = new Set<PageId>();
   private readonly open = new Map<string, { page: PageId; data: number[] }>();
   private readonly lastSent = new Map<Automation, number>();
 
@@ -116,12 +123,30 @@ export class SongPlayer {
     for (const a of song.automation) this.applyAutomation(a, automationValue(a, 0));
   }
 
+  /** Holds back a page's automation (a sweep) while someone is turning its knobs; `resumeAutomation` lets it go on. */
+  pauseAutomation(page: PageId): void {
+    this.paused.add(page);
+  }
+
+  resumeAutomation(page: PageId): void {
+    this.paused.delete(page);
+    for (const a of [...this.lastSent.keys()]) if (a.page === page) this.lastSent.delete(a); // send the current value at once
+  }
+
+  /** The length of one pass of the song in beats. */
+  get loopBeats(): number {
+    return this.song ? this.song.bars * this.song.beatsPerBar : 0;
+  }
+
   play(song: Song, seed = 1): void {
     this.stop();
     this.song = song;
+    this.seed = seed;
+    this.cycle = 0;
     this.messages = expandSong(song, seed);
     this.next = 0;
     this.startAt = this.host.now() + this.leadInMs;
+    this.cycleStart = this.startAt;
     this.lastDue = this.startAt;
     this.lastSent.clear();
     this.state = 'playing';
@@ -144,22 +169,38 @@ export class SongPlayer {
     const song = this.song;
     if (!song || this.state !== 'playing') return;
     const now = this.host.now();
-    while (this.next < this.messages.length) {
-      const m = this.messages[this.next]!;
-      const due = this.startAt + m.ms;
-      if (due - now > this.lookaheadMs) break;
-      this.host.sendNote(m.page, m.data, due);
-      this.lastDue = Math.max(this.lastDue, due);
-      const key = `${m.page}:${m.data[0]! & 0x0f}:${m.data[1]}`;
-      if ((m.data[0]! & 0xf0) === 0x90) this.open.set(key, { page: m.page, data: m.data });
-      else this.open.delete(key);
-      this.next++;
+    const beatMs = 60000 / song.bpm;
+    const loopMs = song.bars * song.beatsPerBar * beatMs;
+    for (;;) {
+      while (this.next < this.messages.length) {
+        const m = this.messages[this.next]!;
+        const due = this.cycleStart + m.ms;
+        if (due - now > this.lookaheadMs) break;
+        this.host.sendNote(m.page, m.data, due);
+        this.lastDue = Math.max(this.lastDue, due);
+        const key = `${m.page}:${m.data[0]! & 0x0f}:${m.data[1]}`;
+        if ((m.data[0]! & 0xf0) === 0x90) this.open.set(key, { page: m.page, data: m.data });
+        else this.open.delete(key);
+        this.next++;
+      }
+      // Looping: the next pass is lined up before the end of this one, so it starts exactly on the beat with no gap.
+      if (this.loop && this.cycleStart + loopMs - now <= this.lookaheadMs) {
+        // anything of this pass that is still unsent (a release past the loop point) carries over into the next
+        const carried = this.messages.slice(this.next).map((m) => ({ ...m, ms: m.ms - loopMs }));
+        this.cycle++;
+        this.cycleStart += loopMs;
+        this.messages = [...carried, ...expandSong(song, this.seed + this.cycle)].sort((a, b) => a.ms - b.ms);
+        this.next = 0;
+        continue;
+      }
+      break;
     }
-    const beat = (now - this.startAt) / (60000 / song.bpm);
-    for (const a of song.automation) if (beat >= -1) this.applyAutomation(a, automationValue(a, beat));
+    const beat = (now - this.startAt) / beatMs;
+    const loopBeats = song.bars * song.beatsPerBar;
+    const sweepBeat = this.loop && beat >= 0 ? beat % loopBeats : beat; // a sweep starts over with each pass
+    for (const a of song.automation) if (sweepBeat >= -1 && !this.paused.has(a.page)) this.applyAutomation(a, automationValue(a, sweepBeat));
     this.onTick?.(beat);
-    const endMs = song.bars * song.beatsPerBar * (60000 / song.bpm) + 1200;
-    if (this.next >= this.messages.length && now - this.startAt > endMs) {
+    if (!this.loop && this.next >= this.messages.length && now - this.cycleStart > loopMs + 1200) {
       this.stop();
       this.onEnd?.();
     }

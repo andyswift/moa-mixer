@@ -40,6 +40,14 @@ describe.each(library().map((s) => [s.title, s] as const))('song: %s', (_title, 
     expect(ons).toBeGreaterThan(100);
   });
 
+  it('has no note whose release falls after the end of a pass, so looping never cuts one', () => {
+    const loopMs = song.bars * song.beatsPerBar * (60000 / song.bpm);
+    for (const seed of [1, 2, 3]) {
+      const late = expandSong(song, seed).filter((m) => (m.data[0]! & 0xf0) === 0x80 && m.ms > loopMs + 25);
+      expect(late, `seed ${seed}`).toEqual([]);
+    }
+  });
+
   it('has a title, a key and a tempo for the sleeve and the labels', () => {
     expect(song.title).toBeTruthy();
     expect(song.bpm).toBeGreaterThan(60);

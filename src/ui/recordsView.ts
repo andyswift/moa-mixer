@@ -2,6 +2,7 @@ import type { Band } from '../songs/band';
 import type { PageId } from '../songs/control';
 import type { SongPlayer } from '../songs/player';
 import type { Song } from '../songs/types';
+import { CLOSE_PANEL } from './embed';
 import { labelColor, sleeveSvg } from './sleeveArt';
 import { el } from './widgets';
 
@@ -11,8 +12,24 @@ const CHIP_NAMES: Record<PageId, string> = {
 
 type View = 'crate' | 'deck';
 
+const LOOP_KEY = 'moa.records.loop';
+function readLoop(): boolean {
+  try {
+    return localStorage.getItem(LOOP_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+function saveLoop(on: boolean): void {
+  try {
+    localStorage.setItem(LOOP_KEY, on ? '1' : '0');
+  } catch {
+    // not remembered
+  }
+}
+
 /** The record collection: a crate of sleeves, and a turntable that plays the picked one on the band. */
-export function renderRecords(root: HTMLElement, songs: Song[], band: Band, player: SongPlayer): void {
+export function renderRecords(root: HTMLElement, songs: Song[], band: Band, player: SongPlayer, holder: HTMLElement): void {
   let selected = 0;
   let view: View = 'crate';
   let busy = false;
@@ -96,12 +113,27 @@ export function renderRecords(root: HTMLElement, songs: Song[], band: Band, play
   const toggle = el('button', 'rec-button rec-button-go', 'Lift needle');
   const next = el('button', 'rec-button', 'Next »');
   const back = el('button', 'rec-button rec-button-quiet', '← Back to the crate');
-  for (const b of [prev, toggle, next, back]) b.type = 'button';
-  controls.append(prev, toggle, next, readout);
+  const loopButton = el('button', 'rec-button rec-loop');
+  for (const b of [prev, toggle, next, back, loopButton]) b.type = 'button';
+  // Songs loop by default, so there is time to tweak; the choice is remembered.
+  let loop = readLoop();
+  player.loop = loop;
+  const paintLoop = () => {
+    loopButton.textContent = loop ? 'Loop: on' : 'Loop: off';
+    loopButton.setAttribute('aria-pressed', String(loop));
+  };
+  loopButton.addEventListener('click', () => {
+    loop = !loop;
+    player.loop = loop;
+    saveLoop(loop);
+    paintLoop();
+  });
+  paintLoop();
+  controls.append(prev, toggle, next, loopButton, readout);
   prev.addEventListener('click', () => void step(-1));
   next.addEventListener('click', () => void step(1));
   toggle.addEventListener('click', () => { if (player.state === 'playing') liftNeedle(); else void drop(); });
-  back.addEventListener('click', () => { liftNeedle(); view = 'crate'; paint(); });
+  back.addEventListener('click', () => { liftNeedle(); closePanel(); view = 'crate'; paint(); });
 
   const bandBox = el('div', 'rec-band');
   const bandTitle = el('div', 'rec-band-title');
@@ -113,20 +145,73 @@ export function renderRecords(root: HTMLElement, songs: Song[], band: Band, play
   deck.append(deckLeft, deckRight, el('div', 'rec-back-row'));
   deck.querySelector('.rec-back-row')!.append(back);
 
-  root.append(head, tagline, pick, crate, deck, status);
+  // ---- the rack: one instrument's own page, opened for tweaking while the record plays ----
+  const rack = el('section', 'rec-rack');
+  rack.setAttribute('aria-label', 'Instrument panel');
+  const rackHead = el('div', 'rec-rack-head');
+  const rackTitle = el('div', 'rec-rack-title');
+  const rackReset = el('button', 'rec-button rec-button-quiet', 'Reset to the song');
+  const rackClose = el('button', 'rec-button rec-button-quiet', 'Close');
+  rackReset.type = 'button';
+  rackClose.type = 'button';
+  rackHead.append(rackTitle, rackReset, rackClose);
+  const rackBody = el('div', 'rec-rack-body');
+  rackBody.append(holder); // the band's pages live here; they are only resized and shown, never moved, so the audio never stops
+  rack.append(rackHead, rackBody);
+  let open: PageId | undefined;
+
+  root.append(head, tagline, pick, crate, deck, rack, status);
 
   // ---- behaviour ----
   const song = () => songs[selected]!;
 
   function chips(host: HTMLElement, live: boolean): void {
     host.replaceChildren(...song().band.concat(['mixer']).map((p) => {
-      const chip = el('span', 'rec-chip');
+      const chip = live ? el('button', 'rec-chip rec-chip-btn') : el('span', 'rec-chip');
       const led = el('i', 'rec-led');
-      if (live) led.classList.toggle('on', band.states.get(p) === 'started');
+      if (live) {
+        led.classList.toggle('on', band.states.get(p) === 'started');
+        const b = chip as HTMLButtonElement;
+        b.type = 'button';
+        b.setAttribute('aria-label', `${CHIP_NAMES[p]}: open it to tweak while the record plays`);
+        b.setAttribute('aria-pressed', String(open === p));
+        b.addEventListener('click', () => openPanel(p));
+      }
       chip.append(led, document.createTextNode(CHIP_NAMES[p]));
       return chip;
     }));
   }
+
+  function openPanel(page: PageId): void {
+    if (open === page) {
+      closePanel();
+      return;
+    }
+    if (open) player.resumeAutomation(open);
+    open = page;
+    band.focus(page);
+    player.pauseAutomation(page); // a sweep on this page waits while you turn its knobs
+    rack.classList.add('open');
+    rackTitle.textContent = `${CHIP_NAMES[page]}: tweak it while it plays`;
+    chips(bandChips, true);
+    rack.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function closePanel(): void {
+    if (open) player.resumeAutomation(open);
+    open = undefined;
+    band.focus(undefined);
+    rack.classList.remove('open');
+    chips(bandChips, true);
+  }
+
+  rackClose.addEventListener('click', closePanel);
+  rackReset.addEventListener('click', () => {
+    player.setup(song());
+    status.textContent = `${song().title} is back to its own settings.`;
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && open) closePanel(); });
+  window.addEventListener('message', (e) => { if (e.origin === location.origin && e.data?.type === CLOSE_PANEL && open) closePanel(); });
 
   function paint(): void {
     const s = song();
@@ -143,7 +228,7 @@ export function renderRecords(root: HTMLElement, songs: Song[], band: Band, play
     deckMeta.textContent = `${s.artist.toUpperCase()} · ${s.bpm} BPM · ${s.key.toUpperCase()}`;
     vinylLabel.style.setProperty('--label', labelColor(s));
     vinylLabel.innerHTML = `<span>${s.title.toLowerCase()}</span><small>SIDE A · ${s.bpm}</small>`;
-    bandTitle.textContent = `THE BAND · ${band.startedCount} OF ${band.pages.length} IN THE ROOM`;
+    bandTitle.textContent = `THE BAND · ${band.startedCount} OF ${band.pages.length} IN THE ROOM · CLICK ONE TO TWEAK IT`;
     chips(bandChips, true);
     const playing = player.state === 'playing';
     table.classList.toggle('playing', playing);
@@ -187,22 +272,25 @@ export function renderRecords(root: HTMLElement, songs: Song[], band: Band, play
   async function step(by: number): Promise<void> {
     if (songs.length < 2) return;
     selected = (selected + by + songs.length) % songs.length;
+    closePanel();
     player.stop();
     await drop();
   }
 
   player.onTick = (beat) => {
     const s = song();
-    const bar = Math.min(s.bars, Math.max(1, Math.floor(beat / s.beatsPerBar) + 1));
+    const loopBeats = s.bars * s.beatsPerBar;
+    const within = beat < 0 ? 0 : player.loop ? beat % loopBeats : beat; // the counter and the groove start over on each pass
+    const bar = Math.min(s.bars, Math.max(1, Math.floor(within / s.beatsPerBar) + 1));
     readBar.innerHTML = `${String(bar).padStart(2, '0')}<small> / ${s.bars} bars</small>`;
-    grooveFill.style.width = `${Math.max(0, Math.min(100, (beat / (s.bars * s.beatsPerBar)) * 100))}%`;
+    grooveFill.style.width = `${Math.max(0, Math.min(100, (within / loopBeats) * 100))}%`;
   };
   player.onEnd = () => {
     status.textContent = 'End of side A.';
     paint();
   };
   band.onChange(() => {
-    bandTitle.textContent = `THE BAND · ${band.startedCount} OF ${band.pages.length} IN THE ROOM`;
+    bandTitle.textContent = `THE BAND · ${band.startedCount} OF ${band.pages.length} IN THE ROOM · CLICK ONE TO TWEAK IT`;
     chips(bandChips, true);
   });
   window.addEventListener('pagehide', () => player.stop());

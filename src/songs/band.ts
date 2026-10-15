@@ -12,6 +12,8 @@ export function pageUrl(id: PageId): string {
  */
 export class Band {
   readonly states = new Map<PageId, PageState | 'missing'>();
+  private readonly frames = new Map<PageId, HTMLIFrameElement>();
+  private focusedPage?: PageId;
   private readonly listeners = new Set<() => void>();
   private stopWatching?: () => void;
   private mounted = false;
@@ -32,15 +34,33 @@ export class Band {
     });
     for (const p of this.pages) {
       const f = document.createElement('iframe');
-      f.src = pageUrl(p);
+      f.src = `${pageUrl(p)}?embed=1`;
       f.title = `${p} (running in the background)`;
       f.setAttribute('aria-hidden', 'true');
       f.setAttribute('allow', 'autoplay');
       f.tabIndex = -1;
-      // not display:none: browsers may not run a page's rendering and audio loops when it is
-      f.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;border:0;pointer-events:none';
+      // Never display:none (browsers may stop a page's rendering and audio loops). The frames fill their holder, which
+      // is a 1 px invisible box until a page is opened for tweaking; only the focused frame is visible and clickable.
+      f.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;border:0;visibility:hidden;pointer-events:none;background:#07060d';
+      this.frames.set(p, f);
       this.host.append(f);
     }
+  }
+
+  /** The page open for tweaking, if any. */
+  get focused(): PageId | undefined {
+    return this.focusedPage;
+  }
+
+  /** Shows one page's own panel (or none). The frames are only restyled, never moved, so nothing reloads and audio keeps running. */
+  focus(page: PageId | undefined): void {
+    this.focusedPage = page;
+    for (const [p, f] of this.frames) {
+      const on = p === page;
+      f.style.visibility = on ? 'visible' : 'hidden';
+      f.style.pointerEvents = on ? 'auto' : 'none';
+    }
+    this.emit();
   }
 
   get allStarted(): boolean {
@@ -81,6 +101,8 @@ export class Band {
   unmount(): void {
     this.stopWatching?.();
     this.host.replaceChildren();
+    this.frames.clear();
+    this.focusedPage = undefined;
     this.mounted = false;
     for (const p of this.pages) this.states.set(p, 'missing');
     this.emit();
