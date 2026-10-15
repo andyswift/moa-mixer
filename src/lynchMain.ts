@@ -15,7 +15,7 @@ const engine = new AudioEngine(patch);
 const lynch = patch.device<LynchSynth>('lynch');
 
 const page = mountInstrumentPage({
-  engine, clock, self: '/lynch/', panel: renderLynchPanel(lynch),
+  id: 'lynch', patch, engine, clock, self: '/lynch/', panel: renderLynchPanel(lynch),
   ports: [{ device: 'lynch', jack: 'out', name: 'Lynch 106' }],
   onMidi: (event) => lynch.handleMidi(event),
 });

@@ -30,7 +30,7 @@ loadSavedPatches(box);
 box.loadSlot(box.currentSlot);
 
 const page = mountInstrumentPage({
-  engine, clock, self: '/df2/', panel: [renderLynchPanel(lynch), patchbay, renderDfPanel(box, engine)],
+  id: 'df2', patch, engine, clock, self: '/df2/', panel: [renderLynchPanel(lynch), patchbay, renderDfPanel(box, engine)],
   ports: [{ device: 'box', jack: 'out', name: 'MOA-DF2' }],
   onMidi: (event) => lynch.handleMidi(event),
 });

@@ -24,7 +24,7 @@ wrap.className = 'duo-wrap';
 wrap.append(renderDuoPanel(duo, engine), mountKeyboardBed(duo));
 
 const page = mountInstrumentPage({
-  engine, clock, self: '/duo/', panel: wrap,
+  id: 'duo', patch, engine, clock, self: '/duo/', panel: wrap,
   ports: [{ device: 'duo', jack: 'out', name: 'MOA-DUO' }],
   onMidi: (event) => duo.handleMidi(event),
 });

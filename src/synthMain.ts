@@ -14,7 +14,7 @@ const engine = new AudioEngine(patch);
 const synth = patch.device<Synthesizer>('synth');
 
 const page = mountInstrumentPage({
-  engine, clock, self: '/synth/', panel: renderSynthPanel(synth),
+  id: 'synth', patch, engine, clock, self: '/synth/', panel: renderSynthPanel(synth),
   ports: [{ device: 'synth', jack: 'out', name: 'Synth' }],
   onMidi: (event) => synth.handleMidi(event),
 });

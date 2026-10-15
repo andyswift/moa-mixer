@@ -67,12 +67,15 @@ export class MixerInputs {
     return [...new Set(this.host.ports().map((p) => p.name))];
   }
 
-  setSelection(jack: string, selection: Selection): void {
+  /** Chooses a source for an input. `remember` keeps the choice for next time (a song's routing does not). */
+  setSelection(jack: string, selection: Selection, remember = true): void {
     this.slot(jack).selection = selection;
-    try {
-      this.storage?.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries([...this.slots].map(([j, s]) => [j, s.selection]))));
-    } catch {
-      // not remembered
+    if (remember) {
+      try {
+        this.storage?.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries([...this.slots].map(([j, s]) => [j, s.selection]))));
+      } catch {
+        // not remembered
+      }
     }
     this.reconcile();
   }

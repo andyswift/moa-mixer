@@ -13,6 +13,7 @@ import { MidiMonitor } from './domain/midi/monitor';
 import { Patch } from './domain/patch/patch';
 import { MidiBus } from './midi/bus';
 import { WebMidi } from './midi/webMidi';
+import { announceStatus, applySettings, captureSettings, listenForControl } from './songs/control';
 import { renderBusCompPanel } from './ui/busCompPanel';
 import { renderFxPanel } from './ui/fxPanel';
 import { renderGranularPanel } from './ui/granularPanel';
@@ -69,15 +70,30 @@ const inputs = new MixerInputs(
 );
 pcm.onChange(() => inputs.reconcile());
 
-const start = document.createElement('button');
-start.className = 'start';
-start.textContent = 'Start audio';
-start.addEventListener('click', async () => {
+let started = false;
+const startAudio = async () => {
+  if (started) return;
+  started = true;
   await engine.start();
   inputs.start();
   start.textContent = 'Audio running';
   start.disabled = true;
+  announceStatus('mixer', 'started');
+};
+const start = document.createElement('button');
+start.className = 'start';
+start.textContent = 'Start audio';
+start.addEventListener('click', () => void startAudio());
+
+// The records page conducts this page too: it starts the audio, sets the mixer and effects, and chooses the inputs.
+listenForControl('mixer', (m) => {
+  if (m.type === 'start') void startAudio();
+  else {
+    if (m.settings) applySettings(patch, m.settings);
+    for (const [jack, selection] of Object.entries(m.inputs ?? {})) if (inputs.jacks.includes(jack)) inputs.setSelection(jack, selection, false);
+  }
 });
+announceStatus('mixer', 'loaded');
 
 const granular = patch.device<GranularFx>('granular');
 
@@ -113,4 +129,4 @@ app.append(renderGranularPanel(granular, 'granular', engine));
 app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay', 'Ouroboros', 'Bus Comp', 'Granular'], { B: 'to Bus Comp', C: 'to Ouroboros' }, inputs, ['Lynch 106', 'DUO', 'DF2', 'Pipe']));
 
 // Dev-only handle for poking at the engine from the browser console.
-if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch, pcm, midi: handleMidiBytes } });
+if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch, pcm, midi: handleMidiBytes }, __capture: () => captureSettings(patch) });

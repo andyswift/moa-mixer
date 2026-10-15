@@ -4,7 +4,9 @@ import { PcmBus } from '../audio/pcmBus';
 import type { MidiClock } from '../domain/midi/clock';
 import { type MidiEvent, parseMidi } from '../domain/midi/events';
 import { MidiMonitor } from '../domain/midi/monitor';
+import type { Patch } from '../domain/patch/patch';
 import { MidiBus } from '../midi/bus';
+import { announceStatus, applySettings, captureSettings, listenForControl, type PageId, songChannelName } from '../songs/control';
 import { WebMidi } from '../midi/webMidi';
 import { renderAudioBusBlock } from './audioBusBlock';
 import { renderMidiStrip } from './midiStrip';
@@ -43,6 +45,9 @@ export function mountInstrumentPage(opts: {
   panel: HTMLElement | HTMLElement[];
   /** This page's own link, left out of the navigation row. */
   self: string;
+  /** Which page this is, for the records page that conducts it: it can start the audio, change settings and send notes. */
+  id: PageId;
+  patch: Patch;
 }): { handleMidiBytes: (data: ArrayLike<number>, time?: number) => void; pcm: PcmBus } {
   const { engine, clock } = opts;
   const monitor = new MidiMonitor();
@@ -52,10 +57,10 @@ export function mountInstrumentPage(opts: {
   pcm.onAudience(() => speakers.update());
   const app = document.querySelector<HTMLDivElement>('#app')!;
 
-  const start = document.createElement('button');
-  start.className = 'start';
-  start.textContent = 'Start audio';
-  start.addEventListener('click', async () => {
+  let started = false;
+  const startAudio = async () => {
+    if (started) return;
+    started = true;
     await engine.start();
     speakers.update();
     const ctx = engine.context;
@@ -67,7 +72,12 @@ export function mountInstrumentPage(opts: {
     }
     start.textContent = 'Audio running';
     start.disabled = true;
-  });
+    announceStatus(opts.id, 'started');
+  };
+  const start = document.createElement('button');
+  start.className = 'start';
+  start.textContent = 'Start audio';
+  start.addEventListener('click', () => void startAudio());
 
   /** One entry point for every MIDI message, whether it came from a device or the dev console. */
   function handleMidiBytes(data: ArrayLike<number>, time = performance.now()): void {
@@ -83,6 +93,18 @@ export function mountInstrumentPage(opts: {
   // MIDI from the sequencer page in another tab arrives over the bus, like a MIDI input.
   const bus = new MidiBus();
   bus.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
+
+  // The records page conducts this page: it starts the audio, changes settings and plays notes on a channel of its own,
+  // so the song's notes reach only this instrument whatever its MIDI channel is set to.
+  const songBus = new MidiBus(songChannelName(opts.id));
+  songBus.enabled = true;
+  songBus.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
+  listenForControl(opts.id, (m) => {
+    if (m.type === 'start') void startAudio();
+    else if (m.settings) applySettings(opts.patch, m.settings);
+  });
+  announceStatus(opts.id, 'loaded');
+  if (import.meta.env.DEV) Object.assign(window, { __capture: () => captureSettings(opts.patch) });
 
   const strip = renderMidiStrip(midi, clock, monitor, start, bus);
   strip.append(renderAudioBusBlock(pcm, speakers));

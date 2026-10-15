@@ -17,7 +17,7 @@ const pipe = patch.device<PipeSynth>('pipe');
 const spring = patch.device<SpringReverb>('spring');
 
 const page = mountInstrumentPage({
-  engine, clock, self: '/pipe/', panel: renderPipePanel(pipe, spring, engine),
+  id: 'pipe', patch, engine, clock, self: '/pipe/', panel: renderPipePanel(pipe, spring, engine),
   ports: [{ device: 'spring', jack: 'out', name: 'MOA-PIPE' }],
   onMidi: (event) => pipe.handleMidi(event),
 });

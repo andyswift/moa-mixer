@@ -21,7 +21,7 @@ const sequencer = new DrumSequencer(drums, clock, () => engine.currentTime);
 setInterval(() => sequencer.tick(), 25);
 
 const page = mountInstrumentPage({
-  engine, clock, self: '/drums/', panel: renderDrumPanel(drums, sequencer, 'drums', engine),
+  id: 'drums', patch, engine, clock, self: '/drums/', panel: renderDrumPanel(drums, sequencer, 'drums', engine),
   ports: DRUM_VOICES.map((voice) => ({ device: 'drums', jack: voice, name: `Drums: ${VOICE_NAMES[voice]}` })),
   onMidi: (event) => {
     drums.handleMidi(event);

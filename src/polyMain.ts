@@ -13,7 +13,7 @@ const engine = new AudioEngine(patch);
 const poly = patch.device<PolySynth>('poly');
 
 const page = mountInstrumentPage({
-  engine, clock, self: '/poly/', panel: renderPolyPanel(poly),
+  id: 'poly', patch, engine, clock, self: '/poly/', panel: renderPolyPanel(poly),
   ports: [{ device: 'poly', jack: 'out', name: 'Poly' }],
   onMidi: (event) => poly.handleMidi(event),
 });
