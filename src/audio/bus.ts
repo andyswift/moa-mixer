@@ -80,6 +80,8 @@ export class AudioBus {
   /** Subscribing is allowed; remembered per browser, like the MIDI bus. */
   enabled: boolean;
   readonly id = randomId();
+  /** Recent signalling and connection events, newest last; for the test page and debugging. */
+  readonly log: string[] = [];
   private readonly channel?: ChannelLike;
   private readonly remote = new Map<string, string>();
   private readonly listeners = new Set<() => void>();
@@ -98,7 +100,9 @@ export class AudioBus {
     const make = channelFactory ?? (typeof BroadcastChannel === 'undefined' ? undefined : (n: string) => new BroadcastChannel(n) as unknown as ChannelLike);
     this.channel = make?.(name);
     if (this.channel) {
-      this.channel.onmessage = (e) => void this.handle(e.data);
+      this.channel.onmessage = (e) => {
+        this.handle(e.data).catch((err) => this.note(`error handling ${e.data.type}: ${err}`));
+      };
       this.send({ type: 'hello', from: this.id });
     }
   }
@@ -161,6 +165,7 @@ export class AudioBus {
         resolve({ stream, state: () => peer.connectionState, close: () => this.hangup(conn, true) });
       };
       peer.onconnectionstatechange = () => {
+        this.note(`subscriber connection ${peer.connectionState}`);
         if (peer.connectionState === 'failed') this.emit();
       };
       this.subs.add(conn);
@@ -189,6 +194,19 @@ export class AudioBus {
     this.channel?.close();
   }
 
+  /** Connection, ICE and signalling states of every link this tab holds; for debugging. */
+  describeLinks(): string[] {
+    return [...this.links].map(([conn, { peer }]) => {
+      const p = peer as unknown as RTCPeerConnection;
+      return `${conn}: conn=${p.connectionState} ice=${p.iceConnectionState} gather=${p.iceGatheringState} sig=${p.signalingState}`;
+    });
+  }
+
+  private note(text: string): void {
+    this.log.push(`${(performance.now() / 1000).toFixed(2)} ${text}`);
+    if (this.log.length > 40) this.log.shift();
+  }
+
   private emit(): void {
     for (const l of this.listeners) l();
   }
@@ -200,6 +218,7 @@ export class AudioBus {
   private hangup(conn: string, tell = false): void {
     const link = this.links.get(conn);
     if (!link) return;
+    this.note(`hangup ${conn} (${tell ? 'we closed' : 'other end or timeout'})`);
     if (tell) this.send({ type: 'hangup', from: this.id, to: link.peerTab, conn });
     link.peer.close();
     this.links.delete(conn);
@@ -209,6 +228,7 @@ export class AudioBus {
   private async handle(m: Signal): Promise<void> {
     if (m.from === this.id) return;
     if ('to' in m && m.to !== this.id) return;
+    this.note(`got ${m.type} from ${m.from}${m.type === 'ice' ? ' ' + m.candidate.candidate : ''}`);
     switch (m.type) {
       case 'hello':
         if (this.published) this.send({ type: 'announce', from: this.id, name: this.published.name });
@@ -224,6 +244,7 @@ export class AudioBus {
       case 'request': {
         if (!this.published) return;
         const peer = this.makePeer();
+        peer.onconnectionstatechange = () => this.note(`publisher connection ${peer.connectionState}`);
         const link = { peer, peerTab: m.from, pending: [] as RTCIceCandidateInit[], ready: false };
         this.links.set(m.conn, link);
         peer.onicecandidate = (e) => {
