@@ -1,0 +1,89 @@
+/* MOA Records: a record collection. Dark room, wooden crate, cream sleeves, a turntable. */
+html { background: #1b1722; }
+body { margin: 0; background: radial-gradient(ellipse at 50% 30%, #3b2740 0%, #1b1722 62%) fixed; min-height: 100vh; color: #fff4df; font-family: 'Barlow Condensed', system-ui, sans-serif; }
+.records { box-sizing: border-box; max-width: 1280px; margin: 0 auto; padding: 36px 40px 48px; }
+.records button { font-family: inherit; cursor: pointer; }
+.records a { color: #ffc23d; }
+.records a:hover, .records a:focus-visible { color: #fff4df; }
+
+.rec-head { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.rec-brand { display: flex; align-items: center; gap: 14px; }
+.rec-wordmark { font-family: 'Alfa Slab One', serif; font-size: 40px; line-height: 1; letter-spacing: 0.02em; }
+.rec-wordmark b { font-weight: 400; color: #ffc23d; }
+.rec-links { display: flex; align-items: center; gap: 26px; font-size: 20px; letter-spacing: 0.14em; text-transform: uppercase; color: #a99fb4; }
+.rec-links a { text-decoration: none; }
+.rec-tagline { margin: 22px 0 0; max-width: 560px; font-size: 30px; line-height: 1.25; color: #d8cfe0; }
+
+/* the crate */
+.rec-crate { position: relative; margin-top: 24px; height: 560px; }
+.rec-sleeves { position: absolute; left: 0; right: 0; top: 0; height: 420px; display: flex; align-items: flex-end; justify-content: center; padding: 0 20px; box-sizing: border-box; }
+.rec-sleeve { flex: none; position: relative; width: 250px; height: 250px; margin: 0 -34px; padding: 0; border: 0; border-radius: 6px; overflow: hidden; background: none; transform: translateY(40px) rotate(var(--tilt, 0deg)); box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45); transition: transform 0.25s ease, box-shadow 0.25s ease, z-index 0s; }
+.rec-sleeve svg { display: block; width: 100%; height: 100%; }
+.rec-sleeve:hover, .rec-sleeve:focus-visible { transform: translateY(0) rotate(var(--tilt, 0deg)); outline: none; }
+.rec-sleeve:focus-visible { box-shadow: 0 0 0 4px #fff4df, 0 14px 30px rgba(0, 0, 0, 0.45); }
+.rec-sleeve.picked { z-index: 2; width: 330px; height: 330px; transform: translateY(-20px) rotate(-1deg); box-shadow: 0 24px 50px rgba(0, 0, 0, 0.6), 0 0 0 4px #ffc23d; }
+.rec-sleeve-blank { display: flex; align-items: center; justify-content: center; text-align: center; border: 3px dashed #6d6179; box-sizing: border-box; font-size: 24px; letter-spacing: 0.1em; text-transform: uppercase; color: #8a7d97; transform: translateY(40px) rotate(5deg); box-shadow: none; }
+.rec-crate-front { position: absolute; left: 0; right: 0; top: 330px; height: 230px; border-radius: 10px 10px 18px 18px; background: repeating-linear-gradient(180deg, #b9854f 0, #b9854f 56px, #7d5230 56px, #7d5230 60px); box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.35), 0 20px 36px rgba(0, 0, 0, 0.5); z-index: 3; pointer-events: none; }
+.rec-crate-label { position: absolute; left: 36px; top: 68px; padding: 18px 28px; border: 4px solid #fff4df; border-radius: 8px; background: #7d5230; transform: rotate(-1deg); font-family: 'Alfa Slab One', serif; font-size: 32px; letter-spacing: 0.04em; }
+
+.rec-pick { display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; margin-top: 18px; }
+.rec-pick-title, .rec-deck-title { font-family: 'Alfa Slab One', serif; font-size: 34px; line-height: 1.1; }
+.rec-meta { margin-top: 6px; font-family: 'Share Tech Mono', monospace; font-size: 16px; letter-spacing: 0.08em; color: #a99fb4; }
+.rec-chips { display: flex; flex-wrap: wrap; gap: 8px; max-width: 520px; }
+.rec-chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 999px; background: #2a2432; font-size: 17px; letter-spacing: 0.1em; }
+.rec-led { width: 9px; height: 9px; border-radius: 50%; background: #5a4f66; }
+.rec-led.on { background: #4fd69c; box-shadow: 0 0 8px #4fd69c; }
+.rec-button { display: inline-block; padding: 14px 26px; border-radius: 10px; border: 2px solid #fff4df; background: transparent; color: #fff4df; font-size: 24px; letter-spacing: 0.14em; text-transform: uppercase; }
+.rec-button:hover:not(:disabled), .rec-button:focus-visible { background: rgba(255, 244, 223, 0.12); outline: none; }
+.rec-button:disabled { opacity: 0.45; cursor: default; }
+.rec-button-go { border-color: transparent; background: #ffc23d; color: #1b1722; font-weight: 700; padding: 16px 34px; box-shadow: 0 5px 0 #a87a14; }
+.rec-button-go:hover:not(:disabled), .rec-button-go:focus-visible { background: #ffd35f; }
+.rec-button-quiet { border-color: transparent; font-size: 20px; padding-left: 0; color: #ffc23d; }
+.rec-status { min-height: 28px; margin-top: 20px; font-family: 'Share Tech Mono', monospace; font-size: 16px; letter-spacing: 0.08em; color: #a99fb4; }
+
+/* the turntable */
+.rec-deck { margin-top: 30px; display: grid; grid-template-columns: 380px 1fr; gap: 40px; align-items: start; }
+.rec-deck[hidden], .rec-crate[hidden], .rec-pick[hidden], .rec-tagline[hidden] { display: none; }
+.rec-deck-sleeve { width: 360px; height: 360px; border-radius: 6px; overflow: hidden; transform: rotate(-4deg); box-shadow: 0 22px 46px rgba(0, 0, 0, 0.6); margin-bottom: 36px; }
+.rec-deck-sleeve svg { display: block; width: 100%; height: 100%; }
+.rec-deck-right { min-width: 0; }
+.rec-table { position: relative; height: 560px; border-radius: 20px; background: linear-gradient(180deg, #c58f55, #94643a); box-shadow: 0 30px 60px rgba(0, 0, 0, 0.55), inset 0 2px 0 rgba(255, 255, 255, 0.25); overflow: hidden; }
+.rec-table::before { content: ''; position: absolute; inset: 22px; border-radius: 12px; background: #2a2432; box-shadow: inset 0 4px 14px rgba(0, 0, 0, 0.6); }
+.rec-platter { position: absolute; left: 50px; top: 46px; width: 440px; height: 440px; border-radius: 50%; background: #3b3445; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5); }
+.rec-vinyl { position: absolute; left: 62px; top: 58px; width: 416px; height: 416px; border-radius: 50%; background: repeating-radial-gradient(circle at 50% 50%, #14101a 0, #14101a 3px, #1f1a27 4px, #14101a 6px); box-shadow: inset 0 0 0 3px #0c0a10; }
+.rec-vinyl::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 20deg, rgba(255, 255, 255, 0) 0deg, rgba(255, 255, 255, 0.12) 30deg, rgba(255, 255, 255, 0) 70deg, rgba(255, 255, 255, 0) 180deg, rgba(255, 255, 255, 0.1) 215deg, rgba(255, 255, 255, 0) 255deg); }
+.rec-table.playing .rec-vinyl { animation: rec-spin 1.8s linear infinite; }
+@keyframes rec-spin { to { transform: rotate(360deg); } }
+.rec-vinyl-label { position: absolute; left: 118px; top: 118px; width: 180px; height: 180px; border-radius: 50%; background: var(--label, #ff4fa3); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #1b1722; }
+.rec-vinyl-label span { max-width: 120px; font-family: 'Alfa Slab One', serif; font-size: 17px; line-height: 1.1; }
+.rec-vinyl-label small { margin-top: 6px; font-family: 'Share Tech Mono', monospace; font-size: 11px; letter-spacing: 0.08em; }
+.rec-vinyl-label::after { content: ''; position: absolute; left: 82px; top: 82px; width: 16px; height: 16px; border-radius: 50%; background: #14101a; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.55); }
+.rec-arm { position: absolute; left: 500px; top: 34px; width: 280px; height: 440px; pointer-events: none; transform-origin: 205px 66px; transform: rotate(0deg); transition: transform 0.9s cubic-bezier(0.4, 0, 0.2, 1); }
+.rec-arm svg { display: block; width: 100%; height: 100%; }
+.rec-table.playing .rec-arm { transform: rotate(33deg); } /* parked off the record, or out over the grooves */
+.rec-readout { margin-left: auto; text-align: right; }
+.rec-read-label { font-family: 'Share Tech Mono', monospace; font-size: 13px; letter-spacing: 0.1em; color: #a99fb4; }
+.rec-read-bar { margin-top: 2px; font-family: 'Share Tech Mono', monospace; font-size: 40px; line-height: 1; color: #ffc23d; }
+.rec-read-bar small { font-size: 18px; color: #a99fb4; }
+.rec-groove { position: absolute; left: 50px; right: 50px; bottom: 30px; height: 14px; border-radius: 7px; background: #14101a; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7); }
+.rec-groove-fill { height: 14px; width: 0; border-radius: 7px; background: linear-gradient(90deg, #ff6f59, #ffc23d); }
+.rec-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 22px; }
+.rec-band { margin-top: 22px; }
+.rec-band-title { margin-bottom: 10px; font-family: 'Share Tech Mono', monospace; font-size: 14px; letter-spacing: 0.1em; color: #a99fb4; }
+.rec-back-row { grid-column: 1 / -1; }
+
+.rec-sorry { max-width: 560px; margin: 80px auto; font-size: 26px; line-height: 1.3; }
+.rec-sorry h1 { font-family: 'Alfa Slab One', serif; font-weight: 400; font-size: 44px; }
+
+/* the band lives here, out of sight */
+.rec-band-holder { position: fixed; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+
+@media (max-width: 980px) {
+  .rec-deck { grid-template-columns: 1fr; }
+  .rec-deck-sleeve { width: 260px; height: 260px; }
+  .rec-crate { overflow-x: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rec-table.playing .rec-vinyl { animation: none; }
+  .rec-arm, .rec-sleeve { transition: none; }
+}
