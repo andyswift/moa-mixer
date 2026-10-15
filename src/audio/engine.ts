@@ -34,6 +34,7 @@ export interface DuoView {
 /** Compiles a Patch into Web Audio nodes and keeps them in sync with domain state. */
 export class AudioEngine {
   private ctx?: AudioContext;
+  private compiled = new Map<string, Map<string, AudioNode>>();
   private readonly compressors = new Map<string, DynamicsCompressorNode>();
   private readonly grainViews = new Map<string, GrainView>();
   private readonly pipeViews = new Map<string, PipeView>();
@@ -54,6 +55,26 @@ export class AudioEngine {
 
   async stop(): Promise<void> {
     await this.ctx?.suspend();
+  }
+
+  /** The running AudioContext; undefined until `start()`. */
+  get context(): AudioContext | undefined {
+    return this.ctx;
+  }
+
+  /** The Web Audio node behind a device's jack, for tapping it or feeding it from outside the patch (the audio bus). */
+  jackNode(deviceId: string, dir: 'in' | 'out', jack: string): AudioNode | undefined {
+    const nodeId = this.patch.device(deviceId).jack(dir, jack).nodeId;
+    return this.compiled.get(deviceId)?.get(nodeId);
+  }
+
+  /** Cuts or restores the patch cable between two jacks, e.g. to swap an internal source for audio from another tab. */
+  setCable(from: { device: string; jack: string }, to: { device: string; jack: string }, on: boolean): void {
+    const src = this.jackNode(from.device, 'out', from.jack);
+    const dst = this.jackNode(to.device, 'in', to.jack);
+    if (!src || !dst) return;
+    if (on) src.connect(dst);
+    else src.disconnect(dst);
   }
 
   /** The audio clock in seconds (0 until audio has started). Schedulers use it to place hits precisely. */
@@ -102,6 +123,7 @@ export class AudioEngine {
     for (const [id, device] of this.patch.devices) {
       compiled.set(id, this.compileCircuit(ctx, id, device.circuit));
     }
+    this.compiled = compiled;
 
     const jackNode = (d: string, dir: 'in' | 'out', j: string): AudioNode => {
       const nodeId = this.patch.device(d).jack(dir, j).nodeId;
