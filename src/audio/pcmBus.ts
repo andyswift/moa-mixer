@@ -3,7 +3,7 @@ import { PCM_RECV, PCM_SEND, PCM_SOURCE } from './pcmWorklet';
 /**
  * The audio bus over raw PCM: a worklet in the publishing tab posts 10 ms chunks, they cross to other tabs on a
  * BroadcastChannel, and a worklet in the subscribing tab plays them out of a jitter buffer. Lossless, no network
- * stack (so none of WebRTC's ICE/mDNS trouble on VPNs and odd networks), same-origin only.
+ * stack, same-origin only.
  */
 type Msg =
   | { type: 'hello'; from: string }
@@ -42,7 +42,6 @@ async function loadWorklet(ctx: AudioContext): Promise<void> {
 
 export class PcmBus {
   readonly id = Math.random().toString(36).slice(2, 10);
-  readonly log: string[] = [];
   private readonly channel?: BroadcastChannel;
   private readonly remote = new Map<string, string>();
   private readonly listeners = new Set<() => void>();

@@ -1,17 +1,13 @@
-import { AudioBus } from './audio/bus';
-import { publishNode, receiveInto } from './audio/busAudio';
 import { PcmBus } from './audio/pcmBus';
 
 // Proof-of-concept page for the audio bus: open it in two tabs. One sends a test tone (or clicks), the other picks the
-// port and shows what arrives. Two transports: raw PCM over BroadcastChannel (default) and WebRTC loopback.
+// port and shows what arrives.
 // Not part of the product; it exists to prove and measure the transport.
-const rtc = new AudioBus();
 const pcm = new PcmBus();
 const app = document.querySelector<HTMLDivElement>('#app')!;
 app.style.cssText = 'font: 14px/1.5 ui-monospace, monospace; padding: 16px; max-width: 560px';
 app.innerHTML = `
   <h1 style="font-size:18px">MOA audio bus test</h1>
-  <label>Transport <select id="transport"><option value="pcm">PCM over BroadcastChannel</option><option value="rtc">WebRTC loopback</option></select></label>
   <fieldset><legend>Send</legend>
     <button id="send">Start sending a tone</button>
     <button id="click" disabled>Send one click</button>
@@ -24,10 +20,8 @@ app.innerHTML = `
     <div>buffer: <b id="buffer">-</b></div>
     <div>last click latency: <b id="latency">-</b></div>
   </fieldset>
-  <pre id="log" style="font-size:11px;white-space:pre-wrap"></pre>`;
+`;
 const $ = <T extends HTMLElement>(id: string) => app.querySelector<T>('#' + id)!;
-const transport = $<HTMLSelectElement>('transport');
-const useRtc = () => transport.value === 'rtc';
 
 let ctx: AudioContext | undefined;
 let clickGain: GainNode | undefined;
@@ -53,7 +47,7 @@ $('send').addEventListener('click', async () => {
   osc.connect(tone);
   tone.connect(clickGain);
   osc.start();
-  stopPublish = useRtc() ? publishNode(rtc, ctx, clickGain, 'Test tone') : await pcm.publish(ctx, clickGain, 'Test tone');
+  stopPublish = await pcm.publish(ctx, clickGain, 'Test tone');
   $('send').textContent = 'Stop sending';
   $<HTMLButtonElement>('click').disabled = false;
 });
@@ -73,13 +67,10 @@ $('click').addEventListener('click', () => {
 const select = $<HTMLSelectElement>('ports');
 const paintPorts = () => {
   const keep = select.value;
-  const ports = useRtc() ? rtc.ports : pcm.ports;
-  select.replaceChildren(...ports.map((p) => new Option(`${p.name} (${p.id})`, p.id)));
+  select.replaceChildren(...pcm.ports.map((p) => new Option(`${p.name} (${p.id})`, p.id)));
   if (keep) select.value = keep;
 };
-rtc.onChange(paintPorts);
 pcm.onChange(paintPorts);
-transport.addEventListener('change', paintPorts);
 paintPorts();
 
 interface Active {
@@ -109,18 +100,13 @@ $('recv').addEventListener('click', async () => {
   await rctx.resume();
   $('state').textContent = 'connecting';
   try {
-    if (useRtc()) {
-      const r = await receiveInto(rtc, rctx, select.value);
-      active = { node: r.node, state: () => r.subscription.state(), buffer: () => '-', close: () => r.close() };
-    } else {
-      const r = await pcm.subscribe(rctx, select.value);
-      active = {
-        node: r.node,
-        state: () => 'playing',
-        buffer: () => `${r.stats().fill.toFixed(0)} ms, ${r.stats().underruns} underruns, ${r.stats().drops} drops`,
-        close: () => r.close(),
-      };
-    }
+    const r = await pcm.subscribe(rctx, select.value);
+    active = {
+      node: r.node,
+      state: () => 'playing',
+      buffer: () => `${r.stats().fill.toFixed(0)} ms, ${r.stats().underruns} underruns, ${r.stats().drops} drops`,
+      close: () => r.close(),
+    };
   } catch (e) {
     $('state').textContent = String(e);
     return;
@@ -154,6 +140,5 @@ const poll = () => {
   } else if (peak < 0.3) armed = true;
 };
 setInterval(poll, 2);
-setInterval(() => { $('log').textContent = [...rtc.describeLinks(), ...rtc.log].join('\n'); }, 500);
 
-Object.assign(window, { __ab: { rtc, pcm, level: () => lastLevel, state: () => active?.state(), latencies } });
+Object.assign(window, { __ab: { pcm, level: () => lastLevel, state: () => active?.state(), latencies } });
