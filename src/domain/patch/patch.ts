@@ -25,6 +25,8 @@ export class Patch {
   readonly devices = new Map<string, Device>();
   readonly connections: Connection[] = [];
   output?: { device: string; jack: string };
+  /** More jacks that also go to the speakers (a drum machine's other voices). */
+  readonly extraOutputs: { device: string; jack: string }[] = [];
 
   add(id: string, device: Device): this {
     if (this.devices.has(id)) throw new Error(`Duplicate device id: ${id}`);
@@ -53,6 +55,24 @@ export class Patch {
     this.device(device).jack('out', jack);
     this.output = { device, jack };
     return this;
+  }
+
+  addOutput(device: string, jack: string): this {
+    this.device(device).jack('out', jack);
+    this.extraOutputs.push({ device, jack });
+    return this;
+  }
+
+  /** The poly synth page: just the synth, straight to the speakers. */
+  static poly(clock = new MidiClock()): Patch {
+    return new Patch().add('poly', new PolySynth('Poly', clock)).setOutput('poly', 'out');
+  }
+
+  /** The drum machine page: every voice to the speakers (and, on the audio bus, one port each). */
+  static drums(clock = new MidiClock()): Patch {
+    const patch = new Patch().add('drums', new DrumMachine('Drums', clock)).setOutput('drums', DRUM_VOICES[0]);
+    for (const voice of DRUM_VOICES.slice(1)) patch.addOutput('drums', voice);
+    return patch;
   }
 
   /** The mono synth page: just the synth, straight to the speakers. */

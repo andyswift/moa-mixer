@@ -415,6 +415,15 @@ describe('Patch', () => {
     expect(p.output).toEqual({ device: 'mixer', jack: 'main' });
   });
 
+  it('instrument pages each hold one instrument; the drum page sends every voice to the speakers', () => {
+    expect(Patch.synth().output).toEqual({ device: 'synth', jack: 'out' });
+    expect(Patch.poly().output).toEqual({ device: 'poly', jack: 'out' });
+    const drums = Patch.drums();
+    expect([...drums.devices.keys()]).toEqual(['drums']);
+    expect([drums.output, ...drums.extraOutputs].map((o) => o?.jack)).toEqual(['kick', 'snare', 'clap', 'closedHat', 'openHat', 'ride']);
+    expect(drums.connections).toHaveLength(0);
+  });
+
   it('rejects unknown jacks', () => {
     const p = Patch.default();
     expect(() => p.connect({ device: 'synth', jack: 'nope' }, { device: 'mixer', jack: 'ch1' })).toThrow();

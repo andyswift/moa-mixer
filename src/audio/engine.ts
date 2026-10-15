@@ -144,13 +144,12 @@ export class AudioEngine {
       jackNode(c.from.device, 'out', c.from.jack).connect(jackNode(c.to.device, 'in', c.to.jack));
     }
     if (this.patch.output) {
-      const { device, jack } = this.patch.output;
-      // The patch output reaches the speakers through a gain stage, so a page can silence its own speakers while
-      // its audio is being played elsewhere (the audio bus taps the jack itself, before this).
+      // The patch outputs reach the speakers through a gain stage, so a page can silence its own speakers while
+      // its audio is being played elsewhere (the audio bus taps the jacks themselves, before this).
       this.monitor = ctx.createGain();
       this.monitor.gain.value = this.monitorOn ? 1 : 0;
       this.monitor.connect(ctx.destination);
-      jackNode(device, 'out', jack).connect(this.monitor);
+      for (const { device, jack } of [this.patch.output, ...this.patch.extraOutputs]) jackNode(device, 'out', jack).connect(this.monitor);
     }
   }
 

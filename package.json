@@ -13,7 +13,9 @@
     "build:df2": "tsc --noEmit && vite build --config vite.df2.config.ts",
     "build:duo": "tsc --noEmit && vite build --config vite.duo.config.ts",
     "build:seq": "tsc --noEmit && vite build --config vite.seq.config.ts",
-    "build:synth": "tsc --noEmit && vite build --config vite.synth.config.ts"
+    "build:synth": "tsc --noEmit && vite build --config vite.synth.config.ts",
+    "build:poly": "tsc --noEmit && vite build --config vite.poly.config.ts",
+    "build:drums": "tsc --noEmit && vite build --config vite.drums.config.ts"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
