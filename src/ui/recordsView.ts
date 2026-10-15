@@ -57,9 +57,9 @@ export function renderRecords(root: HTMLElement, songs: Song[], band: Band, play
   const dropButton = el('button', 'rec-button rec-button-go', 'Drop the needle');
   dropButton.type = 'button';
   dropButton.addEventListener('click', () => void drop());
-  const pickRight = el('div', 'rec-pick-right');
-  pickRight.append(pickChips, dropButton);
-  pick.append(pickInfo, pickRight);
+  pick.append(pickInfo, pickChips);
+  const go = el('div', 'rec-go');
+  go.append(dropButton);
 
   // ---- the turntable ----
   const deck = el('section', 'rec-deck');
@@ -109,7 +109,7 @@ export function renderRecords(root: HTMLElement, songs: Song[], band: Band, play
   deck.append(deckLeft, deckRight, el('div', 'rec-back-row'));
   deck.querySelector('.rec-back-row')!.append(back);
 
-  root.append(head, tagline, pick, crate, deck, status);
+  root.append(head, tagline, pick, go, crate, deck, status);
 
   // ---- behaviour ----
   const song = () => songs[selected]!;
@@ -128,6 +128,7 @@ export function renderRecords(root: HTMLElement, songs: Song[], band: Band, play
     const s = song();
     crate.hidden = view !== 'crate';
     pick.hidden = view !== 'crate';
+    go.hidden = view !== 'crate';
     tagline.hidden = view !== 'crate';
     deck.hidden = view !== 'deck';
     sleeveButtons.forEach((b, i) => b.classList.toggle('picked', i === selected));

@@ -30,8 +30,12 @@ body { margin: 0; background: radial-gradient(ellipse at 50% 30%, #3b2740 0%, #1
 .rec-pick-title, .rec-deck-title { font-family: 'Alfa Slab One', serif; font-size: 34px; line-height: 1.1; }
 .rec-meta { margin-top: 6px; font-family: 'Share Tech Mono', monospace; font-size: 16px; letter-spacing: 0.08em; color: #a99fb4; }
 .rec-chips { display: flex; flex-wrap: wrap; gap: 8px; max-width: 520px; }
-.rec-pick-right { display: flex; flex-direction: column; align-items: flex-end; gap: 16px; margin-left: auto; }
-.rec-pick-right .rec-chips { justify-content: flex-end; }
+.rec-chips { justify-content: flex-end; margin-left: auto; }
+.rec-go { display: flex; justify-content: center; margin-top: 22px; }
+.rec-go[hidden] { display: none; }
+.rec-go .rec-button-go { font-size: 32px; padding: 20px 56px; border-radius: 14px; box-shadow: 0 6px 0 #a87a14, 0 0 0 0 rgba(255, 194, 61, 0.6); animation: rec-call 2.2s ease-out infinite; }
+.rec-go .rec-button-go:disabled { animation: none; }
+@keyframes rec-call { 0% { box-shadow: 0 6px 0 #a87a14, 0 0 0 0 rgba(255, 194, 61, 0.55); } 70%, 100% { box-shadow: 0 6px 0 #a87a14, 0 0 0 22px rgba(255, 194, 61, 0); } }
 .rec-chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 999px; background: #2a2432; font-size: 17px; letter-spacing: 0.1em; }
 .rec-led { width: 9px; height: 9px; border-radius: 50%; background: #5a4f66; }
 .rec-led.on { background: #4fd69c; box-shadow: 0 0 8px #4fd69c; }
@@ -88,4 +92,5 @@ body { margin: 0; background: radial-gradient(ellipse at 50% 30%, #3b2740 0%, #1
 @media (prefers-reduced-motion: reduce) {
   .rec-table.playing .rec-vinyl { animation: none; }
   .rec-arm, .rec-sleeve { transition: none; }
+  .rec-go .rec-button-go { animation: none; }
 }
