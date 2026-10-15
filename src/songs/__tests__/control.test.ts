@@ -80,7 +80,8 @@ describe('control channel', () => {
     const stopOther = listenForControl('poly', (m) => other.push(m));
     sendControl('synth', { type: 'start' });
     sendControl('synth', { type: 'apply', settings: { synth: { controls: { a: 1 } } } });
-    await new Promise((r) => setTimeout(r, 50));
+    for (let i = 0; i < 100 && got.length < 2; i++) await new Promise((r) => setTimeout(r, 20)); // wait for delivery, however busy the machine is
+    await new Promise((r) => setTimeout(r, 40)); // and a moment for anything that should not arrive
     stop();
     stopOther();
     expect(got.map((m) => m.type)).toEqual(['start', 'apply']);

@@ -3,8 +3,8 @@ import { mixerSettings } from '../mixes';
 import type { NoteEvent, Song } from '../types';
 
 /**
- * A candidate record: an original dark-synthwave tune, 100 bpm, C minor, the loop Cm - Ab - Bb - Gm, a bar a chord.
- * Twelve bars: a pan-flute intro, a pulsing verse, a lead-and-flute chorus and an outro. Local-only until it is approved.
+ * An original dark-synthwave tune, 100 bpm, C minor, the loop Cm - Ab - Bb - Gm, a bar a chord.
+ * Twelve bars: a pan-flute intro, a pulsing verse, a lead-and-flute chorus and an outro.
  */
 const BARS = 12;
 const ROOTS = [36, 32, 34, 31]; // C2 Ab1 Bb1 G1
@@ -89,7 +89,7 @@ export function fjordLight(): Song {
     key: 'C minor',
     bars: BARS,
     beatsPerBar: 4,
-    sleeve: { art: 'garden', colors: ['#0b2a4a', '#5cffb1', '#e9eef5'] },
+    sleeve: { art: 'aurora', colors: ['#0b2a4a', '#5cffb1', '#e9eef5'] },
     band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe'],
     setup: {
       synth: { synth: { preset: 6 } }, // Rubber Bass
@@ -112,6 +112,5 @@ export function fjordLight(): Song {
       { page: 'df2', device: 'box', control: 'f2.cutoff', curve: 'exp', points: [[0, 650], [8, 650], [24, 3000], [36, 3000], [48, 900]] },
     ],
     humanise: { timing: { drums: 5, synth: 5, poly: 12, lynch: 8, duo: 9, pipe: 9, df2: 9 }, velocity: 0.1, swing: 0.03, layback: { drums: { 38: 5, 39: 5 } } },
-    localOnly: true,
   };
 }

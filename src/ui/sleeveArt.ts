@@ -36,6 +36,16 @@ export function sleeveSvg(song: Song): string {
       body = `<rect width="250" height="250" fill="${a}"/><g stroke="${c}" stroke-opacity=".35" stroke-width="2"><path d="M0 170H250M0 195H250M0 225H250M30 155V250M85 155V250M140 155V250M195 155V250M245 155V250"/></g>
         <path d="M30 160L98 45L166 160Z" fill="${b}"/><path d="M90 175L158 60L226 175Z" fill="${c}" fill-opacity=".85"/><path d="M98 160L124 114L150 160Z" fill="#fff4df"/>${label(song, 16, 32, '#fff4df', 20)}`;
       break;
+    case 'aurora':
+      body = `<rect width="250" height="250" fill="${a}"/>
+        <g fill="#e9eef5"><circle cx="30" cy="40" r="1.6"/><circle cx="84" cy="22" r="1.2"/><circle cx="150" cy="34" r="1.8"/><circle cx="212" cy="26" r="1.3"/><circle cx="232" cy="78" r="1.2"/><circle cx="18" cy="96" r="1.1"/></g>
+        <path d="M-10 118 C40 70 90 150 150 96 S235 84 262 112 L262 156 C214 128 166 176 108 150 S18 166 -10 154 Z" fill="${b}" fill-opacity=".5"/>
+        <path d="M-10 84 C54 40 108 112 170 62 S238 54 262 80 L262 108 C216 88 170 130 110 108 S28 116 -10 112 Z" fill="#2de2e6" fill-opacity=".38"/>
+        <path d="M-10 146 C46 116 96 172 156 134 S232 130 262 150 L262 176 C216 160 168 196 110 176 S24 186 -10 178 Z" fill="#ff2e93" fill-opacity=".28"/>
+        <path d="M0 250 L0 196 L28 168 L54 192 L90 146 L124 196 L158 156 L198 200 L226 176 L250 194 L250 250 Z" fill="#05080f"/>
+        <path d="M0 250 L0 222 L40 204 L84 226 L134 208 L190 232 L250 214 L250 250 Z" fill="#02030a"/>
+        ${label(song, 16, 30, c)}`;
+      break;
     case 'flats':
     default:
       body = `<rect width="250" height="250" fill="${a}"/><rect y="132" width="250" height="118" fill="${b}"/><circle cx="170" cy="100" r="22" fill="${c}"/>

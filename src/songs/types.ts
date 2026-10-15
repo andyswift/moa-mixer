@@ -31,7 +31,7 @@ export interface Humanise {
 
 export interface Sleeve {
   /** Original art, drawn in SVG by the records page; this picks which and its colours. */
-  art: 'sunrise' | 'garden' | 'hands' | 'flats';
+  art: 'sunrise' | 'garden' | 'hands' | 'flats' | 'aurora';
   colors: string[];
 }
 
