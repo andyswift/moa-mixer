@@ -116,7 +116,7 @@ function wind(): NoteEvent[] {
 
 export function blackFjordLiturgy(): Song {
   const base = mixerSettings({
-    drums: { kick: 1.35, snare: 1.3, clap: 1.2, rest: 1.1 }, // the drums out in front
+    drums: { kick: 1.0, snare: 1.5, clap: 1.5, rest: 1.5 }, // balanced by RMS: the snare, clap and cymbals lifted so the kit snaps
     duck: 0, // no pumping: this one is meant to be relentless
     reverb: { ch5: 0.3, ch2: 0.5, line1: 0.1, line2: 0.5, line3: 0.1, line4: 0.4 },
     delay: {},
@@ -127,7 +127,7 @@ export function blackFjordLiturgy(): Song {
     // both guitars go to bus C, which feeds Ouroboros as the distortion; aux 3 sends noise to the granular effect
     'line1.busA': false, 'line1.busC': true, 'line3.busA': false, 'line3.busC': true,
     'line4.aux3': 0.7, 'ch7.aux3': 0.5, 'ch8.aux3': 0.5, 'ch6.aux3': 0.25,
-    'ret3.fader': 1.0, 'ret5.fader': 0.8,
+    'ret3.fader': 0.5, 'ret5.fader': 0.8, // the guitars come back from the distortion here: about 6 dB down so they sit just under the drums
   });
   return {
     id: 'black-fjord-liturgy',
@@ -140,6 +140,7 @@ export function blackFjordLiturgy(): Song {
     sleeve: { art: 'frost', colors: ['#08080d', '#e8eef7', '#8aa0b8'] },
     band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe'],
     setup: {
+      drums: { drums: { controls: { 'snare.level': 1, 'clap.level': 1, 'closedHat.level': 1, 'openHat.level': 1, 'ride.level': 1 } } },
       synth: { synth: { preset: 3 } }, // Fat Pulse Bass
       poly: { poly: { preset: 10 } }, // Choir Air
       lynch: { lynch: { preset: 11 } }, // Lead Saw: the rhythm guitar
