@@ -5,10 +5,12 @@ import { MonitorControl } from '../monitorControl';
 function setup(defaults: Record<string, string> = {}) {
   const log: string[] = [];
   let ports: { id: string; name: string }[] = [];
+  const hasInternal = !defaults['@noInternal'];
   const store = new Map<string, string>();
   const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
   const host: InputHost = {
     ports: () => ports,
+    hasInternal: () => hasInternal,
     setInternal: (jack, on) => void log.push(`cable ${jack} ${on ? 'on' : 'off'}`),
     attach: async (jack, portId) => {
       log.push(`attach ${jack} ${portId}`);
@@ -84,6 +86,18 @@ describe('MixerInputs', () => {
     await flush();
     expect(log).toContain('detach ch1 p1');
     expect(inputs.status('ch1')).toBe('none');
+  });
+
+  it('starts on the default port, or on none when there is no in-page instrument', async () => {
+    const { inputs, setPorts } = setup({ '@noInternal': 'y', ch1: 'Synth' });
+    expect(inputs.hasInternal('ch1')).toBe(false);
+    expect(inputs.selection('ch1')).toBe('Synth');
+    expect(inputs.selection('ch2')).toBe(NONE);
+    inputs.start();
+    setPorts([{ id: 'p1', name: 'Synth' }]);
+    await flush();
+    expect(inputs.status('ch1')).toBe('live');
+    expect(inputs.status('ch2')).toBe('none');
   });
 
   it('remembers choices by port name', () => {

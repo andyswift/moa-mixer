@@ -108,22 +108,39 @@ export class Patch {
       .setOutput('spring', 'out');
   }
 
+  /** The mixer page: the mixer and its effects, with no instruments (their audio arrives over the audio bus). */
+  static mixerRack(): Patch {
+    return Patch.wireRack(Patch.addRack(new Patch()));
+  }
+
+  /** The whole rig in one patch: the instruments feed the mixer directly. Used by tests and as the reference wiring. */
   static default(clock = new MidiClock()): Patch {
     // Mixer channel 1 is the mono synth, 2 the poly synth, 3-8 the drum voices (one individual output each).
     const patch = new Patch()
       .add('synth', new Synthesizer('Synth', clock))
       .add('poly', new PolySynth('Poly', clock))
-      .add('drums', new DrumMachine('Drums', clock))
+      .add('drums', new DrumMachine('Drums', clock));
+    Patch.addRack(patch)
+      .connect({ device: 'synth', jack: 'out' }, { device: 'mixer', jack: 'ch1' })
+      .connect({ device: 'poly', jack: 'out' }, { device: 'mixer', jack: 'ch2' });
+    DRUM_VOICES.forEach((voice, i) =>
+      patch.connect({ device: 'drums', jack: voice }, { device: 'mixer', jack: `ch${i + 3}` }));
+    return Patch.wireRack(patch);
+  }
+
+  /** The mixer (channels 1-8: synth, poly, six drum voices) and its effects, not yet wired. */
+  private static addRack(patch: Patch): Patch {
+    return patch
       .add('reverb', new ReverbFx('Reverb'))
       .add('delay', new DelayFx('Delay'))
       .add('ouroboros', new OuroborosFx('Ouroboros'))
       .add('buscomp', new BusCompFx('Bus Comp'))
       .add('granular', new GranularFx('Granular'))
-      .add('mixer', new Mixer(2 + DRUM_VOICES.length, 'Mixer', 5, { 3: 'C', 4: 'B' }))
-      .connect({ device: 'synth', jack: 'out' }, { device: 'mixer', jack: 'ch1' })
-      .connect({ device: 'poly', jack: 'out' }, { device: 'mixer', jack: 'ch2' });
-    DRUM_VOICES.forEach((voice, i) =>
-      patch.connect({ device: 'drums', jack: voice }, { device: 'mixer', jack: `ch${i + 3}` }));
+      .add('mixer', new Mixer(2 + DRUM_VOICES.length, 'Mixer', 5, { 3: 'C', 4: 'B' }));
+  }
+
+  /** Sends, returns, buses and the keyed compressor, plus the mixer's starting settings and its output. */
+  private static wireRack(patch: Patch): Patch {
     // Send effects: aux 1 feeds the reverb and aux 2 the delay; each comes back on its own stereo return strip.
     patch
       .connect({ device: 'mixer', jack: 'aux1' }, { device: 'reverb', jack: 'in' })

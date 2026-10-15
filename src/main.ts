@@ -1,43 +1,41 @@
 import './ui/style.css';
 import { AudioEngine } from './audio/engine';
+import { type InputHost, MixerInputs } from './audio/mixerInputs';
+import { PcmBus } from './audio/pcmBus';
 import type { BusCompFx } from './domain/devices/busComp';
-import type { DrumMachine } from './domain/devices/drumMachine';
 import type { GranularFx } from './domain/devices/granular';
+import type { Mixer } from './domain/devices/mixer';
 import type { OuroborosFx } from './domain/devices/ouroboros';
-import type { PolySynth } from './domain/devices/polySynth';
 import type { DelayFx, ReverbFx } from './domain/devices/sendFx';
-import { DrumSequencer } from './domain/devices/drumSequencer';
-import type { Synthesizer } from './domain/devices/synthesizer';
 import { MidiClock } from './domain/midi/clock';
 import { parseMidi } from './domain/midi/events';
 import { MidiMonitor } from './domain/midi/monitor';
-import { MixerInputs, type InputHost } from './audio/mixerInputs';
-import { PcmBus } from './audio/pcmBus';
+import { Patch } from './domain/patch/patch';
 import { MidiBus } from './midi/bus';
 import { WebMidi } from './midi/webMidi';
-import { Patch } from './domain/patch/patch';
-import { renderMidiStrip } from './ui/midiStrip';
 import { renderBusCompPanel } from './ui/busCompPanel';
-import { renderOuroPanel } from './ui/ouroborosPanel';
-import { renderPolyPanel } from './ui/polyPanel';
-import type { Mixer } from './domain/devices/mixer';
-import { renderDrumPanel } from './ui/drumPanel';
 import { renderFxPanel } from './ui/fxPanel';
 import { renderGranularPanel } from './ui/granularPanel';
+import { renderPageNav } from './ui/instrumentPage';
+import { renderMidiStrip } from './ui/midiStrip';
 import { renderMixerPanel } from './ui/mixerPanel';
-import { renderSynthPanel } from './ui/synthPanel';
+import { renderOuroPanel } from './ui/ouroborosPanel';
 
+// The mixer page: the mixer and its effects only. The instruments (MOA-1, MOA-6, the drum machine) are pages of their
+// own; their audio arrives over the audio bus into the channel strips.
 const clock = new MidiClock();
 const monitor = new MidiMonitor();
 const midi = new WebMidi();
-const patch = Patch.default(clock);
+const patch = Patch.mixerRack();
 const engine = new AudioEngine(patch);
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
-// Audio from instrument pages in other tabs arrives over the audio bus into the channel strips.
+// Each channel starts on the port its instrument page publishes (a choice made in the strip is remembered instead).
+const CHANNEL_PORTS = ['Synth', 'Poly', 'Drums: Kick', 'Drums: Snare', 'Drums: Clap', 'Drums: Closed Hat', 'Drums: Open Hat', 'Drums: Ride'];
 const pcm = new PcmBus();
 const host: InputHost = {
   ports: () => pcm.ports,
+  hasInternal: (jack) => patch.connections.some((c) => c.to.device === 'mixer' && c.to.jack === jack),
   setInternal: (jack, on) => {
     const cable = patch.connections.find((c) => c.to.device === 'mixer' && c.to.jack === jack);
     if (cable) engine.setCable(cable.from, cable.to, on);
@@ -58,7 +56,7 @@ const host: InputHost = {
     };
   },
 };
-const inputs = new MixerInputs(host, Array.from({ length: 8 }, (_, i) => `ch${i + 1}`));
+const inputs = new MixerInputs(host, CHANNEL_PORTS.map((_, i) => `ch${i + 1}`), Object.fromEntries(CHANNEL_PORTS.map((name, i) => [`ch${i + 1}`, name])));
 pcm.onChange(() => inputs.reconcile());
 
 const start = document.createElement('button');
@@ -71,12 +69,7 @@ start.addEventListener('click', async () => {
   start.disabled = true;
 });
 
-const synth = patch.device<Synthesizer>('synth');
-const poly = patch.device<PolySynth>('poly');
-const drums = patch.device<DrumMachine>('drums');
 const granular = patch.device<GranularFx>('granular');
-const sequencer = new DrumSequencer(drums, clock, () => engine.currentTime);
-setInterval(() => sequencer.tick(), 25);
 
 /** One entry point for every MIDI message, whether it came from a device or the dev console. */
 function handleMidiBytes(data: ArrayLike<number>, time = performance.now()): void {
@@ -84,11 +77,7 @@ function handleMidiBytes(data: ArrayLike<number>, time = performance.now()): voi
   if (!event) return;
   clock.handle(event, time);
   monitor.record(event, time);
-  synth.handleMidi(event);
-  poly.handleMidi(event);
   granular.handleMidi(event);
-  drums.handleMidi(event);
-  sequencer.handleMidi(event);
 }
 midi.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
 void midi.connectIfPermitted();
@@ -97,11 +86,7 @@ void midi.connectIfPermitted();
 const bus = new MidiBus();
 bus.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
 
-app.append(renderMidiStrip(midi, clock, monitor, start, bus), renderSynthPanel(synth));
-
-app.append(renderPolyPanel(poly));
-
-app.append(renderDrumPanel(drums, sequencer, 'drums', engine));
+app.append(renderPageNav('/mixer/'), renderMidiStrip(midi, clock, monitor, start, bus));
 
 app.append(renderFxPanel(patch.device<ReverbFx>('reverb'), patch.device<DelayFx>('delay')));
 
@@ -118,4 +103,4 @@ app.append(renderGranularPanel(granular, 'granular', engine));
 app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay', 'Ouroboros', 'Bus Comp', 'Granular'], { B: 'to Bus Comp', C: 'to Ouroboros' }, inputs));
 
 // Dev-only handle for poking at the engine from the browser console.
-if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch, sequencer, midi: handleMidiBytes } });
+if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch, pcm, midi: handleMidiBytes } });

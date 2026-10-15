@@ -9,6 +9,8 @@ export type InputStatus = 'idle' | 'internal' | 'none' | 'connecting' | 'live' |
 /** What the mixer inputs need from the page: the live ports, the in-page cables, and a way to play a port into a jack. */
 export interface InputHost {
   ports(): { id: string; name: string }[];
+  /** Whether this input jack has an in-page instrument cabled to it at all. */
+  hasInternal(jack: string): boolean;
   /** Connects or cuts the in-page cable that normally feeds this input jack. */
   setInternal(jack: string, on: boolean): void;
   /** Plays a port into the jack. Resolves with a function that disconnects it. */
@@ -43,7 +45,7 @@ export class MixerInputs {
   ) {
     const saved = load(storage);
     for (const jack of jacks) {
-      this.slots.set(jack, { selection: saved[jack] ?? defaults[jack] ?? INTERNAL, internal: true, status: 'idle' });
+      this.slots.set(jack, { selection: saved[jack] ?? defaults[jack] ?? (host.hasInternal(jack) ? INTERNAL : NONE), internal: true, status: 'idle' });
     }
   }
 
@@ -53,6 +55,11 @@ export class MixerInputs {
 
   status(jack: string): InputStatus {
     return this.slot(jack).status;
+  }
+
+  /** Whether the choice 'built-in' exists for this input. */
+  hasInternal(jack: string): boolean {
+    return this.host.hasInternal(jack);
   }
 
   /** Port names available right now, in the order the ports were announced. */

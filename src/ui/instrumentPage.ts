@@ -21,6 +21,14 @@ const PAGES: [href: string, label: string][] = [
   ['/seq/', 'MOA-SEQ'], ['/lynch/', 'Lynch 106'], ['/', 'moaswift.no'],
 ];
 
+/** The row of links to the other pages, leaving out the page it is on. */
+export function renderPageNav(self: string): HTMLElement {
+  const nav = document.createElement('nav');
+  nav.className = 'pipe-nav';
+  nav.innerHTML = PAGES.filter(([href]) => href !== self).map(([href, label]) => `<a href="${href}">${label}</a>`).join('');
+  return nav;
+}
+
 /**
  * The shared shell of an instrument page that plays on its own and also sends its audio to the mixer page: the audio
  * and MIDI strip (MIDI device, MIDI bus, clock), the audio-bus block, and one published port per entry in `ports`.
@@ -75,12 +83,8 @@ export function mountInstrumentPage(opts: {
   const bus = new MidiBus();
   bus.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
 
-  const nav = document.createElement('nav');
-  nav.className = 'pipe-nav';
-  nav.innerHTML = PAGES.filter(([href]) => href !== opts.self).map(([href, label]) => `<a href="${href}">${label}</a>`).join('');
-
   const strip = renderMidiStrip(midi, clock, monitor, start, bus);
   strip.append(renderAudioBusBlock(pcm, speakers));
-  app.append(nav, strip, opts.panel);
+  app.append(renderPageNav(opts.self), strip, opts.panel);
   return { handleMidiBytes, pcm };
 }

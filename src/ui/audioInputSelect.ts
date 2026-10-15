@@ -20,7 +20,7 @@ export function renderAudioInputSelect(inputs: MixerInputs, jack: string, label:
   const paint = () => {
     const selected = inputs.selection(jack);
     const names = inputs.portNames();
-    select.replaceChildren(new Option(internalLabel, INTERNAL), new Option('None', NONE));
+    select.replaceChildren(...(inputs.hasInternal(jack) ? [new Option(internalLabel, INTERNAL)] : []), new Option('None', NONE));
     for (const name of names) select.add(new Option(name, name));
     // A remembered port whose tab is closed stays in the list so the choice is visible.
     if (selected !== INTERNAL && selected !== NONE && !names.includes(selected)) select.add(new Option(`${selected} (not open)`, selected));
