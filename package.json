@@ -15,7 +15,8 @@
     "build:seq": "tsc --noEmit && vite build --config vite.seq.config.ts",
     "build:synth": "tsc --noEmit && vite build --config vite.synth.config.ts",
     "build:poly": "tsc --noEmit && vite build --config vite.poly.config.ts",
-    "build:drums": "tsc --noEmit && vite build --config vite.drums.config.ts"
+    "build:drums": "tsc --noEmit && vite build --config vite.drums.config.ts",
+    "build:records": "tsc --noEmit && vite build --config vite.records.config.ts"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
