@@ -107,7 +107,7 @@ export function renderRecords(root: HTMLElement, songs: Song[], band: Band, play
   deck.append(deckLeft, deckRight, el('div', 'rec-back-row'));
   deck.querySelector('.rec-back-row')!.append(back);
 
-  root.append(head, tagline, crate, pick, deck, status);
+  root.append(head, tagline, pick, crate, deck, status);
 
   // ---- behaviour ----
   const song = () => songs[selected]!;
