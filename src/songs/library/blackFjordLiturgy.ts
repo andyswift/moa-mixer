@@ -60,12 +60,12 @@ function drums(): NoteEvent[] {
         const snareRoll = bar === 7 && s >= 12;
         if (kickRun) hit(DRUM.kick, 1, 112 * f);
         else if (snareRoll) hit(DRUM.snare, 1, 80 + (s - 12) * 12);
-        else if (s % 2 === 0) { hit(DRUM.kick, 1, 118 * f); if (s % 4 === 0) hit(DRUM.closedHat, 1, 84 * f); } // blast: kick on the even 16ths ...
-        else hit(DRUM.snare, 1, 110 * f); // ... snare on the odd ones
+        else if (s % 2 === 0) { hit(DRUM.kick, 1, 126 * f); if (s % 4 === 0) hit(DRUM.closedHat, 1, 90 * f); } // blast: kick on the even 16ths ...
+        else { hit(DRUM.snare, 1, 122 * f); if (s % 4 === 1) hit(DRUM.clap, 1, 92 * f); } // ... snare on the odd ones, a clap on every other for crack
         if (s === 0 && (bar === 2 || bar === 12)) hit(DRUM.ride, 8, 110); // crash into each riff
       } else if (sec === 'dirge') {
-        if (s === 0 || (s === 6 && bar % 2 === 1)) hit(DRUM.kick, 1, 124);
-        if (s === 8) { hit(DRUM.snare, 1, 124); hit(DRUM.clap, 1, 100); }
+        if (s === 0 || (s === 6 && bar % 2 === 1)) hit(DRUM.kick, 1, 127);
+        if (s === 8) { hit(DRUM.snare, 1, 127); hit(DRUM.clap, 1, 112); }
         if (s === 4 || s === 12) hit(DRUM.openHat, 2, 66);
         if (s === 0 && bar === 8) hit(DRUM.ride, 10, 108);
         if (bar === 11 && s >= 12) hit(DRUM.kick, 1, 104 + (s - 12) * 5); // a double-kick run into the second riff
@@ -116,11 +116,11 @@ function wind(): NoteEvent[] {
 
 export function blackFjordLiturgy(): Song {
   const base = mixerSettings({
-    drums: { kick: 1.15, snare: 1.1, clap: 1.0, rest: 1.0 },
+    drums: { kick: 1.35, snare: 1.3, clap: 1.2, rest: 1.1 }, // the drums out in front
     duck: 0, // no pumping: this one is meant to be relentless
     reverb: { ch5: 0.3, ch2: 0.5, line1: 0.1, line2: 0.5, line3: 0.1, line4: 0.4 },
     delay: {},
-    faders: { line1: 0.9, line3: 0.8, line2: 0.7, line4: 0.8 },
+    faders: { line1: 0.55, line3: 0.5, line2: 0.7, line4: 0.8 }, // guitars tucked back so the kit cuts through
   });
   const mixerControls = base.mixer!.controls!;
   Object.assign(mixerControls, {
@@ -152,7 +152,7 @@ export function blackFjordLiturgy(): Song {
         ouroboros: {
         controls: {
           // used as a distortion: fully wet, bit-crushed and clipped, no echo and no wobble
-          'ouro.routing': 'parallel', 'ouro.mix': 1, 'ouro.input': 1.6, 'ouro.output': 0.85,
+          'ouro.routing': 'parallel', 'ouro.mix': 1, 'ouro.input': 1.6, 'ouro.output': 0.6,
           'ouro.a.delay': 10, 'ouro.b.delay': 14, 'ouro.a.grit': 0.9, 'ouro.b.grit': 0.85, 'ouro.a.clip': 0.9, 'ouro.b.clip': 0.85,
           'ouro.a.cutoff': 6500, 'ouro.b.cutoff': 5200, 'ouro.a.resonance': 1, 'ouro.b.resonance': 1,
           'ouro.fb.aa': 0, 'ouro.fb.bb': 0, 'ouro.fb.ab': 0, 'ouro.fb.ba': 0,
