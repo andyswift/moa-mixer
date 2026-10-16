@@ -81,3 +81,21 @@
 }
 .m26-mobile, .m26-card, .m26-item, .m26-item > *, .m26-patch-mobile, .m26-mobile .m26-channel { min-width: 0; }
 .m26-mobile .m26-slider { width: 100%; }
+
+/* patch cords */
+.m26-desktop button.m26-jack { padding: 0; border: 0; cursor: grab; touch-action: none; }
+.m26-desktop button.m26-jack:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.m26-jack.m26-target { box-shadow: 0 0 0 0.18cqw #ffd34a, 0 0 0.7cqw 0.1cqw rgba(255, 211, 74, 0.7); }
+.m26-jack.m26-anchor { box-shadow: 0 0 0 0.2cqw #fff, 0 0 0.8cqw 0.15cqw rgba(255, 255, 255, 0.7); }
+.m26-cables { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; overflow: visible; }
+.m26-cable { opacity: 0.93; }
+.m26-cable-live { opacity: 0.75; }
+.m26-desktop .m26-clear { font-size: 0.72cqw; }
+.m26-patch-btn:disabled { opacity: 0.45; cursor: default; }
+.m26-cord-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.m26-cord { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+.m26-cord .m26-patch-btn { min-width: 40px; min-height: 36px; }
+.m26-cord-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.m26-cord-form select { flex: 1 1 140px; min-height: 40px; font-size: 13px; }
+.m26-cord-form .m26-patch-btn { min-height: 40px; padding: 0 12px; }
+.m26-cord-note { margin: 0; font-size: 12px; color: #c4c6c9; }

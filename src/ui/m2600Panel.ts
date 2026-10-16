@@ -2,6 +2,8 @@ import type { AudioEngine, M2600View } from '../audio/engine';
 import type { ChoiceControl, NumberControl, ToggleControl } from '../domain/devices/controls';
 import type { M2600Synth } from '../domain/devices/m2600Synth';
 import { M2600_CHANNELS } from '../domain/devices/m2600Synth';
+import { DEST_JACKS, SOURCE_JACKS, jackKind, jackName } from '../domain/devices/m2600Cords';
+import { type JackSpot, mountCables } from './m2600Cables';
 import { STEPS, fromSlider, toSlider } from './controls';
 import { persistPatch } from './m2600Storage';
 import { el } from './widgets';
@@ -217,6 +219,7 @@ function led(cls = ''): HTMLElement {
 /** Collects placed controls and the SVG artwork drawn around them. */
 class Board {
   readonly root = el('div', 'm26-desktop');
+  readonly jacks = new Map<string, JackSpot>();
   private svg: string[] = [];
 
   place(child: HTMLElement, cx: number, cy: number, w: number, h = w): HTMLElement {
@@ -262,12 +265,20 @@ class Board {
     this.text(mid, y + 3, s, 8.5, 'middle', 'font-weight="600"');
   }
 
-  /** A jack socket (inert in phase 1, tagged for the cords to come). */
+  /** A jack socket: a button the patch cords plug into (the L/R outputs, which leave the synth, are not patchable). */
   jack(id: string, x: number, y: number, title: string): HTMLElement {
-    const j = el('span', 'm26-jack');
+    if (!jackKind(id)) {
+      const j = el('span', 'm26-jack');
+      j.title = title;
+      j.setAttribute('aria-hidden', 'true');
+      return this.place(j, x, y, 21);
+    }
+    const j = el('button', 'm26-jack');
+    j.type = 'button';
     j.dataset.jack = id;
-    j.title = title;
-    j.setAttribute('aria-hidden', 'true');
+    j.title = `${title} — drag to another jack to patch, double-click to unplug`;
+    j.setAttribute('aria-label', `Jack ${jackName(id)}`);
+    this.jacks.set(id, { el: j, x, y });
     return this.place(j, x, y, 21);
   }
   /** An input jack with the attenuator mark under it and its source in a small box below. */
@@ -340,6 +351,65 @@ function patchStrip(d: M2600Synth, cls: string): { name: HTMLElement; buttons: H
   };
 }
 
+/** The header button that pulls every cord out, with the number patched. */
+function clearCords(d: M2600Synth): HTMLElement {
+  const b = el('button', 'm26-patch-btn m26-clear');
+  b.type = 'button';
+  const sync = () => {
+    b.textContent = `CORDS ${d.cords.length} ✕`;
+    b.disabled = d.cords.length === 0;
+    b.setAttribute('aria-label', `Remove all ${d.cords.length} patch cords`);
+  };
+  b.addEventListener('click', () => d.clearCords());
+  d.onCordsChange(sync);
+  sync();
+  return b;
+}
+
+/** The cords as a list with remove buttons, and two pickers to add one: the phone layout's patch bay (and a keyboard-friendly one). */
+function cordsCard(d: M2600Synth): HTMLElement {
+  const card = el('section', 'm26-card');
+  card.append(el('h2', 'm26-card-title', 'PATCH CORDS'));
+  const list = el('ul', 'm26-cord-list');
+  const picker = (label: string, ids: readonly string[]): HTMLSelectElement => {
+    const s = el('select', 'm26-channel');
+    s.setAttribute('aria-label', label);
+    for (const id of ids) {
+      const o = el('option', '', jackName(id));
+      o.value = id;
+      s.append(o);
+    }
+    return s;
+  };
+  const from = picker('Cord from', SOURCE_JACKS);
+  const to = picker('Cord to', DEST_JACKS);
+  const add = el('button', 'm26-patch-btn', 'CONNECT');
+  add.type = 'button';
+  const note = el('p', 'm26-cord-note');
+  add.addEventListener('click', () => {
+    note.textContent = d.connect(from.value, to.value) ? '' : 'Those two cannot be joined.';
+  });
+  const form = el('div', 'm26-cord-form');
+  form.append(from, el('span', 'm26-item-label', '→'), to, add);
+  const paint = () => {
+    list.replaceChildren(...d.cords.map((c) => {
+      const li = el('li', 'm26-cord');
+      li.append(el('span', '', `${jackName(c.from)} → ${jackName(c.to)}`));
+      const x = el('button', 'm26-patch-btn', '✕');
+      x.type = 'button';
+      x.setAttribute('aria-label', `Remove ${jackName(c.from)} to ${jackName(c.to)}`);
+      x.addEventListener('click', () => d.setCords(d.cords.filter((k) => k !== c)));
+      li.append(x);
+      return li;
+    }));
+    if (d.cords.length === 0) list.append(el('li', 'm26-cord-note', 'No cords: the synth plays on its normalled routing.'));
+  };
+  d.onCordsChange(paint);
+  paint();
+  card.append(list, form, note);
+  return card;
+}
+
 function channelSelect(d: M2600Synth): HTMLElement {
   const c = choice(d, 'play.channel');
   const s = el('select', 'm26-channel');
@@ -369,7 +439,8 @@ function buildDesktop(d: M2600Synth, lamps: Lamps): HTMLElement {
   }
   b.text(40, 37, 'MOA-2600', 28, 'start', 'class="m26-logo"');
   b.text(186, 36, 'SEMI-MODULAR SYNTHESIZER · DUAL FILTER', 10, 'start', 'letter-spacing="2" class="m26-sub"');
-  b.place(readout.el, 590, 26, 300, 20);
+  b.place(readout.el, 590, 26, 280, 20);
+  b.place(clearCords(d), 777, 26, 74, 24);
   const patch = patchStrip(d, 'm26-patch-desktop');
   b.place(patch.name, 950, 26, 250, 24);
   b.place(patch.buttons[0]!, 1095, 26, 28, 24);
@@ -754,7 +825,9 @@ function buildDesktop(d: M2600Synth, lamps: Lamps): HTMLElement {
     b.text(1280, u(172), 'GATE', 8);
   }
 
-  return b.finish();
+  const root = b.finish();
+  mountCables(root, d, b.jacks, W, H, (text) => readout.show(text));
+  return root;
 }
 
 // ---------------------------------------------------------------- lamps
@@ -805,7 +878,7 @@ function buildMobile(d: M2600Synth): HTMLElement {
   manual.textContent = 'AR MANUAL';
   const tools = el('div', 'm26-patch-row');
   tools.append(channelSelect(d), manual);
-  root.append(row, tools);
+  root.append(row, tools, cordsCard(d));
   for (const [title, ids] of CARDS) {
     const card = el('section', 'm26-card');
     card.append(el('h2', 'm26-card-title', title));

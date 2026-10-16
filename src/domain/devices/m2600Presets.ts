@@ -1,10 +1,14 @@
 import { M2600_PARAMS } from './m2600Params';
 import type { PresetValues, SynthPreset } from './synthPresets';
 
+/** The patch value that holds the patch cords ("from>to;from>to", see `m2600Cords.ts`); no cords in Init. */
+export const M2600_CORDS_KEY = 'cords';
+
 /** Every sound control at its default, so loading a patch always resets everything the patch does not mention. */
-export const M2600_INIT: PresetValues = Object.fromEntries(
-  M2600_PARAMS.map((p) => [p.id, p.kind === 'choice' ? p.options![p.def]! : p.def]),
-);
+export const M2600_INIT: PresetValues = {
+  ...Object.fromEntries(M2600_PARAMS.map((p) => [p.id, p.kind === 'choice' ? p.options![p.def]! : p.def])),
+  [M2600_CORDS_KEY]: '',
+};
 
 /** The MIDI channel belongs to the setup, not the sound. */
 export const M2600_NOT_IN_PATCH = ['play.channel'] as const;
@@ -104,6 +108,23 @@ export const M2600_FACTORY: readonly SynthPreset[] = [
     'vco1.freq': C3, 'vcf.mode': '4012', 'vcf.freq': 350, 'vcf.res': 0.7, 'vcf.cv.adsr': 0.4,
     'sem.freq': 1400, 'sem.res': 0.75, 'sem.cv.adsr': 0.25, 'sem.mode': 0.15,
     'adsr.attack': 0.002, 'adsr.decay': 0.4, 'adsr.sustain': 0.2, 'adsr.release': 0.2,
+  }),
+  // ---- patched with cords
+  p('S&H Filter', {
+    [M2600_CORDS_KEY]: 'sh.out>vcf.cv.vco2', 'vcf.cv.vco2': 0.3, 'vcf.freq': 700, 'vcf.res': 0.7, 'vcf.cv.adsr': 0,
+    'sh.rate': 7, 'adsr.sustain': 1, 'adsr.release': 0.3,
+  }),
+  p('Inverted Envelope', {
+    [M2600_CORDS_KEY]: 'adsr.out>vp.1;vp.inv1>vcf.cv.vco2', 'vcf.cv.vco2': 0.4, 'vcf.freq': 5000, 'vcf.res': 0.5, 'vcf.cv.adsr': 0,
+    'adsr.attack': 0.3, 'adsr.decay': 0.8, 'adsr.sustain': 0.4, 'adsr.release': 0.5,
+  }),
+  p('Mult Wobble', {
+    [M2600_CORDS_KEY]: 'lfo.tri>mult.1;mult.2>vcf.cv.vco2;mult.3>vco2.pwm', 'vco2.freq': C2, 'vcf.in.vco1': 0, 'vcf.in.vco2': 0.8,
+    'vco2.pwm': 0.5, 'vcf.cv.vco2': 0.25, 'vcf.freq': 600, 'vcf.res': 0.5, 'vcf.cv.adsr': 0, 'lfo.speed': 3, 'adsr.sustain': 1,
+  }),
+  p('Octave Switch', {
+    [M2600_CORDS_KEY]: 'vp.inv2>esw.b;esw.c>mult.1;mult.2>vco1.fm.sh;mult.3>vco2.fm.sh', 'vp.6': 0.1, 'vco1.fm.sh': 1, 'vco2.fm.sh': 1,
+    'vco2.fine': 0.07, 'vcf.in.vco2': 0.6, 'vcf.freq': 2000, 'vcf.res': 0.3, 'vcf.cv.adsr': 0.1, 'sh.rate': 6, 'adsr.sustain': 0.8,
   }),
 ];
 

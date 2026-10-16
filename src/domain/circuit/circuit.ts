@@ -33,6 +33,7 @@
 // 'm2600' is the MOA-2600 semi-modular synth: three VCOs, two filters (a 4012/4072 VCF and an SEM-style
 // state-variable), envelopes, VCA, utilities and a reverb in one worklet, stereo out, no input. It takes `play` like a
 // duo node (n1 the keyboard CV note, n2 the upper voice) and `send` messages; its params are listed in `m2600Params.ts`.
+// Its `cords` option holds the patch cords (JSON) so a worklet built later starts with them.
 // 'df' is the MOA-DF2 filter box: two multimode filters, two envelopes, a sample-and-hold, a delay and a mixer in
 // one worklet; stereo in, stereo out. Its params are listed in `dfWorklet.ts`. `gate(id, target, on)` drives its
 // envelope gates: 'keys' (the held keys) or 'open1' / 'open2' (the OPEN buttons).

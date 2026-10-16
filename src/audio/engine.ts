@@ -260,6 +260,7 @@ export class AudioEngine {
         case 'm2600': {
           const node = new AudioWorkletNode(ctx, M2600_NAME, {
             numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], parameterData: n.params,
+            processorOptions: { cords: JSON.parse(n.options.cords ?? '[]') as unknown },
           });
           node.port.onmessage = (e: MessageEvent<M2600View>) => this.m2600Views.set(`${deviceId}/${n.id}`, e.data);
           nodes.set(n.id, node);

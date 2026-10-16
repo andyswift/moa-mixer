@@ -466,9 +466,12 @@ if (typeof registerProcessor === 'function') {
     static get parameterDescriptors() {
       return M26_PARAM_DEFS.map((d) => ({ name: d[0], defaultValue: d[1], minValue: d[2], maxValue: d[3], automationRate: 'k-rate' }));
     }
-    constructor() {
+    constructor(options) {
       super();
       this.core = new M26Core(sampleRate);
+      // the cords patched before audio started
+      const cords = options && options.processorOptions && options.processorOptions.cords;
+      if (cords) this.core.setCords(cords);
       this.p = Object.assign({}, M26_DEFAULTS);
       this.sinceView = 0;
       this.port.onmessage = (e) => {

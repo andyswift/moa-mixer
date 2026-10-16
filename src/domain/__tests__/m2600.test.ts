@@ -3,6 +3,7 @@ import { M2600_SOURCE } from '../../audio/m2600Worklet';
 import { M2600_INPUTS, M2600_OUTPUTS, M2600_PARAMS } from '../devices/m2600Params';
 import { M2600_FACTORY, M2600_SLOTS } from '../devices/m2600Presets';
 import { M2600Synth } from '../devices/m2600Synth';
+import { addCord, jackName, orient, parse, resolve, serialize } from '../devices/m2600Cords';
 
 const watch = (synth: M2600Synth) => {
   const plays: { n1: number; n2: number; gate: boolean; retrig: boolean }[] = [];
@@ -94,6 +95,34 @@ describe('patches', () => {
     };
   };
   const SR = 48000;
+  const render = (i: number, withCords: boolean) => {
+    const s = new M2600Synth();
+    s.loadSlot(i);
+    const p: Record<string, number> = { bend: 0, modw: 0 };
+    for (const def of M2600_PARAMS) {
+      const v = s.control(def.id).value;
+      p[def.id] = typeof v === 'boolean' ? (v ? 1 : 0) : typeof v === 'string' ? def.options!.indexOf(v) : v;
+    }
+    let seed = 7;
+    const core = new mod.M26Core(SR, () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296)) as unknown as {
+      setCords(c: unknown): void; play(n1: number, n2: number, g: boolean, r: boolean): void;
+      process(l: Float32Array, r: Float32Array, n: number, p: Record<string, number>): void;
+    };
+    if (withCords) core.setCords(resolve(s.cords));
+    core.play(60, 60, true, true);
+    const l = new Float32Array(SR), r = new Float32Array(SR);
+    for (let at = 0; at < SR; at += 128) core.process(l.subarray(at, at + 128), r.subarray(at, at + 128), 128, p);
+    return l;
+  };
+  for (const [i, preset] of M2600_FACTORY.entries()) {
+    if (!preset.values.cords) continue;
+    it(`"${preset.name}" really depends on its cords`, () => {
+      const a = render(i, true), b = render(i, false);
+      let diff = 0, ref = 0;
+      for (let k = 0; k < a.length; k++) { diff += (a[k]! - b[k]!) ** 2; ref += a[k]! ** 2; }
+      expect(Math.sqrt(diff / ref)).toBeGreaterThan(0.2);
+    });
+  }
   for (const [i, preset] of M2600_FACTORY.entries()) {
     it(`"${preset.name}" sounds with a held note and stays within ±1`, () => {
       const s = new M2600Synth();
@@ -105,6 +134,7 @@ describe('patches', () => {
       }
       let seed = 7;
       const core = new mod.M26Core(SR, () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296));
+      (core as unknown as { setCords(c: unknown): void }).setCords(resolve(s.cords));
       core.play(60, 67, true, true);
       const n = SR * 1.5;
       const l = new Float32Array(n), r = new Float32Array(n);
@@ -120,4 +150,65 @@ describe('patches', () => {
       expect(Math.sqrt(sum / n)).toBeGreaterThan(0.002);
     });
   }
+});
+
+describe('patch cords', () => {
+  it('orients a cord whichever end you start from, and refuses two outputs, two inputs or two MULT jacks', () => {
+    expect(orient('vcf.cv.vco2', 'sh.out')).toEqual({ from: 'sh.out', to: 'vcf.cv.vco2' });
+    expect(orient('vco1.saw', 'vco2.saw')).toBeUndefined();
+    expect(orient('vcf.in.vco1', 'vcf.in.vco2')).toBeUndefined();
+    expect(orient('mult.1', 'mult.2')).toBeUndefined();
+    expect(orient('vcf.in.vco1', 'mult.3')).toEqual({ from: 'mult.3', to: 'vcf.in.vco1' });
+    expect(orient('nope', 'vcf.out')).toBeUndefined();
+  });
+
+  it('an input takes one plug (a new cord replaces it); outputs stack', () => {
+    let cords = addCord([], { from: 'sh.out', to: 'vcf.cv.vco2' });
+    cords = addCord(cords, { from: 'sh.out', to: 'vco1.fm.sh' });
+    expect(cords).toHaveLength(2);
+    cords = addCord(cords, { from: 'lfo.tri', to: 'vcf.cv.vco2' });
+    expect(cords).toEqual([{ from: 'sh.out', to: 'vco1.fm.sh' }, { from: 'lfo.tri', to: 'vcf.cv.vco2' }]);
+  });
+
+  it('the MULT passes its one source to every cord out of it', () => {
+    let cords = addCord([], { from: 'lfo.tri', to: 'mult.1' });
+    cords = addCord(cords, { from: 'mult.2', to: 'vcf.cv.vco2' });
+    cords = addCord(cords, { from: 'mult.4', to: 'vco2.pwm' });
+    expect(resolve(cords)).toEqual([{ from: 'lfo.tri', to: 'vcf.cv.vco2' }, { from: 'lfo.tri', to: 'vco2.pwm' }]);
+    cords = addCord(cords, { from: 'adsr.out', to: 'mult.3' }); // a second source replaces the first
+    expect(resolve(cords).map((c) => c.from)).toEqual(['adsr.out', 'adsr.out']);
+    expect(resolve([{ from: 'mult.2', to: 'vcf.cv.vco2' }])).toEqual([]); // nothing feeds it
+  });
+
+  it('round-trips through patch text, dropping anything invalid', () => {
+    const cords = parse('lfo.tri>mult.1;mult.2>vcf.cv.vco2;junk>vcf.out;vco1.saw>vco2.saw');
+    expect(serialize(cords)).toBe('lfo.tri>mult.1;mult.2>vcf.cv.vco2');
+  });
+
+  it('the synth sends resolved cords to the worklet, keeps them on the node, and saves them in patches', () => {
+    const s = new M2600Synth();
+    const sent: unknown[] = [];
+    s.circuit.onChange((c) => { if (c.type === 'message') sent.push(c.data); });
+    expect(s.connect('vcf.cv.vco2', 'sh.out')).toBe(true);
+    expect(s.connect('vco1.saw', 'vco2.saw')).toBe(false);
+    expect(sent.at(-1)).toEqual({ type: 'cords', cords: [{ from: 'sh.out', to: 'vcf.cv.vco2' }] });
+    expect(JSON.parse(s.circuit.node('synth').options.cords!)).toEqual([{ from: 'sh.out', to: 'vcf.cv.vco2' }]);
+    s.saveSlot(20);
+    s.loadSlot(0);
+    expect(s.cords).toEqual([]); // Init has no cords
+    s.loadSlot(20);
+    expect(s.cords).toEqual([{ from: 'sh.out', to: 'vcf.cv.vco2' }]);
+    s.unplug('sh.out');
+    expect(s.cords).toEqual([]);
+  });
+
+  it('names jacks for people', () => {
+    expect(jackName('vcf.in.vco1')).toBe('VCF · Audio VCO 1');
+    expect(jackName('vco2.sine')).toBe('VCO 2 · sine');
+    expect(jackName('mult.3')).toBe('Mult · 3');
+  });
+
+  it('every jack on the table has a readable name', () => {
+    for (const id of ['kb.cv', 'kb.upper', 'esw.c', 'vp.inv1', 'sh.extclk', 'out.left']) expect(jackName(id)).not.toMatch(/undefined/);
+  });
 });

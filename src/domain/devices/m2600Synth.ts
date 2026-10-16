@@ -1,7 +1,8 @@
 import type { MidiEvent } from '../midi/events';
 import { ChoiceControl, NumberControl, ToggleControl } from './controls';
 import { Device } from './device';
-import { M2600_INIT, M2600_NOT_IN_PATCH, M2600_PRESETS } from './m2600Presets';
+import { type Cord, addCord, orient, parse, removeAt, resolve, serialize } from './m2600Cords';
+import { M2600_CORDS_KEY, M2600_INIT, M2600_NOT_IN_PATCH, M2600_PRESETS } from './m2600Presets';
 import { M2600_PARAMS, M2600_PERFORMANCE } from './m2600Params';
 import type { Playable } from './playable';
 import type { PresetValues, SynthPreset } from './synthPresets';
@@ -33,6 +34,8 @@ export class M2600Synth extends Device implements Playable {
   private last = { n1: 60, n2: 60 };
   private portaHeld = false;
   private manualOn = false;
+  private cordList: Cord[] = [];
+  private readonly cordListeners = new Set<() => void>();
   private readonly noteListeners = new Set<() => void>();
   private readonly performanceListeners = new Set<() => void>();
   private readonly presetListeners = new Set<() => void>();
@@ -42,7 +45,7 @@ export class M2600Synth extends Device implements Playable {
     this.name = name;
     const c = this.circuit;
     const all = [...M2600_PARAMS, ...M2600_PERFORMANCE];
-    c.add('synth', 'm2600', Object.fromEntries(all.map((p) => [p.id, p.def])))
+    c.add('synth', 'm2600', Object.fromEntries(all.map((p) => [p.id, p.def])), { cords: '[]' })
       .add('meterL', 'meter', {}, { channel: 'left' })
       .add('meterR', 'meter', {}, { channel: 'right' })
       .connect('synth', 'meterL')
@@ -194,6 +197,43 @@ export class M2600Synth extends Device implements Playable {
     }
   }
 
+  // ---- Patch cords ----
+
+  get cords(): readonly Cord[] {
+    return this.cordList;
+  }
+
+  /** Joins two jacks, in either order; false if they cannot be joined (two outputs, two inputs, two MULT jacks). */
+  connect(a: string, b: string): boolean {
+    const cord = orient(a, b);
+    if (!cord) return false;
+    this.setCords(addCord(this.cordList, cord));
+    return true;
+  }
+
+  /** Pulls every cord out of jack `id`. */
+  unplug(id: string): void {
+    this.setCords(removeAt(this.cordList, id));
+  }
+
+  clearCords(): void {
+    this.setCords([]);
+  }
+
+  setCords(cords: readonly Cord[]): void {
+    this.cordList = [...cords];
+    const resolved = resolve(this.cordList);
+    // kept on the node too, so a worklet built later (audio starting) begins with them
+    this.circuit.setOption('synth', 'cords', JSON.stringify(resolved));
+    this.circuit.send('synth', { type: 'cords', cords: resolved });
+    for (const l of this.cordListeners) l();
+  }
+
+  onCordsChange(fn: () => void): () => void {
+    this.cordListeners.add(fn);
+    return () => this.cordListeners.delete(fn);
+  }
+
   // ---- Patches ----
 
   loadSlot(index: number): void {
@@ -208,6 +248,11 @@ export class M2600Synth extends Device implements Playable {
   private applyValues(values: PresetValues): void {
     for (const [id, value] of Object.entries(values)) {
       if ((M2600_NOT_IN_PATCH as readonly string[]).includes(id)) continue;
+      if (id === M2600_CORDS_KEY) {
+        if (typeof value !== 'string') throw new Error('Patch: bad cords');
+        this.setCords(parse(value));
+        continue;
+      }
       const c = this.control(id);
       if (c.kind === 'number' && typeof value === 'number') c.set(value);
       else if (c.kind === 'toggle' && typeof value === 'number') c.set(value > 0);
@@ -216,13 +261,14 @@ export class M2600Synth extends Device implements Playable {
     }
   }
 
-  /** The current value of every sound control, in the form a patch stores (the MIDI channel is left out). */
+  /** The current value of every sound control and the cords, in the form a patch stores (the MIDI channel is left out). */
   snapshot(): PresetValues {
     const values: PresetValues = {};
     for (const c of this.controlList) {
       if ((M2600_NOT_IN_PATCH as readonly string[]).includes(c.id)) continue;
       values[c.id] = c.kind === 'toggle' ? (c.value ? 1 : 0) : c.value;
     }
+    values[M2600_CORDS_KEY] = serialize(this.cordList);
     return values;
   }
 
