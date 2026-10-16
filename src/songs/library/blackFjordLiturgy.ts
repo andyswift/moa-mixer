@@ -122,7 +122,7 @@ export function blackFjordLiturgy(): Song {
     delay: {},
     faders: { line1: 0.55, line3: 0.5, line2: 0.7, line4: 0.8 }, // guitars tucked back so the kit cuts through
   });
-  const mixerControls = base.mixer!.controls!;
+  const mixerControls = base.mixer.mixer!.controls!;
   Object.assign(mixerControls, {
     // both guitars go to bus C, which feeds Ouroboros as the distortion; aux 3 sends noise to the granular effect
     'line1.busA': false, 'line1.busC': true, 'line3.busA': false, 'line3.busC': true,
@@ -138,7 +138,7 @@ export function blackFjordLiturgy(): Song {
     bars: BARS,
     beatsPerBar: 4,
     sleeve: { art: 'frost', colors: ['#08080d', '#e8eef7', '#8aa0b8'] },
-    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe'],
+    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', 'reverb', 'buscomp', 'ouroboros', 'granular'],
     setup: {
       drums: { drums: { controls: { 'snare.level': 1, 'clap.level': 1, 'closedHat.level': 1, 'openHat.level': 1, 'ride.level': 1 } } },
       synth: { synth: { preset: 3 } }, // Fat Pulse Bass
@@ -147,10 +147,9 @@ export function blackFjordLiturgy(): Song {
       duo: { duo: { preset: 11 } }, // Infinite Cathedral
       df2: { lynch: { preset: 11 }, box: { preset: 3, controls: { 'f1.res': 0.6, 'f2.res': 0.55, 'delay.level': 0 } } }, // the second guitar, through Screaming Madman
       pipe: { pipe: { preset: 14 } }, // Steam Drone: wind
-      mixer: {
-        mixer: base.mixer!,
-        buscomp: base.buscomp!,
-        ouroboros: {
+      mixer: base.mixer,
+      buscomp: base.buscomp,
+      ouroboros: { ouroboros: {
         controls: {
           // used as a distortion: fully wet, bit-crushed and clipped, no echo and no wobble
           'ouro.routing': 'parallel', 'ouro.mix': 1, 'ouro.input': 1.6, 'ouro.output': 0.6,
@@ -160,7 +159,8 @@ export function blackFjordLiturgy(): Song {
           'ouro.mod.depth': 0, 'ouro.mod.dlyA': 0, 'ouro.mod.dlyB': 0,
         },
         },
-        granular: {
+      },
+      granular: { granular: {
         controls: {
           // a dusty, driven grain cloud for the noise
           'gr.position': 0.6, 'gr.size': 25, 'gr.rate': 70, 'gr.spread': 1, 'gr.cloud': 0.9, 'gr.detune': 40, 'gr.shape': 0.8,

@@ -30,10 +30,13 @@
 // 'duo' is the MOA-DUO synth: two oscillators, two routable filters, three modulators and a reverb in one worklet,
 // stereo out, no input. `play(id, n1, n2, gate, retrig)` sets the two oscillator notes and the gate; its params are
 // listed in `duoWorklet.ts`.
+// 'm2600' is the MOA-2600 semi-modular synth: three VCOs, two filters (a 4012/4072 VCF and an SEM-style
+// state-variable), envelopes, VCA, utilities and a reverb in one worklet, stereo out, no input. It takes `play` like a
+// duo node (n1 the keyboard CV note, n2 the upper voice) and `send` messages; its params are listed in `m2600Params.ts`.
 // 'df' is the MOA-DF2 filter box: two multimode filters, two envelopes, a sample-and-hold, a delay and a mixer in
 // one worklet; stereo in, stereo out. Its params are listed in `dfWorklet.ts`. `gate(id, target, on)` drives its
 // envelope gates: 'keys' (the held keys) or 'open1' / 'open2' (the OPEN buttons).
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df' | 'duo';
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df' | 'duo' | 'm2600';
 
 export interface CircuitNode {
   readonly id: string;
@@ -56,7 +59,8 @@ export type CircuitChange =
   | { type: 'choke'; nodeId: string; when?: number }
   | { type: 'note'; nodeId: string; note: number; velocity: number }
   | { type: 'gate'; nodeId: string; target: 'keys' | 'open1' | 'open2'; on: boolean }
-  | { type: 'play'; nodeId: string; n1: number; n2: number; gate: boolean; retrig: boolean };
+  | { type: 'play'; nodeId: string; n1: number; n2: number; gate: boolean; retrig: boolean }
+  | { type: 'message'; nodeId: string; data: unknown };
 
 export class Circuit {
   readonly nodes = new Map<string, CircuitNode>();
@@ -136,10 +140,16 @@ export class Circuit {
     this.emit({ type: 'note', nodeId, note: -2, velocity: down ? 1 : 0 });
   }
 
-  /** Sets the two oscillator notes and the gate on a duo-synth node; `retrig` restarts the modulators. */
+  /** Sets the two oscillator notes and the gate on a duo-synth or 2600 node; `retrig` restarts the envelopes. */
   play(nodeId: string, n1: number, n2: number, gate: boolean, retrig: boolean): void {
-    this.expectKind(nodeId, 'duo');
+    this.expectKind(nodeId, 'duo', 'm2600');
     this.emit({ type: 'play', nodeId, n1, n2, gate, retrig });
+  }
+
+  /** Sends a message to a 2600 node's worklet as it is (the AR's manual button, patch cords). */
+  send(nodeId: string, data: unknown): void {
+    this.expectKind(nodeId, 'm2600');
+    this.emit({ type: 'message', nodeId, data });
   }
 
   /** Opens or closes an envelope gate on a filter-box node. */

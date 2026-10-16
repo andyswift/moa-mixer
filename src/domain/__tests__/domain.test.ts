@@ -432,7 +432,7 @@ describe('Mixer stereo inputs', () => {
 
   it('the mixer page patch has four stereo inputs and no instruments', () => {
     const rack = Patch.mixerRack();
-    expect([...rack.devices.keys()]).toEqual(['reverb', 'delay', 'ouroboros', 'buscomp', 'granular', 'mixer']);
+    expect([...rack.devices.keys()]).toEqual(['mixer']); // the effects are pages of their own
     expect((rack.device('mixer') as Mixer).lineCount).toBe(4);
     expect(rack.connections.some((c) => c.to.jack.startsWith('ch') || c.to.jack.startsWith('line'))).toBe(false);
   });

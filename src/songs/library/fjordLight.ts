@@ -1,5 +1,5 @@
 import { arpeggio, at16, chordAt, DRUM, note, steps } from '../generators';
-import { DRUM_PUNCH, mixerSettings } from '../mixes';
+import { DRUM_PUNCH, mixerSettings, STANDARD_EFFECTS } from '../mixes';
 import type { NoteEvent, Song } from '../types';
 
 /**
@@ -90,7 +90,7 @@ export function fjordLight(): Song {
     bars: BARS,
     beatsPerBar: 4,
     sleeve: { art: 'aurora', colors: ['#0b2a4a', '#5cffb1', '#e9eef5'] },
-    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe'],
+    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', ...STANDARD_EFFECTS],
     setup: {
       drums: DRUM_PUNCH,
       synth: { synth: { preset: 6 } }, // Rubber Bass
@@ -99,7 +99,7 @@ export function fjordLight(): Song {
       duo: { duo: { preset: 11 } }, // Infinite Cathedral
       df2: { lynch: { preset: 6 }, box: { preset: 13, controls: { 'f1.res': 0.22, 'f2.res': 0.2, 'delay.level': 0.1 } } }, // Slow Pad into Ghost Pad
       pipe: { pipe: { preset: 8 } }, // Pan Flute
-      mixer: mixerSettings({
+      ...mixerSettings({
         drums: { kick: 1.1, snare: 1.05, clap: 1.0, rest: 0.9 },
         duck: 0.28,
         reverb: { ch4: 0.34, ch5: 0.38, ch2: 0.3, line1: 0.3, line2: 0.3, line3: 0.3, line4: 0.4 },

@@ -58,9 +58,19 @@ describe('applySettings', () => {
 });
 
 describe('captureSettings', () => {
+  it('works for an effect page the same way', () => {
+    const a = Patch.buscomp();
+    applySettings(a, { buscomp: { controls: { 'bc.duck.depth': 0.3 } } });
+    const snap = captureSettings(a);
+    expect(snap.buscomp!.controls!['bc.duck.depth']).toBe(0.3);
+    const b = Patch.buscomp();
+    expect(applySettings(b, snap)).toEqual([]);
+    expect(b.device('buscomp').control('bc.duck.depth').value).toBe(0.3);
+  });
+
   it('writes down every control, and what it wrote can be applied to a fresh patch', () => {
     const a = Patch.mixerRack();
-    applySettings(a, { mixer: { controls: { 'ch3.fader': 1.2, 'ch1.busB': true, 'ch1.busA': false } }, buscomp: { controls: { 'bc.duck.depth': 0.3 } } });
+    applySettings(a, { mixer: { controls: { 'ch3.fader': 1.2, 'ch1.busB': true, 'ch1.busA': false } } });
     const snap = captureSettings(a);
     expect(snap.mixer!.controls!['ch3.fader']).toBe(1.2);
     const b = Patch.mixerRack();
@@ -68,7 +78,6 @@ describe('captureSettings', () => {
     const mixer = b.device<Mixer>('mixer');
     expect(mixer.control('ch3.fader').value).toBe(1.2);
     expect(mixer.control('ch1.busB').value).toBe(true);
-    expect(b.device('buscomp').control('bc.duck.depth').value).toBeCloseTo(0.3);
   });
 });
 

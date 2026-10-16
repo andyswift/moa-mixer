@@ -1,4 +1,4 @@
-import { BAND_PAGES, type PageId, type PageState, sendControl, watchStatus } from './control';
+import { BAND_PAGES, EFFECT_PAGES, type PageId, type PageState, sendControl, watchStatus } from './control';
 
 /** Where each page lives: separate pages on the site, separate files in the dev server. */
 export function pageUrl(id: PageId): string {
@@ -12,14 +12,17 @@ export function pageUrl(id: PageId): string {
  */
 export class Band {
   readonly states = new Map<PageId, PageState | 'missing'>();
+  /** The pages in the room now: the band, plus whichever effect pages the record on the turntable uses. */
+  pages: PageId[];
   private readonly frames = new Map<PageId, HTMLIFrameElement>();
   private focusedPage?: PageId;
   private readonly listeners = new Set<() => void>();
   private stopWatching?: () => void;
   private mounted = false;
 
-  constructor(private readonly host: HTMLElement, readonly pages: readonly PageId[] = BAND_PAGES) {
-    for (const p of pages) this.states.set(p, 'missing');
+  constructor(private readonly host: HTMLElement, base: readonly PageId[] = BAND_PAGES) {
+    this.pages = [...base];
+    for (const p of this.pages) this.states.set(p, 'missing');
   }
 
   /** Loads the pages (not yet started). Safe to call more than once. */
@@ -32,19 +35,44 @@ export class Band {
       if (!(this.states.get(s.page) === 'started' && s.state === 'loaded')) this.states.set(s.page, s.state);
       this.emit();
     });
-    for (const p of this.pages) {
-      const f = document.createElement('iframe');
-      f.src = `${pageUrl(p)}?embed=1`;
-      f.title = `${p} (running in the background)`;
-      f.setAttribute('aria-hidden', 'true');
-      f.setAttribute('allow', 'autoplay');
-      f.tabIndex = -1;
-      // Never display:none (browsers may stop a page's rendering and audio loops). The frames fill their holder, which
-      // is a 1 px invisible box until a page is opened for tweaking; only the focused frame is visible and clickable.
-      f.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;border:0;visibility:hidden;pointer-events:none;background:#07060d';
-      this.frames.set(p, f);
-      this.host.append(f);
+    for (const p of this.pages) this.load(p);
+  }
+
+  /**
+   * Makes the room hold exactly these effect pages besides the band: loads the ones a record needs and unloads the ones
+   * it does not (an idle effect would still cost a whole audio engine). Call it before `start`.
+   */
+  setEffects(wanted: readonly PageId[]): void {
+    const want = new Set(wanted.filter((p) => (EFFECT_PAGES as readonly PageId[]).includes(p)));
+    for (const p of [...this.pages]) {
+      if (!(EFFECT_PAGES as readonly PageId[]).includes(p) || want.has(p)) continue;
+      this.frames.get(p)?.remove();
+      this.frames.delete(p);
+      this.states.delete(p);
+      this.pages = this.pages.filter((x) => x !== p);
+      if (this.focusedPage === p) this.focusedPage = undefined;
     }
+    for (const p of want) {
+      if (this.pages.includes(p)) continue;
+      this.pages.push(p);
+      this.states.set(p, 'missing');
+      if (this.mounted) this.load(p);
+    }
+    this.emit();
+  }
+
+  private load(p: PageId): void {
+    const f = document.createElement('iframe');
+    f.src = `${pageUrl(p)}?embed=1`;
+    f.title = `${p} (running in the background)`;
+    f.setAttribute('aria-hidden', 'true');
+    f.setAttribute('allow', 'autoplay');
+    f.tabIndex = -1;
+    // Never display:none (browsers may stop a page's rendering and audio loops). The frames fill their holder, which
+    // is a 1 px invisible box until a page is opened for tweaking; only the focused frame is visible and clickable.
+    f.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;border:0;visibility:hidden;pointer-events:none;background:#07060d';
+    this.frames.set(p, f);
+    this.host.append(f);
   }
 
   /** The page open for tweaking, if any. */

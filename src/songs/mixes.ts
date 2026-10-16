@@ -1,4 +1,4 @@
-import type { PageSettings } from './control';
+import type { PageId, PageSettings } from './control';
 
 export interface MixOptions {
   /** Faders for the kick, snare and clap channels, and for the hats and ride. */
@@ -13,10 +13,11 @@ export interface MixOptions {
 }
 
 /**
- * The mixer page's settings for a song, written from a few musical choices: drums in front, bass and pad on the
- * compressed bus the kick ducks, and what goes to the reverb and the delay.
+ * The mixer's and the bus compressor's settings for a song, written from a few musical choices: drums in front, bass
+ * and pad on the compressed bus the kick ducks, and what goes to the reverb and the delay. Spread the result into a
+ * song's `setup`: the compressor is a page of its own.
  */
-export function mixerSettings(o: MixOptions): PageSettings {
+export function mixerSettings(o: MixOptions): { mixer: PageSettings; buscomp: PageSettings } {
   const d = o.drums ?? { kick: 1.1, snare: 1.05, clap: 1.05, rest: 1 };
   const controls: Record<string, number | string | boolean> = {
     'ch3.fader': d.kick, 'ch4.fader': d.snare, 'ch5.fader': d.clap, 'ch6.fader': d.rest, 'ch7.fader': d.rest, 'ch8.fader': d.rest,
@@ -28,10 +29,13 @@ export function mixerSettings(o: MixOptions): PageSettings {
   for (const [strip, v] of Object.entries(o.delay ?? {})) controls[`${strip}.aux2`] = v;
   const duck = o.duck ?? 0.3;
   return {
-    mixer: { controls },
-    buscomp: { controls: { 'bc.duck.depth': duck, 'bc.duck.release': 220, 'bc.threshold': -10, 'bc.ratio': 2, 'bc.makeup': 1 } },
+    mixer: { mixer: { controls } },
+    buscomp: { buscomp: { controls: { 'bc.duck.depth': duck, 'bc.duck.release': 220, 'bc.threshold': -10, 'bc.ratio': 2, 'bc.makeup': 1 } } },
   };
 }
+
+/** The effect pages an ordinary song uses: the reverb (aux 1), the delay (aux 2) and the keyed bus compressor (bus B). */
+export const STANDARD_EFFECTS: PageId[] = ['reverb', 'delay', 'buscomp'];
 
 /**
  * Drum voice levels that let the kit snap: the drum machine's snare, clap and cymbals start well below its kick, so

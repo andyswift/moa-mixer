@@ -2,12 +2,8 @@ import './ui/style.css';
 import { AudioEngine } from './audio/engine';
 import { type InputHost, MixerInputs } from './audio/mixerInputs';
 import { FX_JITTER_MS, PcmBus } from './audio/pcmBus';
-import type { BusCompFx } from './domain/devices/busComp';
 import type { NumberControl } from './domain/devices/controls';
-import type { GranularFx } from './domain/devices/granular';
 import type { Mixer } from './domain/devices/mixer';
-import type { OuroborosFx } from './domain/devices/ouroboros';
-import type { DelayFx, ReverbFx } from './domain/devices/sendFx';
 import { MidiClock } from './domain/midi/clock';
 import { parseMidi } from './domain/midi/events';
 import { MidiMonitor } from './domain/midi/monitor';
@@ -16,15 +12,11 @@ import { MidiBus } from './midi/bus';
 import { WebMidi } from './midi/webMidi';
 import { announceStatus, applySettings, captureSettings, listenForControl } from './songs/control';
 import { applyEmbedMode } from './ui/embed';
-import { renderBusCompPanel } from './ui/busCompPanel';
-import { renderFxPanel } from './ui/fxPanel';
-import { renderGranularPanel } from './ui/granularPanel';
 import { renderPageNav } from './ui/instrumentPage';
 import { renderMidiStrip } from './ui/midiStrip';
 import { renderMixerPanel } from './ui/mixerPanel';
-import { renderOuroPanel } from './ui/ouroborosPanel';
 
-// The mixer page: the mixer and its effects only. The instruments (MOA-1, MOA-6, the drum machine) are pages of their
+// The mixer page: the mixer only. The effects (reverb, delay, Ouroboros, bus compressor, granular) are pages of their own. The instruments (MOA-1, MOA-6, the drum machine) are pages of their
 // own; their audio arrives over the audio bus into the channel strips.
 applyEmbedMode();
 const clock = new MidiClock();
@@ -45,6 +37,7 @@ const SEND_PORTS: [jack: string, name: string][] = [
   ['busB', 'Mixer: Bus B'], ['busC', 'Mixer: Bus C'], ['key', 'Mixer: Key'],
 ];
 const RETURN_JACKS = ['ret1', 'ret2', 'ret3', 'ret4', 'ret5'];
+const RETURN_PORTS = ['Reverb', 'Delay', 'Ouroboros', 'Bus Comp', 'Granular'];
 const pcm = new PcmBus();
 const host: InputHost = {
   ports: () => pcm.ports,
@@ -76,7 +69,11 @@ const host: InputHost = {
 const inputs = new MixerInputs(
   host,
   [...CHANNEL_PORTS.map((_, i) => `ch${i + 1}`), ...LINE_PORTS.map((_, i) => `line${i + 1}`), ...RETURN_JACKS],
-  Object.fromEntries([...CHANNEL_PORTS.map((name, i) => [`ch${i + 1}`, name]), ...LINE_PORTS.map((name, i) => [`line${i + 1}`, name])]),
+  Object.fromEntries([
+    ...CHANNEL_PORTS.map((name, i) => [`ch${i + 1}`, name]),
+    ...LINE_PORTS.map((name, i) => [`line${i + 1}`, name]),
+    ...RETURN_JACKS.map((jack, i) => [jack, RETURN_PORTS[i]!]), // each return takes its effect page's output
+  ]),
 );
 pcm.onChange(() => inputs.reconcile());
 // While an effect page feeds a return, the dry channels wait for it (the round trip is about 40 ms), so insert effects
@@ -119,15 +116,12 @@ listenForControl('mixer', (m) => {
 });
 announceStatus('mixer', 'loaded');
 
-const granular = patch.device<GranularFx>('granular');
-
 /** One entry point for every MIDI message, whether it came from a device or the dev console. */
 function handleMidiBytes(data: ArrayLike<number>, time = performance.now()): void {
   const event = parseMidi(data);
   if (!event) return;
   clock.handle(event, time);
   monitor.record(event, time);
-  granular.handleMidi(event);
 }
 midi.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
 void midi.connectIfPermitted();
@@ -137,18 +131,6 @@ const bus = new MidiBus();
 bus.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
 
 app.append(renderPageNav('/mixer/'), renderMidiStrip(midi, clock, monitor, start, bus));
-
-app.append(renderFxPanel(patch.device<ReverbFx>('reverb'), patch.device<DelayFx>('delay')));
-
-app.append(renderOuroPanel(patch.device<OuroborosFx>('ouroboros'), 'ouroboros', engine));
-
-app.append(renderBusCompPanel(patch.device<BusCompFx>('buscomp'), patch.device<Mixer>('mixer'), 'buscomp', engine, [
-  { value: 'off', label: 'Off' }, { value: '3', label: 'Kick' }, { value: '4', label: 'Snare' }, { value: '5', label: 'Clap' },
-  { value: '6', label: 'CL Hat' }, { value: '7', label: 'OP Hat' }, { value: '8', label: 'Ride' }, { value: '1', label: 'Synth' },
-  { value: '2', label: 'Poly' },
-]));
-
-app.append(renderGranularPanel(granular, 'granular', engine));
 
 app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay', 'Ouroboros', 'Bus Comp', 'Granular'], { B: 'to Bus Comp', C: 'to Ouroboros' }, inputs, ['Lynch 106', 'DUO', 'DF2', 'Pipe']));
 

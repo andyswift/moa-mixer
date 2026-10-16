@@ -18,6 +18,18 @@ describe.each(library().map((s) => [s.title, s] as const))('song: %s', (_title, 
     }
   });
 
+  it('lists the effect pages it sets up, and sets up no page that is not in its band', () => {
+    for (const page of Object.keys(song.setup) as PageId[]) if (page !== 'mixer') expect(song.band, page).toContain(page);
+    expect(song.band).not.toContain('mixer');
+    // the send effects the mixer feeds must be in the room: aux 1 reverb, aux 2 delay, bus B the compressor
+    const controls = song.setup.mixer?.mixer?.controls ?? {};
+    if (Object.keys(controls).some((k) => k.endsWith('.aux1') && controls[k] !== 0)) expect(song.band).toContain('reverb');
+    if (Object.keys(controls).some((k) => k.endsWith('.aux2') && controls[k] !== 0)) expect(song.band).toContain('delay');
+    if (Object.keys(controls).some((k) => k.endsWith('.busB') && controls[k] === true)) expect(song.band).toContain('buscomp');
+    if (Object.keys(controls).some((k) => k.endsWith('.busC') && controls[k] === true)) expect(song.band).toContain('ouroboros');
+    if (Object.keys(controls).some((k) => k.endsWith('.aux3') && controls[k] !== 0)) expect(song.band).toContain('granular');
+  });
+
   it('has automation that points at controls that exist, with values in range', () => {
     for (const a of song.automation) {
       const control = patches[a.page]().device(a.device).control(a.control);
