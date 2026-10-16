@@ -7,7 +7,7 @@ import { type MidiEvent, parseMidi } from '../domain/midi/events';
 import { MidiMonitor } from '../domain/midi/monitor';
 import type { Patch } from '../domain/patch/patch';
 import { MidiBus } from '../midi/bus';
-import { announceStatus, applySettings, captureSettings, listenForControl, type PageId, songChannelName } from '../songs/control';
+import { type AnyPageId, announceStatus, applySettings, captureSettings, isConducted, listenForControl, songChannelName } from '../songs/control';
 import { WebMidi } from '../midi/webMidi';
 import { renderAudioBusBlock } from './audioBusBlock';
 import { renderAudioInputSelect } from './audioInputSelect';
@@ -36,7 +36,7 @@ export interface PagePort {
 
 const PAGES: [href: string, label: string][] = [
   ['/mixer/', 'The mixer'], ['/synth/', 'MOA-1'], ['/poly/', 'MOA-6'], ['/drums/', 'MOA-DR'], ['/lynch/', 'Lynch 106'],
-  ['/duo/', 'MOA-DUO'], ['/df2/', 'MOA-DF2'], ['/pipe/', 'MOA-PIPE'], ['/seq/', 'MOA-SEQ'], ['/reverb/', 'Reverb'], ['/delay/', 'Delay'], ['/ouroboros/', 'Ouroboros'], ['/buscomp/', 'Bus Comp'],
+  ['/duo/', 'MOA-DUO'], ['/2600/', 'MOA-2600'], ['/df2/', 'MOA-DF2'], ['/pipe/', 'MOA-PIPE'], ['/seq/', 'MOA-SEQ'], ['/reverb/', 'Reverb'], ['/delay/', 'Delay'], ['/ouroboros/', 'Ouroboros'], ['/buscomp/', 'Bus Comp'],
   ['/granular/', 'Granular'], ['/records/', 'Records'], ['/', 'moaswift.no'],
 ];
 
@@ -63,7 +63,7 @@ export function mountInstrumentPage(opts: {
   /** This page's own link, left out of the navigation row. */
   self: string;
   /** Which page this is, for the records page that conducts it: it can start the audio, change settings and send notes. */
-  id: PageId;
+  id: AnyPageId;
   patch: Patch;
   /** Audio inputs, for an effect page. Instruments have none. */
   inputs?: PageInput[];
@@ -125,7 +125,7 @@ export function mountInstrumentPage(opts: {
     inputs?.start();
     start.textContent = 'Audio running';
     start.disabled = true;
-    announceStatus(opts.id, 'started');
+    if (isConducted(opts.id)) announceStatus(opts.id, 'started');
   };
   const start = document.createElement('button');
   start.className = 'start';
@@ -156,7 +156,7 @@ export function mountInstrumentPage(opts: {
     if (m.type === 'start') void startAudio();
     else if (m.settings) applySettings(opts.patch, m.settings);
   });
-  announceStatus(opts.id, 'loaded');
+  if (isConducted(opts.id)) announceStatus(opts.id, 'loaded');
   if (import.meta.env.DEV) Object.assign(window, { __capture: () => captureSettings(opts.patch) });
 
   const strip = renderMidiStrip(midi, clock, monitor, start, bus);

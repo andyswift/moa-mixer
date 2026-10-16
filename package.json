@@ -21,7 +21,8 @@
     "build:delay": "tsc --noEmit && vite build --config vite.delay.config.ts",
     "build:ouroboros": "tsc --noEmit && vite build --config vite.ouroboros.config.ts",
     "build:buscomp": "tsc --noEmit && vite build --config vite.buscomp.config.ts",
-    "build:granular": "tsc --noEmit && vite build --config vite.granular.config.ts"
+    "build:granular": "tsc --noEmit && vite build --config vite.granular.config.ts",
+    "build:2600": "tsc --noEmit && vite build --config vite.2600.config.ts"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
