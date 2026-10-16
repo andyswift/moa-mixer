@@ -1,5 +1,5 @@
 import type { AudioEngine } from '../audio/engine';
-import type { NumberControl, ToggleControl } from '../domain/devices/controls';
+import type { ChoiceControl, NumberControl, ToggleControl } from '../domain/devices/controls';
 import { AUX_PAIRS, BUSES, type Mixer } from '../domain/devices/mixer';
 import type { MixerInputs } from '../audio/mixerInputs';
 import { renderAudioInputSelect } from './audioInputSelect';
@@ -187,6 +187,26 @@ export function renderMixerPanel(
   solo.append(led);
   master.append(solo);
   tickers.push(() => led.classList.toggle('on', m.soloActive));
+
+  // Sidechain key: which channel the Bus Comp page receives as its key (on the Mixer: Key port).
+  const keySource = m.control('key.source') as ChoiceControl;
+  const keyGroup = el('div', 'mix-group');
+  keyGroup.append(heading('Key source', PINK));
+  const keyRow = el('div', 'bus-route');
+  const keyButtons = ['off', ...Array.from({ length: m.channelCount }, (_, k) => `${k + 1}`)].map((value) => {
+    const b = el('button', 'btn', value === 'off' ? 'Off' : channelNames[Number(value) - 1] || value);
+    b.type = 'button';
+    b.addEventListener('click', () => keySource.set(value));
+    keyRow.append(b);
+    return { b, value };
+  });
+  const paintKey = () => {
+    for (const { b, value } of keyButtons) b.setAttribute('aria-pressed', String(keySource.value === value));
+  };
+  keySource.onChange(paintKey);
+  paintKey();
+  keyGroup.append(keyRow);
+  master.append(keyGroup);
 
   const busGroup = el('div', 'mix-group mix-group-grow');
   busGroup.append(heading('Stereo buses', GREEN));
