@@ -8,22 +8,40 @@ Live: **https://moaswift.no/mixer/**
 
 ## The audio bus: instruments on their own pages, wired by the browser
 
-The mixer page (`/mixer/`) is only a mixer and its effects. Each instrument is a page of its own, and their sound reaches the mixer over an **in-browser audio bus**: a `BroadcastChannel` that carries raw PCM between tabs of the same site (`src/audio/pcmBus.ts`). No server, no network (an earlier WebRTC version stalled on some networks because Chrome hides local addresses behind mDNS names, so it was dropped), lossless, stereo.
+The mixer page (`/mixer/`) is only a mixer: each effect is a page of its own too (see below). Each instrument is a page of its own, and their sound reaches the mixer over an **in-browser audio bus**: a `BroadcastChannel` that carries raw PCM between tabs of the same site (`src/audio/pcmBus.ts`). No server, no network (an earlier WebRTC version stalled on some networks because Chrome hides local addresses behind mDNS names, so it was dropped), lossless, stereo.
 
 - **Publishing.** An instrument page publishes named ports (`Synth`, `Poly`, `Drums: Kick` ... `Drums: Ride`, `Lynch 106`, `MOA-DUO`, `MOA-DF2`, `MOA-PIPE`) after *Start audio*. A worklet cuts the signal into 10 ms chunks, sent only while some tab listens. The top strip's **Audio bus** block shows the listeners, and the page's own speakers mute themselves while a mixer listens (**Speakers: Auto / On / Off**).
 - **Receiving.** Each mixer channel strip has an input chooser with a status LED: *None*, or any live port (green: playing, amber: that tab is not open, grey: nothing chosen). Channels 1-8 start on Synth, Poly and the six drum voices; four **stereo input strips** (ST1-ST4, balance instead of pan, no solo) start on Lynch 106, MOA-DUO, MOA-DF2 and MOA-PIPE. A choice made in a strip is remembered (by port name); close and reopen an instrument tab and its strip reconnects.
 - **Timing.** A receiving worklet holds a ~30 ms jitter buffer and trims playback speed by up to 1 % to follow the other tab's clock, so there are no clicks or drift. Measured: about 37 ms from a note on an instrument page to the sound at the mixer. For playing keys directly use the instrument page's own speakers; the bus is for mixing. MIDI between pages stays on the `moa-midi` bus.
 - **Same site only.** Both buses are `BroadcastChannel`s, so the tabs must share an origin (and a browser profile).
 
+## The effects are pages of their own
+
+The mixer page is only a mixer. Each effect is a page that listens to a mixer port and publishes its output, and the mixer's five return strips listen to those outputs (the same input chooser as the channel strips).
+
+| Page | Listens to (default) | Publishes | Comes back on |
+|---|---|---|---|
+| `/reverb/` | Mixer: Aux 1 | Reverb | return 1 |
+| `/delay/` | Mixer: Aux 2 | Delay | return 2 |
+| `/ouroboros/` | Mixer: Bus C | Ouroboros | return 3 |
+| `/buscomp/` | Mixer: Bus B, and Mixer: Key as the sidechain | Bus Comp | return 4 |
+| `/granular/` | Mixer: Aux 3 (and MIDI, channel 3) | Granular | return 5 |
+
+- **The key source stays on the mixer**: a "Key source" selector in its master section picks the channel that is published as `Mixer: Key`; the Bus Comp page just receives it.
+- **Delay compensation.** A send and return crosses the bus twice (about 40 ms with the 14 ms jitter buffer the effect links use). While any return is live, the mixer delays channels and stereo inputs on their way to bus A by `comp.ms` (40 ms), so insert effects (bus B, bus C) line up with the dry signal. Parallel effects (reverb, delay) arrive aligned anyway.
+- **A port only works while somebody listens**: the mixer's sends and buses cost nothing until an effect page subscribes.
+- **Effects in songs**: a song's `band` lists the effect pages it uses and their settings sit under the page's own key in `setup` (`buscomp: { buscomp: { ... } }`). The records page loads those pages when the record is picked and lets the others go. Each effect is a chip you can open to tweak while the record plays.
+- Moving the effects out left every song's balance within 1 dB (RMS per strip, kick-relative, measured before and after); the metal song's reverb and granular returns came out about 1.5 dB hotter.
+
 ## MOA Records: a record collection that plays on the instruments
 
-`/records/` (`records.html`) is a crate of record sleeves and a turntable. Pick a record and **Drop the needle**: the page loads the mixer and the seven instrument pages in hidden iframes, starts their audio from your click, applies the song's settings and plays the tune. It needs desktop Chrome (or similar): eight audio engines run in one tab.
+`/records/` (`records.html`) is a crate of record sleeves and a turntable. Pick a record and **Drop the needle**: the page loads the mixer, the seven instrument pages and whichever effect pages the record uses in hidden iframes, starts their audio from your click, applies the song's settings and plays the tune. It needs desktop Chrome (or similar): eleven or more audio engines run in one tab.
 
 - **Songs are data** (`src/songs/`): notes per instrument (written with small generators), the settings for every instrument and the mixer (patch slots, any control by id, mixer faders, sends, bus routing, the bus compressor), filter-sweep automation, and humanising (timing and velocity slips from a seed, swing, a laid-back snare). Add a song in `src/songs/library/` and list it in `library/index.ts`; tests check that every setting and automation target exists on the real pages.
 - **Conducting** (`src/songs/control.ts`, `player.ts`, `band.ts`): each page listens on `moa-control-<page>` for `start` and `apply` orders and on `moa-song-<page>` for the song's notes (a MIDI bus per page, so notes reach one instrument only, whatever its MIDI channel). Notes go out about 250 ms ahead with due times; stopping releases every note that is sounding or on its way. A dev build exposes `__capture()` on every page, which dumps all controls as settings: tweak a sound by ear, copy the result into a song.
 - **Originals only.** The records are original tunes: Two-Step Sunrise (liquid drum and bass), Neon Hands (synth-pop), Glass Garden (dream trance), Salt Flats (driving trance), Fjord Light (dark synthwave) and Black Fjord Liturgy (a raw, noisy black-metal-style instrumental: tremolo-picked saw leads through the Ouroboros bit-crusher, blast beats, wind and noise). Sleeve art is drawn in code. `songtest.html` (dev only) plays a song through the band without the record UI.
 
-Pages: `/mixer/`, `/synth/` (MOA-1), `/poly/` (MOA-6), `/drums/` (MOA-DR), `/lynch/`, `/duo/`, `/df2/`, `/pipe/`, `/seq/`. `audiobus.html` (dev only) is a two-tab test page for the transport.
+Pages: `/mixer/`, `/synth/` (MOA-1), `/poly/` (MOA-6), `/drums/` (MOA-DR), `/lynch/`, `/duo/`, `/df2/`, `/pipe/`, `/seq/`, and the effects `/reverb/`, `/delay/`, `/ouroboros/`, `/buscomp/`, `/granular/`. `audiobus.html` (dev only) is a two-tab test page for the transport.
 
 ## What it is today
 
@@ -74,7 +92,7 @@ Pages: `/mixer/`, `/synth/` (MOA-1), `/poly/` (MOA-6), `/drums/` (MOA-DR), `/lyn
   - Velocity scales level (and the kick click and snare snap a little more). A closed hat chokes the open hat (switchable). Per-voice tune, decay, character control, level, mute and solo.
   - **16-step sequencer** with velocity per step (click a step: soft, medium, hard, off), swing, and four patterns A-D (A, B and C ship with grooves, D is empty). It runs on the drum machine's own transport: its own tempo with Play/Stop, or following MIDI clock and start/stop (one step per 6 pulses). Hits are scheduled ahead on the audio clock, so timing does not depend on UI timers.
   - Play it from the pads (Shift soft, Alt hard), keys 1-6, or MIDI: General MIDI drum notes (36 kick, 38 snare, 39 clap, 42 closed hat, 46 open hat, 51 ride) on channel 10 by default.
-- **Send FX: a reverb and a dub delay**, both mono in and stereo out. Aux 1 feeds the reverb, aux 2 feeds the delay, and each comes back on its own stereo FX return strip.
+- **Send FX: a reverb and a dub delay** (their own pages, see above), both mono in and stereo out. Aux 1 feeds the reverb, aux 2 feeds the delay, and each comes back on its own stereo FX return strip.
   - **Reverb**: small, medium or large generated stereo tail, with pre-delay, low cut and damping.
   - **Delay**: time (20 ms to 1.5 s), feedback up to 110 %, tone, ping-pong spread, tape wobble and drive. The feedback loop is darkened and soft-clipped, so past 100 % it holds a stable, distorted drone instead of blowing up, and backing off lets it die away.
 - **Ouroboros (MOA-FX1), a dual-channel feedback delay on bus C**, deliberately unstable. Bus C feeds it, it returns on its own stereo strip (FX 3), and bus C is taken off main, so Ouroboros's dry/wet mix puts the clean bus back (Mix at 0 is the bus untouched).
