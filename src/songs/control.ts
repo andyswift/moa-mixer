@@ -4,7 +4,11 @@ import { SYNTH_PRESETS } from '../domain/devices/synthPresets';
 import type { Patch } from '../domain/patch/patch';
 
 /** The pages a song conducts: each is an instrument page (or the mixer) loaded alongside the records page. */
-export const PAGE_IDS = ['mixer', 'synth', 'poly', 'drums', 'lynch', 'duo', 'df2', 'pipe'] as const;
+/** The mixer and the instruments: the band every record loads up front. */
+export const BAND_PAGES = ['mixer', 'synth', 'poly', 'drums', 'lynch', 'duo', 'df2', 'pipe'] as const;
+/** Effects, each a page of its own: a record loads the ones it uses. */
+export const EFFECT_PAGES = ['reverb', 'delay', 'ouroboros', 'buscomp', 'granular'] as const;
+export const PAGE_IDS = [...BAND_PAGES, ...EFFECT_PAGES] as const;
 export type PageId = (typeof PAGE_IDS)[number];
 
 export type SettingValue = number | string | boolean;

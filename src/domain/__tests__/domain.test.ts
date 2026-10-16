@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Circuit } from '../circuit/circuit';
-import type { ChoiceControl } from '../devices/controls';
+import type { ChoiceControl, NumberControl } from '../devices/controls';
 import { Mixer } from '../devices/mixer';
 import { Synthesizer } from '../devices/synthesizer';
 import { INIT, SYNTH_PRESETS } from '../devices/synthPresets';
@@ -435,6 +435,36 @@ describe('Mixer stereo inputs', () => {
     expect([...rack.devices.keys()]).toEqual(['reverb', 'delay', 'ouroboros', 'buscomp', 'granular', 'mixer']);
     expect((rack.device('mixer') as Mixer).lineCount).toBe(4);
     expect(rack.connections.some((c) => c.to.jack.startsWith('ch') || c.to.jack.startsWith('line'))).toBe(false);
+  });
+});
+
+describe('Mixer delay compensation', () => {
+  it('delays channels and stereo inputs on their way to bus A by comp.ms, and nothing else', () => {
+    const m = new Mixer(2, 'Mixer', 1, {}, 1);
+    const delay = (id: string) => m.circuit.nodes.get(id)!.params.delayTime;
+    expect(m.control('comp.ms').value).toBe(0);
+    (m.control('comp.ms') as NumberControl).set(40);
+    expect(delay('ch1.comp')).toBeCloseTo(0.04, 5);
+    expect(delay('ch2.comp')).toBeCloseTo(0.04, 5);
+    expect(delay('line1.comp')).toBeCloseTo(0.04, 5);
+    expect(m.circuit.nodes.has('ret1.comp')).toBe(false); // returns are not delayed
+    expect(m.circuit.nodes.has('ch1.compB')).toBe(false);
+  });
+
+  it('only bus A goes through the delay: buses B and C and the aux sends do not', () => {
+    const m = new Mixer(1, 'Mixer', 0, {}, 0);
+    const edges = m.circuit.cables.map((e) => `${e.from}>${e.to}`);
+    expect(edges).toContain('ch1.pan>ch1.comp');
+    expect(edges).toContain('ch1.comp>ch1.assignA');
+    expect(edges).toContain('ch1.pan>ch1.assignB');
+    expect(edges).toContain('ch1.pan>ch1.assignC');
+    expect(edges).not.toContain('ch1.pan>ch1.assignA');
+  });
+
+  it('can hold the most compensation it is asked for, and clamps beyond', () => {
+    const m = new Mixer(1, 'Mixer', 0, {}, 0);
+    (m.control('comp.ms') as NumberControl).set(9999);
+    expect(m.control('comp.ms').value).toBe(300);
   });
 });
 

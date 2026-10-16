@@ -1,6 +1,7 @@
 import type { AudioEngine } from '../audio/engine';
+import { MixerInputs } from '../audio/mixerInputs';
 import { MonitorControl } from '../audio/monitorControl';
-import { PcmBus } from '../audio/pcmBus';
+import { FX_JITTER_MS, PcmBus } from '../audio/pcmBus';
 import type { MidiClock } from '../domain/midi/clock';
 import { type MidiEvent, parseMidi } from '../domain/midi/events';
 import { MidiMonitor } from '../domain/midi/monitor';
@@ -9,8 +10,22 @@ import { MidiBus } from '../midi/bus';
 import { announceStatus, applySettings, captureSettings, listenForControl, type PageId, songChannelName } from '../songs/control';
 import { WebMidi } from '../midi/webMidi';
 import { renderAudioBusBlock } from './audioBusBlock';
+import { renderAudioInputSelect } from './audioInputSelect';
 import { applyEmbedMode } from './embed';
 import { renderMidiStrip } from './midiStrip';
+import { el } from './widgets';
+
+/** An audio input of an effect page: a device's input jack fed from a published port, chosen in the page's strip. */
+export interface PageInput {
+  device: string;
+  /** The device's input jack, which is also this input's name. */
+  jack: string;
+  label: string;
+  /** The port it listens to until another is chosen (e.g. 'Mixer: Aux 1'). */
+  defaultPort: string;
+  /** Fold the stereo pair to one channel (for mono effects). */
+  mono?: boolean;
+}
 
 export interface PagePort {
   device: string;
@@ -21,7 +36,8 @@ export interface PagePort {
 
 const PAGES: [href: string, label: string][] = [
   ['/mixer/', 'The mixer'], ['/synth/', 'MOA-1'], ['/poly/', 'MOA-6'], ['/drums/', 'MOA-DR'], ['/lynch/', 'Lynch 106'],
-  ['/duo/', 'MOA-DUO'], ['/df2/', 'MOA-DF2'], ['/pipe/', 'MOA-PIPE'], ['/seq/', 'MOA-SEQ'], ['/records/', 'Records'], ['/', 'moaswift.no'],
+  ['/duo/', 'MOA-DUO'], ['/df2/', 'MOA-DF2'], ['/pipe/', 'MOA-PIPE'], ['/seq/', 'MOA-SEQ'], ['/reverb/', 'Reverb'], ['/delay/', 'Delay'], ['/ouroboros/', 'Ouroboros'], ['/buscomp/', 'Bus Comp'],
+  ['/granular/', 'Granular'], ['/records/', 'Records'], ['/', 'moaswift.no'],
 ];
 
 /** The row of links to the other pages, leaving out the page it is on. */
@@ -49,6 +65,8 @@ export function mountInstrumentPage(opts: {
   /** Which page this is, for the records page that conducts it: it can start the audio, change settings and send notes. */
   id: PageId;
   patch: Patch;
+  /** Audio inputs, for an effect page. Instruments have none. */
+  inputs?: PageInput[];
 }): { handleMidiBytes: (data: ArrayLike<number>, time?: number) => void; pcm: PcmBus } {
   const { engine, clock } = opts;
   applyEmbedMode();
@@ -58,6 +76,38 @@ export function mountInstrumentPage(opts: {
   const speakers = new MonitorControl(() => pcm.audience, (on) => engine.setMonitor(on));
   pcm.onAudience(() => speakers.update());
   const app = document.querySelector<HTMLDivElement>('#app')!;
+
+  // An effect page listens to a port, per input, and plays it into the effect (the choice is remembered per page).
+  const inputs = opts.inputs?.length
+    ? new MixerInputs(
+        {
+          ports: () => pcm.ports,
+          hasInternal: () => false,
+          setInternal: () => {},
+          attach: async (jack, portId) => {
+            const ctx = engine.context;
+            const spec = opts.inputs!.find((i) => i.jack === jack)!;
+            const target = engine.jackNode(spec.device, 'in', spec.jack);
+            if (!ctx || !target) throw new Error('Audio is not running');
+            const received = await pcm.subscribe(ctx, portId, FX_JITTER_MS);
+            if (spec.mono) {
+              const mono = ctx.createGain();
+              mono.channelCount = 1;
+              mono.channelCountMode = 'explicit';
+              received.node.connect(mono).connect(target);
+              return () => { mono.disconnect(); received.close(); };
+            }
+            received.node.connect(target);
+            return () => received.close();
+          },
+        },
+        opts.inputs.map((i) => i.jack),
+        Object.fromEntries(opts.inputs.map((i) => [i.jack, i.defaultPort])),
+        undefined,
+        `moa.inputs.${opts.id}`,
+      )
+    : undefined;
+  pcm.onChange(() => inputs?.reconcile());
 
   let started = false;
   const startAudio = async () => {
@@ -72,6 +122,7 @@ export function mountInstrumentPage(opts: {
         if (node) await pcm.publish(ctx, node, port.name);
       }
     }
+    inputs?.start();
     start.textContent = 'Audio running';
     start.disabled = true;
     announceStatus(opts.id, 'started');
@@ -109,6 +160,12 @@ export function mountInstrumentPage(opts: {
   if (import.meta.env.DEV) Object.assign(window, { __capture: () => captureSettings(opts.patch) });
 
   const strip = renderMidiStrip(midi, clock, monitor, start, bus);
+  if (inputs && opts.inputs) {
+    const block = el('div', 'midi-block');
+    block.append(el('div', 'fader-label', opts.inputs.length > 1 ? 'Inputs' : 'Input'));
+    for (const i of opts.inputs) block.append(renderAudioInputSelect(inputs, i.jack, i.label, 'None'));
+    strip.append(block);
+  }
   strip.append(renderAudioBusBlock(pcm, speakers));
   app.append(renderPageNav(opts.self), strip, ...(Array.isArray(opts.panel) ? opts.panel : [opts.panel]));
   return { handleMidiBytes, pcm };

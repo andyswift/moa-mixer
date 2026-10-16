@@ -1,4 +1,4 @@
-import { PAGE_IDS, type PageId, type PageState, sendControl, watchStatus } from './control';
+import { BAND_PAGES, type PageId, type PageState, sendControl, watchStatus } from './control';
 
 /** Where each page lives: separate pages on the site, separate files in the dev server. */
 export function pageUrl(id: PageId): string {
@@ -18,7 +18,7 @@ export class Band {
   private stopWatching?: () => void;
   private mounted = false;
 
-  constructor(private readonly host: HTMLElement, readonly pages: readonly PageId[] = PAGE_IDS) {
+  constructor(private readonly host: HTMLElement, readonly pages: readonly PageId[] = BAND_PAGES) {
     for (const p of pages) this.states.set(p, 'missing');
   }
 

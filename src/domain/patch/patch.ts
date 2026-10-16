@@ -63,6 +63,27 @@ export class Patch {
     return this;
   }
 
+  /** An effect page: just the effect, its output to the speakers (and the audio bus). The input is fed from outside. */
+  static reverb(): Patch {
+    return new Patch().add('reverb', new ReverbFx('Reverb')).setOutput('reverb', 'out');
+  }
+
+  static delay(): Patch {
+    return new Patch().add('delay', new DelayFx('Delay')).setOutput('delay', 'out');
+  }
+
+  static ouroboros(): Patch {
+    return new Patch().add('ouroboros', new OuroborosFx('Ouroboros')).setOutput('ouroboros', 'out');
+  }
+
+  static buscomp(): Patch {
+    return new Patch().add('buscomp', new BusCompFx('Bus Comp')).setOutput('buscomp', 'out');
+  }
+
+  static granular(): Patch {
+    return new Patch().add('granular', new GranularFx('Granular')).setOutput('granular', 'out');
+  }
+
   /** The poly synth page: just the synth, straight to the speakers. */
   static poly(clock = new MidiClock()): Patch {
     return new Patch().add('poly', new PolySynth('Poly', clock)).setOutput('poly', 'out');

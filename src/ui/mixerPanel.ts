@@ -67,7 +67,7 @@ function renderStrip(m: Mixer, prefix: string, i: number, kind: StripKind, name:
   const header = el('header', 'mix-strip-head');
   header.append(el('h2', undefined, kind === 'return' ? `FX${i}` : kind === 'line' ? `ST${i}` : String(i)), el('div', 'mix-strip-name', name));
   strip.append(header);
-  if (inputs && kind !== 'return') strip.append(renderAudioInputSelect(inputs, prefix, name || section, 'Built-in'));
+  if (inputs) strip.append(renderAudioInputSelect(inputs, prefix, name || section, 'Built-in'));
 
   strip.append(renderToggleButton(toggle(m, id('lowcutOn')), `${section} low cut 75 Hz`, () => 'Low cut', BLUE, 'btn btn-wide'));
 

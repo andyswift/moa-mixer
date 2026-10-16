@@ -50,6 +50,9 @@ export interface Outlet {
   close(): void;
 }
 
+/** Jitter buffer for send/return links to effect pages: the round trip is then about 40 ms (30 ms gives about 68). */
+export const FX_JITTER_MS = 14;
+
 const loaded = new WeakSet<BaseAudioContext>();
 
 async function loadWorklet(ctx: AudioContext): Promise<void> {
@@ -69,7 +72,7 @@ export class PcmBus {
   private readonly listeners = new Set<() => void>();
   private readonly audienceListeners = new Set<() => void>();
   /** Ports this tab publishes: the set of tabs listening to each. */
-  private readonly outlets = new Map<string, { name: string; audience: Set<string>; stop?: () => void }>();
+  private readonly outlets = new Map<string, { name: string; audience: Set<string>; stop?: () => void; listening?: (on: boolean) => void }>();
   /** Ports this tab listens to, and where to put their chunks. */
   private readonly sinks = new Map<string, (m: Extract<Msg, { type: 'pcm' }>) => void>();
 
@@ -103,7 +106,7 @@ export class PcmBus {
   /** Opens a port on the bus; `send` pushes audio into it. The lower level under `publish`. */
   openOutlet(name: string): Outlet {
     const id = randomId();
-    const entry: { name: string; audience: Set<string>; stop?: () => void } = { name, audience: new Set() };
+    const entry: { name: string; audience: Set<string>; stop?: () => void; listening?: (on: boolean) => void } = { name, audience: new Set() };
     this.outlets.set(id, entry);
     this.send({ type: 'announce', from: this.id, port: id, name });
     return {
@@ -141,6 +144,7 @@ export class PcmBus {
     tap.connect(mute).connect(ctx.destination);
     const outlet = this.openOutlet(name);
     tap.port.onmessage = (e: MessageEvent<{ l: Float32Array; r: Float32Array }>) => outlet.send(e.data.l, e.data.r, ctx.sampleRate);
+    this.outlets.get(outlet.id)!.listening = (on) => tap.port.postMessage({ active: on });
     this.outlets.get(outlet.id)!.stop = () => {
       node.disconnect(tap);
       tap.disconnect();
@@ -218,7 +222,12 @@ export class PcmBus {
         if (m.port === undefined) {
           // A tab that closed no longer listens to anything of ours.
           let changed = false;
-          for (const o of this.outlets.values()) changed = o.audience.delete(m.from) || changed;
+          for (const o of this.outlets.values()) {
+            if (o.audience.delete(m.from)) {
+              changed = true;
+              if (o.audience.size === 0) o.listening?.(false);
+            }
+          }
           if (changed) this.audienceChanged();
         }
         this.emit();
@@ -227,12 +236,18 @@ export class PcmBus {
         const o = this.outlets.get(m.port);
         if (!o || o.audience.has(m.from)) return;
         o.audience.add(m.from);
+        o.listening?.(true);
         this.audienceChanged();
         return;
       }
-      case 'unlisten':
-        if (this.outlets.get(m.port)?.audience.delete(m.from)) this.audienceChanged();
+      case 'unlisten': {
+        const o = this.outlets.get(m.port);
+        if (o?.audience.delete(m.from)) {
+          if (o.audience.size === 0) o.listening?.(false);
+          this.audienceChanged();
+        }
         return;
+      }
       case 'pcm':
         this.sinks.get(m.port)?.(m);
         return;

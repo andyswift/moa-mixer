@@ -17,7 +17,7 @@ export interface InputHost {
   attach(jack: string, portId: string): Promise<() => void>;
 }
 
-const STORAGE_KEY = 'moa.mixerInputs';
+const DEFAULT_STORAGE_KEY = 'moa.mixerInputs';
 
 interface Slot {
   selection: Selection;
@@ -42,8 +42,10 @@ export class MixerInputs {
     readonly jacks: string[],
     defaults: Record<string, Selection> = {},
     private readonly storage: Pick<Storage, 'getItem' | 'setItem'> | undefined = safeStorage(),
+    /** Where the choices are remembered; every page that chooses inputs uses its own. */
+    private readonly storageKey = DEFAULT_STORAGE_KEY,
   ) {
-    const saved = load(storage);
+    const saved = load(storage, storageKey);
     for (const jack of jacks) {
       this.slots.set(jack, { selection: saved[jack] ?? defaults[jack] ?? (host.hasInternal(jack) ? INTERNAL : NONE), internal: true, status: 'idle' });
     }
@@ -72,7 +74,7 @@ export class MixerInputs {
     this.slot(jack).selection = selection;
     if (remember) {
       try {
-        this.storage?.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries([...this.slots].map(([j, s]) => [j, s.selection]))));
+        this.storage?.setItem(this.storageKey, JSON.stringify(Object.fromEntries([...this.slots].map(([j, s]) => [j, s.selection]))));
       } catch {
         // not remembered
       }
@@ -156,9 +158,9 @@ function safeStorage(): Storage | undefined {
   }
 }
 
-function load(storage: Pick<Storage, 'getItem'> | undefined): Record<string, Selection> {
+function load(storage: Pick<Storage, 'getItem'> | undefined, key: string): Record<string, Selection> {
   try {
-    const parsed: unknown = JSON.parse(storage?.getItem(STORAGE_KEY) ?? '{}');
+    const parsed: unknown = JSON.parse(storage?.getItem(key) ?? '{}');
     return parsed && typeof parsed === 'object' ? (parsed as Record<string, Selection>) : {};
   } catch {
     return {};

@@ -1,8 +1,9 @@
 import './ui/style.css';
 import { AudioEngine } from './audio/engine';
 import { type InputHost, MixerInputs } from './audio/mixerInputs';
-import { PcmBus } from './audio/pcmBus';
+import { FX_JITTER_MS, PcmBus } from './audio/pcmBus';
 import type { BusCompFx } from './domain/devices/busComp';
+import type { NumberControl } from './domain/devices/controls';
 import type { GranularFx } from './domain/devices/granular';
 import type { Mixer } from './domain/devices/mixer';
 import type { OuroborosFx } from './domain/devices/ouroboros';
@@ -37,6 +38,13 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 const CHANNEL_PORTS = ['Synth', 'Poly', 'Drums: Kick', 'Drums: Snare', 'Drums: Clap', 'Drums: Closed Hat', 'Drums: Open Hat', 'Drums: Ride'];
 // The four stereo inputs take the other synths, which have a stereo sound of their own.
 const LINE_PORTS = ['Lynch 106', 'MOA-DUO', 'MOA-DF2', 'MOA-PIPE'];
+// The mixer's sends and buses are published as ports, for effect pages to take (a port only does work while some
+// page listens to it). The return strips can listen to effect pages' output instead of in-page effects.
+const SEND_PORTS: [jack: string, name: string][] = [
+  ...[1, 2, 3, 4, 5, 6].map((k): [string, string] => [`aux${k}`, `Mixer: Aux ${k}`]),
+  ['busB', 'Mixer: Bus B'], ['busC', 'Mixer: Bus C'], ['key', 'Mixer: Key'],
+];
+const RETURN_JACKS = ['ret1', 'ret2', 'ret3', 'ret4', 'ret5'];
 const pcm = new PcmBus();
 const host: InputHost = {
   ports: () => pcm.ports,
@@ -49,9 +57,9 @@ const host: InputHost = {
     const ctx = engine.context;
     const target = engine.jackNode('mixer', 'in', jack);
     if (!ctx || !target) throw new Error('Audio is not running');
-    const received = await pcm.subscribe(ctx, portId);
-    if (jack.startsWith('line')) {
-      received.node.connect(target); // stereo input strips take the pair as it is
+    const received = await pcm.subscribe(ctx, portId, jack.startsWith('ret') ? FX_JITTER_MS : undefined);
+    if (jack.startsWith('line') || jack.startsWith('ret')) {
+      received.node.connect(target); // stereo strips take the pair as it is
       return () => received.close();
     }
     // Channel strips are mono (the pan stage treats a stereo input differently), so fold the pair down.
@@ -67,16 +75,30 @@ const host: InputHost = {
 };
 const inputs = new MixerInputs(
   host,
-  [...CHANNEL_PORTS.map((_, i) => `ch${i + 1}`), ...LINE_PORTS.map((_, i) => `line${i + 1}`)],
+  [...CHANNEL_PORTS.map((_, i) => `ch${i + 1}`), ...LINE_PORTS.map((_, i) => `line${i + 1}`), ...RETURN_JACKS],
   Object.fromEntries([...CHANNEL_PORTS.map((name, i) => [`ch${i + 1}`, name]), ...LINE_PORTS.map((name, i) => [`line${i + 1}`, name])]),
 );
 pcm.onChange(() => inputs.reconcile());
+// While an effect page feeds a return, the dry channels wait for it (the round trip is about 40 ms), so insert effects
+// on the buses line up with the dry signal.
+const FX_ROUND_TRIP_MS = 40;
+inputs.onChange(() => {
+  const live = RETURN_JACKS.some((j) => inputs.status(j) === 'live');
+  (patch.device<Mixer>('mixer').control('comp.ms') as NumberControl).set(live ? FX_ROUND_TRIP_MS : 0);
+});
 
 let started = false;
 const startAudio = async () => {
   if (started) return;
   started = true;
   await engine.start();
+  const ctx = engine.context;
+  if (ctx) {
+    for (const [jack, name] of SEND_PORTS) {
+      const node = engine.jackNode('mixer', 'out', jack);
+      if (node) await pcm.publish(ctx, node, name);
+    }
+  }
   inputs.start();
   start.textContent = 'Audio running';
   start.disabled = true;
