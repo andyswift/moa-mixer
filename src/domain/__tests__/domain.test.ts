@@ -542,3 +542,40 @@ describe('Synth presets', () => {
     expect(calls).toBe(1);
   });
 });
+
+describe('MOA-1 accent and drive', () => {
+  const param = (s: Synthesizer, node: string, name: string) => s.circuit.node(node).params[name]!;
+  const set = (s: Synthesizer, id: string, v: number) => (s.control(id) as { set(v: number): void }).set(v);
+
+  it('a loud note is accented: louder, a deeper filter sweep and a shorter filter decay; a normal note is not', () => {
+    const s = new Synthesizer();
+    set(s, 'accent', 1);
+    set(s, 'filterEnv.amount', 2);
+    set(s, 'filterEnv.decay', 0.5);
+    s.handleMidi({ type: 'noteOn', channel: 1, note: 48, velocity: 127 });
+    expect(param(s, 'accentAmp', 'gain')).toBeCloseTo(1.6);
+    expect(param(s, 'filterEnvDepth', 'gain')).toBeCloseTo(2 * 1.8 * 1200);
+    expect(param(s, 'filterEnv', 'decay')).toBeCloseTo(0.12);
+    s.handleMidi({ type: 'noteOff', channel: 1, note: 48, velocity: 0 });
+    s.handleMidi({ type: 'noteOn', channel: 1, note: 48, velocity: 96 });
+    expect(param(s, 'accentAmp', 'gain')).toBe(1);
+    expect(param(s, 'filterEnvDepth', 'gain')).toBe(2400);
+    expect(param(s, 'filterEnv', 'decay')).toBe(0.5);
+  });
+
+  it('with the accent amount at 0 (the default) a loud note changes nothing, so old songs sound the same', () => {
+    const s = new Synthesizer();
+    s.handleMidi({ type: 'noteOn', channel: 1, note: 48, velocity: 127 });
+    expect(param(s, 'accentAmp', 'gain')).toBe(1);
+  });
+
+  it('drive at 0 leaves the dry path alone; turned up it crossfades to the boosted, clipped path', () => {
+    const s = new Synthesizer();
+    expect(param(s, 'driveDry', 'gain')).toBe(1);
+    expect(param(s, 'driveWet', 'gain')).toBe(0);
+    set(s, 'drive', 0.5);
+    expect(param(s, 'driveDry', 'gain')).toBe(0);
+    expect(param(s, 'driveWet', 'gain')).toBeGreaterThan(0.5);
+    expect(param(s, 'drivePre', 'gain')).toBeGreaterThan(10);
+  });
+});

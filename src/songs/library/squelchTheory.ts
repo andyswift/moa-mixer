@@ -17,8 +17,10 @@ const ROOT = 45; // A2 (the patch's 16' range puts it an octave lower)
 const SHIFT = [0, 0, -4, -2]; // Am Am F G: the bass line moves with the chord, two bars each
 const section = (bar: number) => (bar < 4 ? 'intro' : bar < 12 ? 'groove' : bar < 16 ? 'break' : 'peak');
 
-// acid patterns: [step, semitones above the root, length in steps]; a length over 1 slides into the next note
+// acid patterns: [step, semitones above the root, length in steps]; a length over 1 slides into the next note.
+// Accented steps (the octave jumps and the notes slid into) play at velocity 127, which the MOA-1 accents.
 const SLIDE = 1.25, SHORT = 0.55;
+const ACCENTS = [new Set([2, 7, 9, 12]), new Set([3, 8, 13])];
 const ACID: [number, number, number][][] = [
   [[0, 0, SHORT], [1, 0, SHORT], [2, 12, SLIDE], [3, 0, SHORT], [5, 0, SHORT], [6, 3, SLIDE], [7, 5, SHORT],
     [8, 0, SHORT], [9, 12, SHORT], [10, 0, SHORT], [11, 10, SLIDE], [12, 12, SHORT], [14, 7, SHORT], [15, 3, SHORT]],
@@ -58,8 +60,8 @@ const parts = {
     const out: NoteEvent[] = [];
     for (let bar = 0; bar < BARS; bar++) {
       const root = ROOT + chordAt(SHIFT, bar, 2);
-      const pattern = ACID[section(bar) === 'break' ? 0 : bar % 2]!;
-      for (const [s, semis, len] of pattern) out.push(note(at16(bar, s), steps(len), root + semis, 100));
+      const which = section(bar) === 'break' ? 0 : bar % 2;
+      for (const [s, semis, len] of ACID[which]!) out.push(note(at16(bar, s), steps(len), root + semis, ACCENTS[which]!.has(s) ? 127 : 96));
     }
     return out;
   },
@@ -117,6 +119,7 @@ export function squelchTheory(): Song {
       // the 2600's breakdown: oscillators out, noise in, the envelope held open and a resonant sweep up into the snare roll
       ...m2600Riser(),
     ],
+    // a 6 % velocity spread keeps the 127s above the accent line (110) and the 96s below it
     humanise: { timing: { drums: 3, synth: 2, m2600: 3 }, velocity: 0.06, swing: 0.07, layback: { drums: { 39: 4 } } },
     localOnly: true, // a candidate until approved
   };

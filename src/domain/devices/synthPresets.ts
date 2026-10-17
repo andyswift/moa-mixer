@@ -35,6 +35,8 @@ export const INIT: PresetValues = {
   'lfo.rate': 4.8,
   'perf.glide': 0,
   'perf.notes': 'legato',
+  accent: 0,
+  drive: 0,
   level: 0.5,
 };
 
@@ -58,7 +60,7 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
     'osc.range': "16'", 'mix.saw': 1, 'mix.sub': 0.35, 'mix.noise': 0, 'filter.cutoff': 220, 'filter.resonance': 14,
     'filter.keyFollow': 40, 'filterEnv.amount': 4, 'filterEnv.attack': 0.001, 'filterEnv.decay': 0.18,
     'filterEnv.sustain': 0, 'filterEnv.release': 0.1, 'ampEnv.sustain': 0.9, 'ampEnv.release': 0.08,
-    'perf.glide': 0.08, level: 0.45,
+    'perf.glide': 0.08, accent: 0.7, drive: 0.35, level: 0.45,
   }),
   p('Fat Pulse Bass', {
     'osc.range': "16'", 'osc.width': 30, 'mix.saw': 0, 'mix.pulse': 0.9, 'mix.sub': 0.5, 'mix.noise': 0,
