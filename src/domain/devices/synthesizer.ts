@@ -33,8 +33,10 @@ const DRIVE_TILT_HZ = 700; // the drive's tilt EQ pivots here
  * are both summed into every oscillator's detune, so the sub tracks the keyboard for free.
  * ampEnv drives the VCA, filterEnv sweeps the filter cutoff (and the keyboard follows it via keyFollow).
  * Accent (for acid lines): a loud note (velocity 110 and up) is louder, with a deeper and shorter filter sweep.
- * Drive: a parallel distortion after the filter, blended in as it rises, so at 0 the dry sound is untouched. A tilt EQ
- * before its clipper picks what distorts: tilted bright, the lows stay clean (no mud on a bass line); dark, a fatter fuzz.
+ * Drive: a parallel wavefolder after the filter, blended in as it rises, so at 0 the dry sound is untouched. A tilt EQ
+ * before it picks what folds (bright: the lows stay clean, no mud on a bass line); Even biases the fold for even
+ * harmonics; Harmonics keeps that many harmonics of the played note (the folder follows the pitch) and drops the fizz.
+ * The folder is antialiased (see `foldWorklet.ts`), so it adds no tones unrelated to the note.
  */
 export class Synthesizer extends Device {
   readonly name: string;
@@ -87,13 +89,11 @@ export class Synthesizer extends Device {
       .add('amp', 'gain', { gain: 0 }) // silent until the amp envelope opens it
       .add('accentAmp', 'gain', { gain: 1 })
       .add('level', 'gain', { gain: 0.5 })
-      // drive: a dry path and a boosted, tilted, clipped and darkened path, blended
+      // drive: a dry path and a tilted, folded path, blended
       .add('driveDry', 'gain', { gain: 1 })
-      .add('drivePre', 'gain', { gain: 1 })
       .add('driveTiltLo', 'filter', { frequency: DRIVE_TILT_HZ, Q: 0.707, gain: 0, detune: 0 }, { type: 'lowshelf' })
       .add('driveTiltHi', 'filter', { frequency: DRIVE_TILT_HZ, Q: 0.707, gain: 0, detune: 0 }, { type: 'highshelf' })
-      .add('driveShaper', 'waveshaper', {}, { curve: 'soft' })
-      .add('driveTone', 'filter', { frequency: 4200, Q: 0.6, detune: 0 }, { type: 'lowpass' })
+      .add('driveFold', 'fold', { fold: 1, even: 0, harmonics: 48, pitch: 0 })
       .add('driveWet', 'gain', { gain: 0 })
       .add('ampEnv', 'envelope', { attack: 0.005, decay: 0.2, sustain: 0.7, release: 0.3, gate: 0 })
       .add('filterEnv', 'envelope', { attack: 0.005, decay: 0.3, sustain: 0.3, release: 0.3, gate: 0 })
@@ -124,12 +124,14 @@ export class Synthesizer extends Device {
     c.connect('mix', 'filter1')
       .connect('filter1', 'filter2')
       .connect('filter2', 'driveDry')
-      .connect('filter2', 'drivePre')
-      .connect('drivePre', 'driveTiltLo')
+      .connect('filter2', 'driveTiltLo')
       .connect('driveTiltLo', 'driveTiltHi')
-      .connect('driveTiltHi', 'driveShaper')
-      .connect('driveShaper', 'driveTone')
-      .connect('driveTone', 'driveWet')
+      .connect('driveTiltHi', 'driveFold')
+      .connect('driveFold', 'driveWet')
+      // the folder hears the played pitch (the oscillators' pitch CVs, in cents from A4) to keep N harmonics of it
+      .connect('pitch', 'driveFold', 'pitch')
+      .connect('range', 'driveFold', 'pitch')
+      .connect('bend', 'driveFold', 'pitch')
       .connect('driveDry', 'amp')
       .connect('driveWet', 'amp')
       .connect('amp', 'accentAmp')
@@ -216,12 +218,14 @@ export class Synthesizer extends Device {
         this.applyAccent();
       }),
       new NumberControl('drive', 'Drive', 0, 1, 0, '', (v) => {
-        // the wet path comes in over the first third (the dry stays under it at 35 %); the boost keeps rising to the top
+        // the folded path comes in over the first third (the dry stays under it at 35 %); the folding keeps deepening
         const wet = Math.min(1, v * 3);
         c.setParam('driveDry', 'gain', 1 - wet * 0.65);
-        c.setParam('drivePre', 'gain', 1 + v * 24);
+        c.setParam('driveFold', 'fold', 0.8 + v * 9);
         c.setParam('driveWet', 'gain', wet * 0.55);
       }),
+      new NumberControl('drive.even', 'Even', 0, 1, 0, '', (v) => c.setParam('driveFold', 'even', v)),
+      new NumberControl('drive.harmonics', 'Harmonics', 4, 128, 48, '', (v) => c.setParam('driveFold', 'harmonics', v), 'log'),
       new NumberControl('drive.tilt', 'Tilt', -12, 12, 0, 'dB', (v) => {
         c.setParam('driveTiltLo', 'gain', -v);
         c.setParam('driveTiltHi', 'gain', v);
