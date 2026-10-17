@@ -52,6 +52,8 @@ export const DRUM_MIDI_CHANNEL = '10'; // General MIDI percussion channel
 const CENTS_PER_OCTAVE = 1200;
 // The classic six-square "metallic" hat frequencies (Hz).
 const METAL_HZ = [205.3, 304.4, 369.6, 522.7, 540, 800];
+// the new ride's layers, trimmed so it measures as loud as the old one over its first second (songs keep their balance)
+const RIDE_NEW_GAIN = 1.5;
 
 /**
  * 909-style drum machine: twelve synthesised voices. The six main voices have an output each; the percussion voices
@@ -62,7 +64,9 @@ const METAL_HZ = [205.3, 304.4, 369.6, 522.7, 540, 800];
  *   snare  two triangles (body) + high-passed noise (snap)
  *   clap   band-passed noise through a stuttering burst envelope
  *   hats   six detuned squares -> band-pass -> high-pass (closed and open are separate banks)
- *   ride   the same metallic bank pitched lower, plus a bell tone
+ *   ride   layered: a bright metallic bank (bit-crushed like the 909's 6-bit sample, before the envelopes so the
+ *          grit fades with it) as a short ping and a long wash, a resonant metallic bell, a breath of air and a
+ *          stick tick. The older ride (lower bank, sine bell) stays switchable with ride.classic for comparison.
  *   rim    two pinged tones and a click of noise, very short
  *   toms   a sine with a pitch drop, and a breath of band-passed noise
  *   cowbell two squares (540 and 800 Hz) through a band-pass, a fast then a slower decay
@@ -226,8 +230,8 @@ export class DrumMachine extends Device {
     this.num('clap.spread', 'Spread', 0, 1, 0.5, '', (v) => c.setParam('clap.env', 'spread', 0.006 + v * 0.012));
   }
 
-  /** Six detuned squares with a shared tune CV (cents), then band-pass -> high-pass. Returns the output node id. */
-  private addMetal(c: Circuit, voice: DrumVoice, scale: number, bandHz: number, highpassHz: number, gain: number): void {
+  /** Six detuned squares with a shared tune CV (`<prefix>.tune`, cents), then band-pass -> high-pass (`<prefix>.hp`). */
+  private addMetal(c: Circuit, voice: string, scale: number, bandHz: number, highpassHz: number, gain: number): void {
     c.add(`${voice}.tune`, 'constant', { offset: 0 })
       .add(`${voice}.metal`, 'gain', { gain })
       .add(`${voice}.bp`, 'filter', { frequency: bandHz, Q: 0.8 }, { type: 'bandpass' })
@@ -262,30 +266,93 @@ export class DrumMachine extends Device {
   }
 
   private addRide(c: Circuit): void {
-    this.register('ride', 'ride.ampEnv', 'ride.bellEnv');
-    this.addMetal(c, 'ride', 1.3, 6500, 2500, 0.18);
-    c.add('ride.amp', 'gain', { gain: 0 })
-      .add('ride.ampEnv', 'trigger', { peak: 1, decay: 1.2, velSens: 0.8 })
-      .add('ride.bell1', 'oscillator', { frequency: 2650, detune: 0 }, { waveform: 'sine' })
-      .add('ride.bell2', 'oscillator', { frequency: 4380, detune: 0 }, { waveform: 'sine' })
-      .add('ride.bellAmp', 'gain', { gain: 0 })
-      .add('ride.bellEnv', 'trigger', { peak: 0.2, decay: 0.9, velSens: 0.8 })
-      .add('ride.sum', 'gain', { gain: 1 })
-      .connect('ride.hp', 'ride.amp')
+    this.register('ride', 'ride.ampEnv', 'ride.pingEnv', 'ride.bellEnv', 'ride.airEnv', 'ride.tickEnv', 'rideOld.ampEnv', 'rideOld.bellEnv');
+    c.add('ride.sum', 'gain', { gain: 1 });
+
+    // the new ride: a bright bank, crushed to 6 bits before any envelope (the grit fades with the cymbal)
+    this.addMetal(c, 'ride', 1.75, 7000, 3000, 0.3);
+    c.add('ride.gritPre', 'gain', { gain: 2.2 })
+      .add('ride.crush', 'waveshaper', { bits: 6 }, { curve: 'crush' })
+      .add('ride.gritPost', 'gain', { gain: 0.45 })
+      .connect('ride.hp', 'ride.gritPre')
+      .connect('ride.gritPre', 'ride.crush')
+      .connect('ride.crush', 'ride.gritPost')
+      // the wash: the whole bank, long
+      .add('ride.amp', 'gain', { gain: 0 })
+      .add('ride.ampEnv', 'trigger', { peak: 0.6, decay: 1.4, velSens: 0.8 })
+      .connect('ride.gritPost', 'ride.amp')
       .connect('ride.ampEnv', 'ride.amp', 'gain')
-      .connect('ride.amp', 'ride.sum')
-      .connect('ride.tune', 'ride.bell1', 'detune')
-      .connect('ride.tune', 'ride.bell2', 'detune')
-      .connect('ride.bell1', 'ride.bellAmp')
-      .connect('ride.bell2', 'ride.bellAmp')
+      // the ping: a band of it, loud and short
+      .add('ride.pingBp', 'filter', { frequency: 5200, Q: 1.4 }, { type: 'bandpass' })
+      .add('ride.pingAmp', 'gain', { gain: 0 })
+      .add('ride.pingEnv', 'trigger', { peak: 1.4, decay: 0.06, velSens: 0.9 })
+      .connect('ride.gritPost', 'ride.pingBp')
+      .connect('ride.pingBp', 'ride.pingAmp')
+      .connect('ride.pingEnv', 'ride.pingAmp', 'gain')
+      // the bell: one resonance of the raw bank, metallic rather than a sine
+      .add('ride.bellBp', 'filter', { frequency: 3300, Q: 10 }, { type: 'bandpass' })
+      .add('ride.bellAmp', 'gain', { gain: 0 })
+      .add('ride.bellEnv', 'trigger', { peak: 0.4, decay: 0.55, velSens: 0.8 })
+      .connect('ride.metal', 'ride.bellBp')
+      .connect('ride.bellBp', 'ride.bellAmp')
       .connect('ride.bellEnv', 'ride.bellAmp', 'gain')
-      .connect('ride.bellAmp', 'ride.sum');
-    this.num('ride.tune', 'Tune', 0, 1, 0.5, '', (v) => c.setParam('ride.tune', 'offset', (v - 0.5) * 2 * CENTS_PER_OCTAVE));
+      // air (high noise, long) and the stick's tick (high noise, a few ms)
+      .add('ride.noise', 'noise')
+      .add('ride.airHp', 'filter', { frequency: 9000, Q: 0.707 }, { type: 'highpass' })
+      .add('ride.airAmp', 'gain', { gain: 0 })
+      .add('ride.airEnv', 'trigger', { peak: 0.1, decay: 1.1, velSens: 0.8 })
+      .add('ride.tickHp', 'filter', { frequency: 5000, Q: 0.707 }, { type: 'highpass' })
+      .add('ride.tickAmp', 'gain', { gain: 0 })
+      .add('ride.tickEnv', 'trigger', { peak: 0.3, decay: 0.005, velSens: 1 })
+      .connect('ride.noise', 'ride.airHp')
+      .connect('ride.airHp', 'ride.airAmp')
+      .connect('ride.airEnv', 'ride.airAmp', 'gain')
+      .connect('ride.noise', 'ride.tickHp')
+      .connect('ride.tickHp', 'ride.tickAmp')
+      .connect('ride.tickEnv', 'ride.tickAmp', 'gain')
+      .add('ride.new', 'gain', { gain: RIDE_NEW_GAIN });
+    for (const layer of ['ride.amp', 'ride.pingAmp', 'ride.bellAmp', 'ride.airAmp', 'ride.tickAmp']) c.connect(layer, 'ride.new');
+    c.connect('ride.new', 'ride.sum');
+
+    // the older ride, kept for comparison: a lower bank and two sine partials for the bell
+    this.addMetal(c, 'rideOld', 1.3, 6500, 2500, 0.18);
+    c.add('rideOld.amp', 'gain', { gain: 0 })
+      .add('rideOld.ampEnv', 'trigger', { peak: 1, decay: 1.2, velSens: 0.8 })
+      .add('rideOld.bell1', 'oscillator', { frequency: 2650, detune: 0 }, { waveform: 'sine' })
+      .add('rideOld.bell2', 'oscillator', { frequency: 4380, detune: 0 }, { waveform: 'sine' })
+      .add('rideOld.bellAmp', 'gain', { gain: 0 })
+      .add('rideOld.bellEnv', 'trigger', { peak: 0.2, decay: 0.9, velSens: 0.8 })
+      .add('rideOld.out', 'gain', { gain: 0 })
+      .connect('rideOld.hp', 'rideOld.amp')
+      .connect('rideOld.ampEnv', 'rideOld.amp', 'gain')
+      .connect('rideOld.amp', 'rideOld.out')
+      .connect('rideOld.tune', 'rideOld.bell1', 'detune')
+      .connect('rideOld.tune', 'rideOld.bell2', 'detune')
+      .connect('rideOld.bell1', 'rideOld.bellAmp')
+      .connect('rideOld.bell2', 'rideOld.bellAmp')
+      .connect('rideOld.bellEnv', 'rideOld.bellAmp', 'gain')
+      .connect('rideOld.bellAmp', 'rideOld.out')
+      .connect('rideOld.out', 'ride.sum');
+
+    this.num('ride.tune', 'Tune', 0, 1, 0.5, '', (v) => {
+      c.setParam('ride.tune', 'offset', (v - 0.5) * 2 * CENTS_PER_OCTAVE);
+      c.setParam('rideOld.tune', 'offset', (v - 0.5) * 2 * CENTS_PER_OCTAVE);
+    });
     this.num('ride.decay', 'Decay', 0.4, 2.5, 1.2, 's', (v) => {
-      c.setParam('ride.ampEnv', 'decay', v);
-      c.setParam('ride.bellEnv', 'decay', v * 0.75);
+      c.setParam('ride.ampEnv', 'decay', v * 1.15);
+      c.setParam('ride.airEnv', 'decay', v * 0.9);
+      c.setParam('ride.bellEnv', 'decay', v * 0.45);
+      c.setParam('rideOld.ampEnv', 'decay', v);
+      c.setParam('rideOld.bellEnv', 'decay', v * 0.75);
     }, 'log');
-    this.num('ride.bell', 'Bell', 0, 1, 0.45, '', (v) => c.setParam('ride.bellEnv', 'peak', v * 0.45));
+    this.num('ride.bell', 'Bell', 0, 1, 0.45, '', (v) => {
+      c.setParam('ride.bellEnv', 'peak', v * 0.9);
+      c.setParam('rideOld.bellEnv', 'peak', v * 0.45);
+    });
+    this.controlList.push(new ToggleControl('ride.classic', 'Old ride', false, (on) => {
+      c.setParam('ride.new', 'gain', on ? 0 : RIDE_NEW_GAIN);
+      c.setParam('rideOld.out', 'gain', on ? 1 : 0);
+    }));
   }
 
   private addRim(c: Circuit): void {

@@ -58,6 +58,18 @@ describe('DrumMachine', () => {
     expect(into('kick')).toBe(false);
   });
 
+  it('the ride is layered, crushed to 6 bits before its envelopes, and the old ride can be switched in for comparison', () => {
+    const d = new DrumMachine();
+    expect(d.circuit.node('ride.crush').params.bits).toBe(6);
+    expect(d.circuit.cables.some((c) => c.from === 'ride.crush')).toBe(true);
+    const gain = (id: string) => d.circuit.node(id).params.gain!;
+    expect(gain('rideOld.out')).toBe(0);
+    expect(gain('ride.new')).toBeGreaterThan(1);
+    (d.control('ride.classic') as ToggleControl).set(true);
+    expect(gain('ride.new')).toBe(0);
+    expect(gain('rideOld.out')).toBe(1);
+  });
+
   it('plays the percussion voices from their General MIDI notes', () => {
     const d = new DrumMachine();
     const hits: string[] = [];
