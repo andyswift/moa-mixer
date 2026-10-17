@@ -387,7 +387,7 @@ describe('Mixer routing', () => {
     const m = new Mixer(1);
     toggle(m, 'ch1.mute').set(true);
     expect(m.circuit.node('ch1.mute').params.gain).toBe(0);
-    expect(m.circuit.cables).toContainEqual({ from: 'ch1.sat', to: 'ch1.mute', port: 'in' });
+    expect(m.circuit.cables).toContainEqual({ from: 'ch1.tapeMakeup', to: 'ch1.mute', port: 'in' }); // the gain stage's last node
   });
 
   it('exposes meters for the strip and for each bus (L and R)', () => {
@@ -496,10 +496,10 @@ describe('Patch', () => {
 });
 
 describe('Synth presets', () => {
-  it('has Init plus nineteen mono patches with unique names', () => {
+  it('has Init plus twenty mono patches with unique names', () => {
     expect(SYNTH_PRESETS[0]?.name).toBe('Init');
-    expect(SYNTH_PRESETS).toHaveLength(20);
-    expect(new Set(SYNTH_PRESETS.map((x) => x.name)).size).toBe(20);
+    expect(SYNTH_PRESETS).toHaveLength(21);
+    expect(new Set(SYNTH_PRESETS.map((x) => x.name)).size).toBe(21);
     const names = SYNTH_PRESETS.map((x) => x.name);
     for (const polyOnly of ['Strings', 'Warm Pad']) expect(names).not.toContain(polyOnly);
     expect(names).toContain('Random SFX');
@@ -594,5 +594,22 @@ describe('MOA-1 accent and drive', () => {
     expect(param(s, 'driveFold', 'harmonics')).toBe(8);
     // the folder follows the played pitch: the same pitch CVs as the oscillators
     for (const cv of ['pitch', 'range', 'bend']) expect(s.circuit.cables).toContainEqual({ from: cv, to: 'driveFold', port: 'pitch' });
+  });
+});
+
+describe('MOA-1 ladder filter', () => {
+  it('switches between the clean filter and the ladder, which gets the same cutoff and modulation', () => {
+    const s = new Synthesizer();
+    const p = (node: string, name: string) => s.circuit.node(node).params[name]!;
+    expect(p('filterClean', 'gain')).toBe(1);
+    expect(p('filterLadder', 'gain')).toBe(0);
+    (s.control('filter.model') as { set(v: string): void }).set('ladder');
+    expect(p('filterClean', 'gain')).toBe(0);
+    expect(p('filterLadder', 'gain')).toBeCloseTo(1.25);
+    (s.control('filter.cutoff') as { set(v: number): void }).set(440);
+    (s.control('filter.drive') as { set(v: number): void }).set(0.6);
+    expect(p('ladder', 'cutoff')).toBe(440);
+    expect(p('ladder', 'drive')).toBe(0.6);
+    for (const cv of ['filterEnvDepth', 'keyFollow', 'lfoFilter']) expect(s.circuit.cables).toContainEqual({ from: cv, to: 'ladder', port: 'detune' });
   });
 });

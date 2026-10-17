@@ -38,8 +38,8 @@ const ROWS: SectionSpec[][] = [
   ],
   [
     {
-      title: 'Filter', color: BLUE, grow: 5,
-      faders: ['filter.cutoff', 'filter.resonance', { id: 'filterEnv.amount', label: 'Env' }, 'filter.lfo', 'filter.keyFollow'],
+      title: 'Filter', color: BLUE, grow: 6, switches: ['filter.model'],
+      faders: ['filter.cutoff', { id: 'filter.resonance', label: 'Res' }, { id: 'filter.drive', label: 'Drive' }, { id: 'filterEnv.amount', label: 'Env' }, 'filter.lfo', 'filter.keyFollow'],
     },
     { title: 'Filter envelope', color: BLUE, grow: 4, faders: adsr('filterEnv') },
     { title: 'Amp envelope', color: ORANGE, grow: 4, faders: adsr('ampEnv') },

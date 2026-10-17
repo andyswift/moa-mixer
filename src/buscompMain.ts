@@ -1,4 +1,5 @@
 import './ui/style.css';
+import './ui/buscomp.css';
 import { AudioEngine } from './audio/engine';
 import type { BusCompFx } from './domain/devices/busComp';
 import { MidiClock } from './domain/midi/clock';

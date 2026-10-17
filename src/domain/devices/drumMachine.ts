@@ -69,7 +69,8 @@ const RIDE_GAIN = 1.5;
  *          stick tick
  *   rim    two pinged tones and a click of noise, very short
  *   toms   a sine with a pitch drop, and a breath of band-passed noise
- *   cowbell two squares (540 and 800 Hz) through a band-pass, a fast then a slower decay
+ *   cowbell two squares (540 and 800 Hz) through a band-pass and a softening low-pass: a strike (a short loud
+ *          stage with a small pitch blip) and then a quieter ring, so it goes "tonk" rather than "beep"
  *   crash  the metallic bank bright and long, with high-passed noise
  * Voice -> mute/solo gate -> level -> output jack (and meter). A closed hat chokes the open hat.
  */
@@ -381,19 +382,27 @@ export class DrumMachine extends Device {
   }
 
   private addCowbell(c: Circuit): void {
-    this.register('cowbell', 'cowbell.env');
+    this.register('cowbell', 'cowbell.strikeEnv', 'cowbell.env', 'cowbell.pitchEnv');
     c.add('cowbell.tune', 'constant', { offset: 0 })
+      .add('cowbell.pitchEnv', 'trigger', { peak: 120, decay: 0.015, velSens: 0.5 }) // cents: a blip down onto the pitch
       .add('cowbell.sq1', 'oscillator', { frequency: 540, detune: 0 }, { waveform: 'square' })
       .add('cowbell.sq2', 'oscillator', { frequency: 800, detune: 0 }, { waveform: 'square' })
       .add('cowbell.bp', 'filter', { frequency: 2640, Q: 1.4 }, { type: 'bandpass' })
+      .add('cowbell.lp', 'filter', { frequency: 5500, Q: 0.6 }, { type: 'lowpass' })
       .add('cowbell.amp', 'gain', { gain: 0 })
-      .add('cowbell.env', 'trigger', { peak: 0.7, decay: 0.25, velSens: 0.8 })
+      // two stages summed on the gain: the strike (loud, a few ms) and the ring (quieter, the Decay)
+      .add('cowbell.strikeEnv', 'trigger', { peak: 0.75, decay: 0.012, velSens: 0.9 })
+      .add('cowbell.env', 'trigger', { peak: 0.32, decay: 0.25, velSens: 0.7 })
       .add('cowbell.sum', 'gain', { gain: 1 })
       .connect('cowbell.tune', 'cowbell.sq1', 'detune')
       .connect('cowbell.tune', 'cowbell.sq2', 'detune')
+      .connect('cowbell.pitchEnv', 'cowbell.sq1', 'detune')
+      .connect('cowbell.pitchEnv', 'cowbell.sq2', 'detune')
       .connect('cowbell.sq1', 'cowbell.bp')
       .connect('cowbell.sq2', 'cowbell.bp')
-      .connect('cowbell.bp', 'cowbell.amp')
+      .connect('cowbell.bp', 'cowbell.lp')
+      .connect('cowbell.lp', 'cowbell.amp')
+      .connect('cowbell.strikeEnv', 'cowbell.amp', 'gain')
       .connect('cowbell.env', 'cowbell.amp', 'gain')
       .connect('cowbell.amp', 'cowbell.sum');
     this.num('cowbell.tune', 'Tune', 0, 1, 0.5, '', (v) => c.setParam('cowbell.tune', 'offset', (v - 0.5) * CENTS_PER_OCTAVE));

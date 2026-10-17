@@ -25,6 +25,7 @@ const ACCENT_AMP = 0.6; // at full accent, accented notes are this much louder
 const ACCENT_ENV = 0.8; // ... their filter envelope swings this much further
 const ACCENT_DECAY = 0.12; // ... and decays no longer than this (s)
 const DRIVE_TILT_HZ = 700; // the drive's tilt EQ pivots here
+const LADDER_GAIN = 1.25; // the ladder measured about 2 dB under the clean filter on an acid line; this matches them
 
 /**
  * SH-101 style monophonic synth:
@@ -32,6 +33,9 @@ const DRIVE_TILT_HZ = 700; // the drive's tilt EQ pivots here
  * Pitch is a CV in cents: a hidden `pitch` signal (the played note) and `range` (octave switch)
  * are both summed into every oscillator's detune, so the sub tracks the keyboard for free.
  * ampEnv drives the VCA, filterEnv sweeps the filter cutoff (and the keyboard follows it via keyFollow).
+ * Filter: Clean (two biquads, the original) or Ladder, a four-pole ladder with its saturation inside the resonance
+ * loop (`ladderWorklet.ts`), whose Filter drive squashes loud notes' resonance into a rubbery squelch. Both get the
+ * same cutoff, envelope, key follow and LFO.
  * Accent (for acid lines): a loud note (velocity 110 and up) is louder, with a deeper and shorter filter sweep.
  * Drive: a parallel wavefolder after the filter, blended in as it rises, so at 0 the dry sound is untouched. A tilt EQ
  * before it picks what folds (bright: the lows stay clean, no mud on a bass line); Even biases the fold for even
@@ -85,6 +89,10 @@ export class Synthesizer extends Device {
       // 24 dB/oct low-pass: two 12 dB stages in series. Resonance lives on the first stage.
       .add('filter1', 'filter', { frequency: 800, Q: 1, detune: 0 }, { type: 'lowpass' })
       .add('filter2', 'filter', { frequency: 800, Q: 0.707, detune: 0 }, { type: 'lowpass' })
+      .add('ladder', 'ladder', { cutoff: 800, detune: 0, res: 0.2, drive: 0 })
+      .add('filterClean', 'gain', { gain: 1 })
+      .add('filterLadder', 'gain', { gain: 0 })
+      .add('filterOut', 'gain', { gain: 1 })
       .add('keyFollow', 'gain', { gain: 0.5 }) // pitch CV scaled: 1 = cutoff tracks the keyboard 1:1
       .add('amp', 'gain', { gain: 0 }) // silent until the amp envelope opens it
       .add('accentAmp', 'gain', { gain: 1 })
@@ -123,8 +131,13 @@ export class Synthesizer extends Device {
     for (const src of ['mix.saw', 'mix.pulse', 'mix.sub', 'mix.noise']) c.connect(src, 'mix');
     c.connect('mix', 'filter1')
       .connect('filter1', 'filter2')
-      .connect('filter2', 'driveDry')
-      .connect('filter2', 'driveTiltLo')
+      .connect('filter2', 'filterClean')
+      .connect('mix', 'ladder')
+      .connect('ladder', 'filterLadder')
+      .connect('filterClean', 'filterOut')
+      .connect('filterLadder', 'filterOut')
+      .connect('filterOut', 'driveDry')
+      .connect('filterOut', 'driveTiltLo')
       .connect('driveTiltLo', 'driveTiltHi')
       .connect('driveTiltHi', 'driveFold')
       .connect('driveFold', 'driveWet')
@@ -139,7 +152,7 @@ export class Synthesizer extends Device {
       .connect('ampEnv', 'amp', 'gain')
       .connect('filterEnv', 'filterEnvDepth')
       .connect('pitch', 'keyFollow');
-    for (const f of ['filter1', 'filter2']) {
+    for (const f of ['filter1', 'filter2', 'ladder']) {
       c.connect('filterEnvDepth', f, 'detune')
         .connect('keyFollow', f, 'detune')
         .connect('lfoFilter', f, 'detune');
@@ -172,8 +185,17 @@ export class Synthesizer extends Device {
       new NumberControl('filter.cutoff', 'Cutoff', 20, 20000, 800, 'Hz', (v) => {
         c.setParam('filter1', 'frequency', v);
         c.setParam('filter2', 'frequency', v);
+        c.setParam('ladder', 'cutoff', v);
       }, 'log'),
-      new NumberControl('filter.resonance', 'Resonance', 0.1, 20, 1, '', (v) => c.setParam('filter1', 'Q', v)),
+      new NumberControl('filter.resonance', 'Resonance', 0.1, 20, 1, '', (v) => {
+        c.setParam('filter1', 'Q', v);
+        c.setParam('ladder', 'res', Math.sqrt((v - 0.1) / 19.9)); // the same knob, mapped onto the ladder's feedback
+      }),
+      new ChoiceControl('filter.model', 'Filter', ['clean', 'ladder'], 'clean', (v) => {
+        c.setParam('filterClean', 'gain', v === 'clean' ? 1 : 0);
+        c.setParam('filterLadder', 'gain', v === 'ladder' ? LADDER_GAIN : 0);
+      }),
+      new NumberControl('filter.drive', 'Filter drive', 0, 1, 0, '', (v) => c.setParam('ladder', 'drive', v)),
       new NumberControl('filter.keyFollow', 'Key', 0, 100, 50, '%', (v) => c.setParam('keyFollow', 'gain', v / 100)),
       new NumberControl('perf.glide', 'Glide', 0, 3, 0, 's', (v) => {
         this.glideSeconds = v;

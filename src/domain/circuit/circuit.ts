@@ -36,10 +36,12 @@
 // Its `cords` option holds the patch cords (JSON) so a worklet built later starts with them.
 // 'fold' is the MOA-1's drive: a wavefolder with antialiasing and a pitch-tracking low-pass, mono in and out. Params
 // fold, even, harmonics and pitch (cents from A4, a CV); see `foldWorklet.ts`.
+// 'ladder' is the MOA-1's ladder filter (saturation inside the resonance loop), mono in and out. Params cutoff (Hz),
+// detune (cents, an audio-rate CV input), res (0..1) and drive (0..1); see `ladderWorklet.ts`.
 // 'df' is the MOA-DF2 filter box: two multimode filters, two envelopes, a sample-and-hold, a delay and a mixer in
 // one worklet; stereo in, stereo out. Its params are listed in `dfWorklet.ts`. `gate(id, target, on)` drives its
 // envelope gates: 'keys' (the held keys) or 'open1' / 'open2' (the OPEN buttons).
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df' | 'duo' | 'm2600' | 'fold';
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df' | 'duo' | 'm2600' | 'fold' | 'ladder';
 
 export interface CircuitNode {
   readonly id: string;
