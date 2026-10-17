@@ -102,6 +102,7 @@ describe('patches', () => {
     for (const def of M2600_PARAMS) {
       const v = s.control(def.id).value;
       p[def.id] = typeof v === 'boolean' ? (v ? 1 : 0) : typeof v === 'string' ? def.options!.indexOf(v) : v;
+      if (def.id === 'sq.sync') p[def.id] = 0; // no MIDI clock here: a MIDI-synced sequencer runs on its own clock, as on the 2600's page
     }
     let seed = 7;
     const core = new mod.M26Core(SR, () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296)) as unknown as {
@@ -132,6 +133,7 @@ describe('patches', () => {
       for (const def of M2600_PARAMS) {
         const v = s.control(def.id).value;
         p[def.id] = typeof v === 'boolean' ? (v ? 1 : 0) : typeof v === 'string' ? def.options!.indexOf(v) : v;
+      if (def.id === 'sq.sync') p[def.id] = 0; // no MIDI clock here: a MIDI-synced sequencer runs on its own clock, as on the 2600's page
       }
       let seed = 7;
       const core = new mod.M26Core(SR, () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296));

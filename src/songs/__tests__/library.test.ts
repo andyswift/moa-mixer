@@ -43,6 +43,7 @@ describe.each(library().map((s) => [s.title, s] as const))('song: %s', (_title, 
     const msgs = expandSong(song, 1);
     const end = song.bars * song.beatsPerBar * (60000 / song.bpm);
     for (const m of msgs) {
+      if (m.data.length === 1) continue; // MIDI clock, start and stop carry no note
       expect(m.data[1]).toBeGreaterThanOrEqual(0);
       expect(m.data[1]).toBeLessThanOrEqual(127);
       expect(m.ms).toBeLessThan(end + 1500);

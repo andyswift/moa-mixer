@@ -1,6 +1,5 @@
 import { arpeggio, at16, chordAt, DRUM, note, steps } from '../generators';
 import { DRUM_PUNCH, mixerSettings, STANDARD_EFFECTS } from '../mixes';
-import { pluck2600 } from '../m2600Sounds';
 import type { NoteEvent, Song } from '../types';
 
 /** An original dream-trance tune: 132 bpm, B minor, the loop Bm - G - D - A, two bars a chord. Sixteen bars. */
@@ -76,13 +75,13 @@ const parts = {
   },
 };
 
-/** The MOA-2600: trance off-beat plucks, the root and its octave and fifth, through the lift and the outro. */
-function offbeats2600(): NoteEvent[] {
+/**
+ * The MOA-2600's notes only set the key: the chord's root, held, goes to the SQ16's CV input (patch SQ16 Chord Arp),
+ * and the sequencer plays the arp on the song's MIDI clock, from the lift to the end.
+ */
+function keys2600(): NoteEvent[] {
   const out: NoteEvent[] = [];
-  for (let bar = 8; bar < BARS; bar++) {
-    const r = chordAt(ROOTS, bar, 2) + 36;
-    [r, r + 12, r + 7, r + 12].forEach((n, i) => out.push(note(at16(bar, 2 + i * 4), steps(1.2), n, bar < 12 ? 80 : 68)));
-  }
+  for (let bar = 8; bar < BARS; bar += 2) out.push(note(at16(bar, 0), 2 * 4 - 0.25, chordAt(ROOTS, bar, 2) + 24, 100));
   return out;
 }
 
@@ -103,7 +102,7 @@ export function glassGarden(): Song {
       poly: { poly: { preset: 0 } }, // Soft Pad
       lynch: { lynch: { preset: 17 } }, // Harp
       duo: { duo: { preset: 11 } }, // Infinite Cathedral
-      m2600: pluck2600({ 'vcf.res': 0.45, 'adsr.decay': 0.16 }),
+      m2600: { m2600: { preset: 34 } }, // SQ16 Chord Arp
       df2: { lynch: { preset: 6 }, box: { preset: 13, controls: { 'f1.res': 0.22, 'f2.res': 0.2, 'delay.level': 0.1 } } }, // Slow Pad into Ghost Pad
       pipe: { pipe: { preset: 5 } }, // Glass Bell
       ...mixerSettings({
@@ -114,9 +113,11 @@ export function glassGarden(): Song {
         faders: { line1: 0.6, line2: 0.55, line5: 0.45 },
       }),
     },
-    tracks: { drums: parts.drums(), synth: parts.bass(), poly: parts.pad(), lynch: parts.line(), pipe: parts.bells(), df2: parts.hold(), duo: parts.arp(), m2600: offbeats2600() },
+    tracks: { drums: parts.drums(), synth: parts.bass(), poly: parts.pad(), lynch: parts.line(), pipe: parts.bells(), df2: parts.hold(), duo: parts.arp(), m2600: keys2600() },
+    clock: ['m2600'], // the SQ16 steps on the song's clock
     automation: [
-      // the 2600's plucks open up through the lift and close again in the outro
+      // the SQ16 runs the whole song; the 2600's VCA lets it through from the lift, as its filter opens and closes again
+      { page: 'm2600', device: 'm2600', control: 'vca.cv.adsr', points: [[0, 0], [31.9, 0], [32, 1]] },
       { page: 'm2600', device: 'm2600', control: 'vcf.freq', curve: 'exp', points: [[0, 700], [32, 700], [48, 3600], [56, 3600], [64, 900]] },
       { page: 'df2', device: 'box', control: 'f1.cutoff', curve: 'exp', points: [[0, 500], [28, 500], [32, 2600], [44, 3200], [52, 700], [64, 700]] },
       { page: 'df2', device: 'box', control: 'f2.cutoff', curve: 'exp', points: [[0, 650], [28, 650], [32, 3200], [44, 4000], [52, 900], [64, 900]] },

@@ -13,7 +13,7 @@ import type { Song } from './types';
 export const BALANCE: Record<string, Record<string, number>> = {
   'two-step-sunrise': { ch4: 1.11, ch5: 0.93, ch6: 1.5, ch7: 1.0, ch8: 0.77, ch1: 0.52, ch2: 0.46, line1: 0.62, line2: 0.7, line4: 1.13, line5: 0.72 },
   'neon-hands': { ch4: 1.05, ch5: 0.88, ch6: 1.37, ch7: 1.08, ch1: 0.55, ch2: 0.49, line1: 0.52, line2: 0.39, line4: 0.86, line5: 0.71 },
-  'glass-garden': { ch4: 1.07, ch5: 0.95, ch6: 1.47, ch7: 1.11, ch8: 0.75, ch1: 0.47, ch2: 0.5, line2: 0.54, line3: 1.11, line4: 1.13, line5: 0.8 },
+  'glass-garden': { ch4: 1.07, ch5: 0.95, ch6: 1.47, ch7: 1.11, ch8: 0.75, ch1: 0.47, ch2: 0.5, line2: 0.54, line3: 1.11, line4: 1.13, line5: 0.7 },
   'fjord-light': { ch4: 1.0, ch5: 0.84, ch6: 1.38, ch7: 1.11, ch1: 0.52, ch2: 0.51, line1: 0.51, line2: 0.35, line3: 1.13, line4: 0.18, line5: 0.95 },
   // measured in headless Chrome on the dev Records page: the percussion (rimshot, toms) 8 under the kick, the 2600 10 under
   // measured in headless Chrome on the dev Records page; the 2600 8 under the kick. The cowbell is set by ear, not to a

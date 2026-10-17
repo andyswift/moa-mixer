@@ -51,6 +51,11 @@ export interface Song {
   /** Mixer input routing for this song (jack to port name), if it differs from the defaults. */
   inputs?: Record<string, string>;
   tracks: Partial<Record<PageId, NoteEvent[]>>;
+  /**
+   * Pages that follow the song's MIDI clock: each pass sends them Start, then 24 clock pulses a beat, and stopping
+   * sends Stop. A sequencer set to MIDI sync (the MOA-2600's SQ16) then steps in time with the song.
+   */
+  clock?: PageId[];
   automation: Automation[];
   humanise: Humanise;
   /** Only in dev builds: songs that imitate real recordings are never published. */

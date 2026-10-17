@@ -216,6 +216,15 @@ export const M2600_FACTORY: readonly SynthPreset[] = [
     'vcf.freq': 5000, 'vcf.cv.adsr': 0, 'adsr.attack': 0.001, 'adsr.decay': 0.6, 'adsr.sustain': 0, 'adsr.release': 0.5,
     'reverb.left': 0.4, 'reverb.right': 0.4, 'sq.rate': 5, ...steps([0, 7, 12, 5, 10, 3, 15, 8, 0, 12, 7, 19, 5, 14, 10, 2], '1111111111111111'),
   }),
+  // For records: the song's notes only set the key (KYBD CV into the quantizers), the SQ16 plays the arp on the song's
+  // MIDI clock, in random order over intervals that sit on any chord (root, fifth, octave, ninth, twelfth, two octaves)
+  p('SQ16 Chord Arp', {
+    [M2600_CORDS_KEY]: 'kb.cv>sq.cvin;sq.qa>mult.1;mult.2>vco1.fm.kybd;mult.3>vco2.fm.kybd;sq.cgate1>adsr.gate',
+    'vcf.in.vco1': 0.6, 'vcf.in.vco2': 0.5, 'vco2.fine': 0.08, 'vcf.freq': 1500, 'vcf.res': 0.35, 'vcf.cv.adsr': 0.3,
+    'adsr.attack': 0.001, 'adsr.decay': 0.16, 'adsr.sustain': 0.1, 'adsr.release': 0.12, 'reverb.left': 0.15, 'reverb.right': 0.15,
+    'sq.sync': 'midi', 'sq.div': '1/16', 'sq.dir': 'random', 'sq.mode': '8x2', 'sq.pw': 0.4,
+    ...steps([0, 7, 12, 14, 19, 12, 7, 24], '11111111'),
+  }),
 ];
 
 export const M2600_PRESETS: readonly SynthPreset[] = Array.from({ length: M2600_SLOTS }, (_, i) => M2600_FACTORY[i] ?? p('Init', {}));

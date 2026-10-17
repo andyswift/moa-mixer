@@ -223,3 +223,34 @@ describe('SongPlayer looping', () => {
   });
 });
 
+
+describe('MIDI clock for sequencers', () => {
+  const clocked = () => song({ clock: ['m2600'], humanise: { timing: { m2600: 20 }, velocity: 0.1, swing: 0.2 } });
+
+  it('sends the clock pages Start, then 24 pulses a beat exactly on time, and nothing to the others', () => {
+    const msgs = expandSong(clocked(), 3);
+    const clock = msgs.filter((m) => m.page === 'm2600');
+    expect(clock[0]).toEqual({ ms: 0, page: 'm2600', data: [0xfa] });
+    const pulses = clock.filter((m) => m.data[0] === 0xf8);
+    expect(pulses).toHaveLength(2 * 4 * 24); // two bars of 4/4
+    pulses.forEach((m, k) => expect(m.ms).toBeCloseTo((k * 500) / 24, 6)); // 120 bpm: a beat is 500 ms; never humanised
+    expect(msgs.some((m) => m.page !== 'm2600' && m.data.length === 1)).toBe(false);
+  });
+
+  it('starts the clock again with each pass of a loop, and stopping sends Stop after the last pulse sent', () => {
+    const f = fakeHost();
+    const p = new SongPlayer(f.host, 250, 30, 500);
+    p.loop = true;
+    p.play(clocked());
+    for (let i = 0; i < 200; i++) f.advance(30); // 6 s: three passes of a 4 s song
+    const starts = f.notes.filter((n) => n.page === 'm2600' && n.data[0] === 0xfa).map((n) => n.at);
+    expect(starts.length).toBeGreaterThanOrEqual(2);
+    expect(starts[1]! - starts[0]!).toBeCloseTo(4000, 6);
+    const before = f.notes.length;
+    const lastPulse = Math.max(...f.notes.filter((n) => n.data[0] === 0xf8).map((n) => n.at));
+    p.stop();
+    const stop = f.notes.slice(before).find((n) => n.data[0] === 0xfc);
+    expect(stop?.page).toBe('m2600');
+    expect(stop!.at).toBeGreaterThan(lastPulse);
+  });
+});

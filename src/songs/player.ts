@@ -20,6 +20,10 @@ export interface ScheduledMessage {
 }
 
 const NOTE_OFF_SHARE = 0.96; // a note is released just before the next of the same pitch could start
+const PPQN = 24; // MIDI clock pulses per quarter note
+export const MIDI_START = 0xfa;
+export const MIDI_CLOCK = 0xf8;
+export const MIDI_STOP = 0xfc;
 
 function rng(seed: number): () => number {
   let s = seed >>> 0;
@@ -32,7 +36,10 @@ function rng(seed: number): () => number {
   };
 }
 
-/** Turns a song into timed MIDI messages, with the humanising applied. Same song and seed: same performance. */
+/**
+ * Turns a song into timed MIDI messages, with the humanising applied. Same song and seed: same performance. Pages in
+ * `song.clock` also get Start and the clock for the pass (exactly on the beat, never humanised).
+ */
 export function expandSong(song: Song, seed = 1): ScheduledMessage[] {
   const random = rng(seed);
   const wobble = () => random() + random() - 1; // bell-shaped, -1..1
@@ -49,6 +56,11 @@ export function expandSong(song: Song, seed = 1): ScheduledMessage[] {
       out.push({ ms: start, page, data: [0x90 | channel, e.note, velocity] });
       out.push({ ms: start + e.len * beatMs * NOTE_OFF_SHARE, page, data: [0x80 | channel, e.note, 0] });
     }
+  }
+  const pulses = song.bars * song.beatsPerBar * PPQN;
+  for (const page of song.clock ?? []) {
+    out.push({ ms: 0, page, data: [MIDI_START] }); // before the first pulse (the sort keeps equal times in order)
+    for (let k = 0; k < pulses; k++) out.push({ ms: (k * beatMs) / PPQN, page, data: [MIDI_CLOCK] });
   }
   return out.sort((a, b) => a.ms - b.ms);
 }
@@ -163,6 +175,7 @@ export class SongPlayer {
     const at = Math.max(this.host.now(), this.lastDue) + 10;
     for (const { page, data } of this.open.values()) this.host.sendNote(page, [0x80 | (data[0]! & 0x0f), data[1]!, 0], at);
     this.open.clear();
+    for (const page of this.song?.clock ?? []) this.host.sendNote(page, [MIDI_STOP], at); // sequencers stop with the song
     this.state = 'idle';
   }
 
