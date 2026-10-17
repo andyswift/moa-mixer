@@ -109,9 +109,12 @@ describe('Mixer channel gain stage', () => {
     const m = new Mixer(2, 'Mixer', 2);
     for (const strip of ['ch1', 'ch2', 'ret1', 'ret2']) {
       const has = (from: string, to: string) => m.circuit.cables.some((c) => c.from === `${strip}.${from}` && c.to === `${strip}.${to}` && c.port === 'in');
-      expect(has('eqHigh', 'drive')).toBe(true);
+      // EQ -> (tape pre-emphasis) -> drive -> curve -> (tape post-emphasis, high cut, bump, make-up) -> mute
+      expect(has('eqHigh', 'tapePre')).toBe(true);
+      expect(has('tapePre', 'drive')).toBe(true);
       expect(has('drive', 'sat')).toBe(true);
-      expect(has('sat', 'mute')).toBe(true);
+      expect(has('sat', 'tapePost')).toBe(true);
+      expect(has('tapeMakeup', 'mute')).toBe(true);
       expect(m.circuit.node(`${strip}.sat`).options.curve).toBe('warm');
       expect(m.circuit.node(`${strip}.drive`).params.gain).toBeCloseTo(1 / 3); // maps the +/-3 range onto the curve
       expect(has('sat', 'aux1.pre')).toBe(false); // the pre-fader aux tap comes after the mute gate

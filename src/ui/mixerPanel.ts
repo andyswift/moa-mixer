@@ -93,7 +93,9 @@ function renderStrip(m: Mixer, prefix: string, i: number, kind: StripKind, name:
   }
   strip.append(aux);
 
-  strip.append(renderKnob(number(m, id('pan')), section, stereo ? 'Bal' : 'Pan', 32));
+  const tapePan = el('div', 'mix-row mix-tape-pan');
+  tapePan.append(renderKnob(number(m, id('tape')), section, 'Tape', 32), renderKnob(number(m, id('pan')), section, stereo ? 'Bal' : 'Pan', 32));
+  strip.append(tapePan);
 
   const ms = el('div', 'mix-row');
   ms.append(renderToggleButton(toggle(m, id('mute')), `${section} mute`, () => 'Mute', '#e0524a', 'btn'));

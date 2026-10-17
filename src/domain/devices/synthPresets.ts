@@ -22,6 +22,8 @@ export const INIT: PresetValues = {
   'filter.resonance': 1,
   'filter.keyFollow': 50,
   'filter.lfo': 0,
+  'filter.model': 'clean',
+  'filter.drive': 0,
   'filterEnv.amount': 2,
   'filterEnv.attack': 0.005,
   'filterEnv.decay': 0.3,
@@ -46,7 +48,7 @@ export const INIT: PresetValues = {
 const p = (name: string, values: PresetValues): SynthPreset => ({ name, values });
 
 /**
- * Nineteen classic mono-synth sounds in the SH-101 vocabulary (the last through the drive's wavefolder). The original has no patch memory, so
+ * Twenty classic mono-synth sounds in the SH-101 vocabulary (the last two through the wavefolder and the ladder). The original has no patch memory, so
  * these are recipes for the sounds the instrument is known for, not factory dumps.
  */
 export const SYNTH_PRESETS: readonly SynthPreset[] = [
@@ -164,5 +166,12 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
     'filter.keyFollow': 40, 'filterEnv.amount': 4, 'filterEnv.attack': 0.001, 'filterEnv.decay': 0.18,
     'filterEnv.sustain': 0, 'filterEnv.release': 0.1, 'ampEnv.sustain': 0.9, 'ampEnv.release': 0.08,
     'perf.glide': 0.07, 'perf.notes': 'legato', accent: 0.7, drive: 0.45, 'drive.tilt': 6, level: 0.45,
+  }),
+  // Acid Squelch through the ladder filter, driven: saturation rather than fuzz, the resonance squashed into a squelch
+  p('Acid Ladder', {
+    'osc.range': "16'", 'mix.saw': 1, 'mix.sub': 0.35, 'mix.noise': 0, 'filter.model': 'ladder', 'filter.drive': 0.5,
+    'filter.cutoff': 300, 'filter.resonance': 15, 'filter.keyFollow': 40, 'filterEnv.amount': 4, 'filterEnv.attack': 0.001,
+    'filterEnv.decay': 0.18, 'filterEnv.sustain': 0, 'filterEnv.release': 0.1, 'ampEnv.sustain': 0.9, 'ampEnv.release': 0.08,
+    'perf.glide': 0.07, 'perf.notes': 'legato', accent: 0.7, level: 0.45,
   }),
 ];

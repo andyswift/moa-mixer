@@ -38,6 +38,13 @@ export const AUX_PAIRS = [
  * A fixed `main` output sums the three buses through a limiter and a hard ceiling just under full scale, so
  * runaway feedback is loud but can never leave the speakers' range.
  */
+// Tape (per strip): pre/post low emphasis around the gain stage, drive at the top of the knob, high cut, head bump.
+const TAPE_EMPHASIS_HZ = 120;
+const TAPE_EMPHASIS_DB = 6;
+const TAPE_MAX_DRIVE = 1.2;
+const TAPE_HF_CUT_DB = 4;
+const TAPE_BUMP_DB = 1.5;
+
 export class Mixer extends Device {
   readonly name: string;
   private readonly muted = new Set<number>();
@@ -120,17 +127,29 @@ export class Mixer extends Device {
       .add(id('eqLow'), 'filter', { frequency: 80, Q: 0.707, gain: 0 }, { type: 'lowshelf' })
       .add(id('eqMid'), 'filter', { frequency: 2500, Q: 1, gain: 0 }, { type: 'peaking' })
       .add(id('eqHigh'), 'filter', { frequency: 12000, Q: 0.707, gain: 0 }, { type: 'highshelf' })
+      // tape/console saturation around the gain stage, neutral at Tape 0: lows pre-emphasised into the curve and
+      // de-emphasised after (transformer-style), more drive with matching make-up, a softened top and a head bump
+      .add(id('tapePre'), 'filter', { frequency: TAPE_EMPHASIS_HZ, Q: 0.707, gain: 0 }, { type: 'lowshelf' })
       .add(id('drive'), 'gain', { gain: 1 / 3 }) // scales the +/-3 input range onto the 'warm' curve
       .add(id('sat'), 'waveshaper', {}, { curve: 'warm' })
+      .add(id('tapePost'), 'filter', { frequency: TAPE_EMPHASIS_HZ, Q: 0.707, gain: 0 }, { type: 'lowshelf' })
+      .add(id('tapeHf'), 'filter', { frequency: 9000, Q: 0.707, gain: 0 }, { type: 'highshelf' })
+      .add(id('tapeBump'), 'filter', { frequency: 70, Q: 1, gain: 0 }, { type: 'peaking' })
+      .add(id('tapeMakeup'), 'gain', { gain: 1 })
       .add(id('mute'), 'gain', { gain: 1 }) // mute/solo gate: also silences the aux sends
       .add(id('fader'), 'gain', { gain: 0.8 })
       .add(id('pan'), 'pan', { pan: 0 })
       .connect(id('lowcut'), id('eqLow'))
       .connect(id('eqLow'), id('eqMid'))
       .connect(id('eqMid'), id('eqHigh'))
-      .connect(id('eqHigh'), id('drive'))
+      .connect(id('eqHigh'), id('tapePre'))
+      .connect(id('tapePre'), id('drive'))
       .connect(id('drive'), id('sat'))
-      .connect(id('sat'), id('mute'))
+      .connect(id('sat'), id('tapePost'))
+      .connect(id('tapePost'), id('tapeHf'))
+      .connect(id('tapeHf'), id('tapeBump'))
+      .connect(id('tapeBump'), id('tapeMakeup'))
+      .connect(id('tapeMakeup'), id('mute'))
       .connect(id('mute'), id('fader'))
       .connect(id('fader'), id('pan'));
     if (stereo) {
@@ -182,6 +201,17 @@ export class Mixer extends Device {
       gainDb('eqMid', 'Mid', 'eqMid'),
       num('eqMidFreq', 'Freq', 100, 8000, 2500, 'Hz', (v) => c.setParam(id('eqMid'), 'frequency', v), 'log'),
       gainDb('eqLow', 'Low', 'eqLow'),
+      num('tape', 'Tape', 0, 1, 0, '', (t) => {
+        const drive = 1 / 3 + t * (TAPE_MAX_DRIVE - 1 / 3);
+        c.setParam(id('tapePre'), 'gain', TAPE_EMPHASIS_DB * t);
+        c.setParam(id('tapePost'), 'gain', -TAPE_EMPHASIS_DB * t);
+        c.setParam(id('drive'), 'gain', drive);
+        // the curve is unity below its knee, so this make-up keeps quiet signals at the same level: only loud ones
+        // lean into the curve (glue), and the lows lean in first
+        c.setParam(id('tapeMakeup'), 'gain', 1 / (3 * drive));
+        c.setParam(id('tapeHf'), 'gain', -TAPE_HF_CUT_DB * t);
+        c.setParam(id('tapeBump'), 'gain', TAPE_BUMP_DB * t);
+      }),
     );
 
     for (let k = 1; k <= AUX_COUNT; k++) {
