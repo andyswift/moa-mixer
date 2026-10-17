@@ -71,6 +71,11 @@ export class M2600Synth extends Device implements Playable {
     this.controlList.push(new ChoiceControl('play.channel', 'MIDI channel', M2600_CHANNELS, 'omni', () => undefined));
   }
 
+  /** The MIDI channel setting where a page conducting the synth looks for it (as on the other synths). */
+  get transport(): { channel: ChoiceControl } {
+    return { channel: this.control('play.channel') as ChoiceControl };
+  }
+
   // ---- Playing ----
 
   keyDown(note: number): void {

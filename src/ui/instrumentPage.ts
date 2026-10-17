@@ -7,7 +7,7 @@ import { type MidiEvent, parseMidi } from '../domain/midi/events';
 import { MidiMonitor } from '../domain/midi/monitor';
 import type { Patch } from '../domain/patch/patch';
 import { MidiBus } from '../midi/bus';
-import { type AnyPageId, announceStatus, applySettings, captureSettings, isConducted, listenForControl, songChannelName } from '../songs/control';
+import { announceStatus, applySettings, captureSettings, listenForControl, type PageId, songChannelName } from '../songs/control';
 import { WebMidi } from '../midi/webMidi';
 import { renderAudioBusBlock } from './audioBusBlock';
 import { renderAudioInputSelect } from './audioInputSelect';
@@ -63,7 +63,7 @@ export function mountInstrumentPage(opts: {
   /** This page's own link, left out of the navigation row. */
   self: string;
   /** Which page this is, for the records page that conducts it: it can start the audio, change settings and send notes. */
-  id: AnyPageId;
+  id: PageId;
   patch: Patch;
   /** Audio inputs, for an effect page. Instruments have none. */
   inputs?: PageInput[];
@@ -125,7 +125,7 @@ export function mountInstrumentPage(opts: {
     inputs?.start();
     start.textContent = 'Audio running';
     start.disabled = true;
-    if (isConducted(opts.id)) announceStatus(opts.id, 'started');
+    announceStatus(opts.id, 'started');
   };
   const start = document.createElement('button');
   start.className = 'start';
@@ -156,7 +156,7 @@ export function mountInstrumentPage(opts: {
     if (m.type === 'start') void startAudio();
     else if (m.settings) applySettings(opts.patch, m.settings);
   });
-  if (isConducted(opts.id)) announceStatus(opts.id, 'loaded');
+  announceStatus(opts.id, 'loaded');
   if (import.meta.env.DEV) Object.assign(window, { __capture: () => captureSettings(opts.patch) });
 
   const strip = renderMidiStrip(midi, clock, monitor, start, bus);

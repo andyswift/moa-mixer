@@ -1,9 +1,13 @@
-import { BAND_PAGES, EFFECT_PAGES, type PageId, type PageState, sendControl, watchStatus } from './control';
+import { BAND_PAGES, ON_DEMAND_PAGES, type PageId, type PageState, sendControl, watchStatus } from './control';
+
+/** Page ids whose files and folders are named differently (an id can't start with a digit). */
+const PATHS: Partial<Record<PageId, string>> = { m2600: '2600' };
 
 /** Where each page lives: separate pages on the site, separate files in the dev server. */
 export function pageUrl(id: PageId): string {
-  if (import.meta.env.DEV) return id === 'mixer' ? '/index.html' : `/${id}.html`;
-  return `/${id}/`;
+  const path = PATHS[id] ?? id;
+  if (import.meta.env.DEV) return id === 'mixer' ? '/index.html' : `/${path}.html`;
+  return `/${path}/`;
 }
 
 /**
@@ -12,7 +16,7 @@ export function pageUrl(id: PageId): string {
  */
 export class Band {
   readonly states = new Map<PageId, PageState | 'missing'>();
-  /** The pages in the room now: the band, plus whichever effect pages the record on the turntable uses. */
+  /** The pages in the room now: the band, plus whichever effect pages and extra instruments the record on the turntable uses. */
   pages: PageId[];
   private readonly frames = new Map<PageId, HTMLIFrameElement>();
   private focusedPage?: PageId;
@@ -39,13 +43,14 @@ export class Band {
   }
 
   /**
-   * Makes the room hold exactly these effect pages besides the band: loads the ones a record needs and unloads the ones
-   * it does not (an idle effect would still cost a whole audio engine). Call it before `start`.
+   * Makes the room hold exactly these on-demand pages (effects and extra instruments such as the MOA-2600) besides the
+   * band: loads the ones a record needs and unloads the ones it does not (an idle page would still cost a whole audio
+   * engine). Call it before `start`.
    */
   setEffects(wanted: readonly PageId[]): void {
-    const want = new Set(wanted.filter((p) => (EFFECT_PAGES as readonly PageId[]).includes(p)));
+    const want = new Set(wanted.filter((p) => ON_DEMAND_PAGES.includes(p)));
     for (const p of [...this.pages]) {
-      if (!(EFFECT_PAGES as readonly PageId[]).includes(p) || want.has(p)) continue;
+      if (!ON_DEMAND_PAGES.includes(p) || want.has(p)) continue;
       this.frames.get(p)?.remove();
       this.frames.delete(p);
       this.states.delete(p);

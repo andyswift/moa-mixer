@@ -1,12 +1,13 @@
 import { at16, chordAt, DRUM, note, steps } from '../generators';
 import { DRUM_PUNCH, mixerSettings, STANDARD_EFFECTS } from '../mixes';
-import type { NoteEvent, Song } from '../types';
+import type { Automation, NoteEvent, Song } from '../types';
 
 /**
- * An original acid house tune, 124 bpm, A minor, the loop Am - Am - F - G, two bars a chord. Twenty-four bars: an
- * intro of kick, hats and a murmuring acid line; a groove with clap and stabs as the filter opens; a breakdown with
- * no kick, a choir pad and a resonant sweep ending in a snare roll; and a peak with a second acid line on top, whose
- * filter closes again over the last two bars so the loop runs back into the intro.
+ * An original acid house tune, 124 bpm, A minor, the bass moving A - A - F - G, two bars each. Kept minimal: the 909,
+ * the acid line and the MOA-2600. Twenty-four bars: an intro of kick, hats and a murmuring acid line; a groove with
+ * the clap and a sparse 2600 bleep hook (the delay fills the gaps) as the acid filter opens; a breakdown with no kick
+ * where the same 2600 becomes a white-noise riser into a snare roll; and a peak, whose acid filter closes again over
+ * the last bars so the loop runs back into the intro.
  *
  * The acid line is the MOA-1 on Acid Squelch. It slides like a 303: a note held over the start of the next one
  * glides into it without retriggering (legato), so slides are written as notes a little longer than a step.
@@ -14,8 +15,6 @@ import type { NoteEvent, Song } from '../types';
 const BARS = 24;
 const ROOT = 45; // A2 (the patch's 16' range puts it an octave lower)
 const SHIFT = [0, 0, -4, -2]; // Am Am F G: the bass line moves with the chord, two bars each
-const STABS = [[57, 60, 64, 67], [57, 60, 64, 67], [57, 60, 65, 69], [55, 59, 62, 67]]; // Am7 Am7 F G (voiced around middle C)
-const PAD = [[57, 64, 69, 72], [57, 64, 69, 72], [53, 60, 65, 69], [55, 62, 67, 71]];
 const section = (bar: number) => (bar < 4 ? 'intro' : bar < 12 ? 'groove' : bar < 16 ? 'break' : 'peak');
 
 // acid patterns: [step, semitones above the root, length in steps]; a length over 1 slides into the next note
@@ -26,8 +25,10 @@ const ACID: [number, number, number][][] = [
   [[0, 0, SHORT], [2, 0, SHORT], [3, 12, SHORT], [4, 0, SLIDE], [5, -2, SHORT], [6, 0, SHORT], [8, 15, SLIDE],
     [9, 12, SHORT], [10, 0, SHORT], [12, 0, SHORT], [13, 3, SLIDE], [14, 5, SHORT], [15, 7, SHORT]],
 ];
-// the DUO's counter-line in the peak, an octave and a half up: [step, semitones above A3, length]
-const COUNTER: [number, number, number][] = [[0, 0, 1.5], [3, 3, 1], [6, 7, 1.5], [8, 0, 1], [10, 10, 1.5], [12, 7, 1], [14, 3, 1.5]];
+// the 2600's hook, two bars long: [bar of the pair, step, pitch]; the peak adds the third note
+const HOOK: [number, number, number][] = [[0, 3, 76], [0, 10, 72], [1, 6, 69]];
+const HOOK_PEAK: [number, number, number] = [1, 13, 74];
+const BREAK = [48, 64] as const; // the breakdown in beats: bars 13-16
 
 const parts = {
   drums(): NoteEvent[] {
@@ -62,31 +63,17 @@ const parts = {
     }
     return out;
   },
-  stabs(): NoteEvent[] {
+  /** The 2600: a sparse bleep hook in the groove and peak, and one held note the breakdown's automation makes a riser. */
+  m2600(): NoteEvent[] {
     const out: NoteEvent[] = [];
     for (let bar = 4; bar < BARS; bar++) {
       const sec = section(bar);
       if (sec === 'break') continue;
-      const chord = chordAt(STABS, bar, 2);
-      const hits = sec === 'peak' ? [2, 6, 10, 13] : [2, 6, 10];
-      for (const s of hits) for (const n of chord) out.push(note(at16(bar, s), steps(0.9), n, sec === 'peak' ? 96 : 88));
+      for (const [half, s, n] of [...HOOK, ...(sec === 'peak' ? [HOOK_PEAK] : [])]) {
+        if (bar % 2 === half) out.push(note(at16(bar, s), steps(1), n, 100));
+      }
     }
-    return out;
-  },
-  pad(): NoteEvent[] {
-    const out: NoteEvent[] = [];
-    for (let bar = 12; bar < 20; bar += 2) {
-      const vel = bar < 16 ? 70 : 48; // full in the breakdown, a soft bed under the first half of the peak
-      for (const n of chordAt(PAD, bar, 2)) out.push(note(at16(bar, 0), steps(31.5), n, vel));
-    }
-    return out;
-  },
-  counter(): NoteEvent[] {
-    const out: NoteEvent[] = [];
-    for (let bar = 16; bar < 22; bar++) {
-      const root = 57 + chordAt(SHIFT, bar, 2);
-      for (const [s, semis, len] of COUNTER) out.push(note(at16(bar, s), steps(len), root + semis, 96));
-    }
+    out.push(note(BREAK[0], BREAK[1] - BREAK[0] - 0.25, 57, 100));
     return out;
   },
 };
@@ -101,31 +88,52 @@ export function squelchTheory(): Song {
     bars: BARS,
     beatsPerBar: 4,
     sleeve: { art: 'hands', colors: ['#121212', '#f4dd1e', '#ff3d8b'] },
-    band: ['drums', 'synth', 'lynch', 'poly', 'duo', ...STANDARD_EFFECTS],
+    band: ['drums', 'synth', 'm2600', ...STANDARD_EFFECTS],
+    inputs: { line1: 'MOA-2600' }, // the first stereo strip takes the 2600 in place of the Lynch
     setup: {
       drums: DRUM_PUNCH,
       synth: { synth: { preset: 2, controls: { 'perf.notes': 'legato', 'perf.glide': 0.07 } } }, // Acid Squelch, slides on overlapping notes
-      lynch: { lynch: { preset: 23 } }, // Funk Stab
-      poly: { poly: { preset: 10 } }, // Choir Air
-      duo: { duo: { preset: 4 } }, // Resonant Squelch
+      // the 2600 from Init: VCO 1's pulse and a hard-synced VCO 2 through the 4072, a short plucky envelope
+      m2600: { m2600: { preset: 0, controls: {
+        'vco2.sync': 1, 'vco2.freq': 654, 'vcf.in.vco1': 0.7, 'vcf.in.vco2': 0.5, 'vcf.freq': 2200, 'vcf.res': 0.45, 'vcf.cv.adsr': 0.25,
+        'adsr.attack': 0.001, 'adsr.decay': 0.14, 'adsr.sustain': 0, 'adsr.release': 0.12, 'noise.color': 0, 'reverb.left': 0.12, 'reverb.right': 0.12,
+      } } },
       delay: { delay: { controls: { 'delay.time': 363, 'delay.feedback': 0.42, 'delay.tone': 2600 } } }, // a dotted eighth at 124 bpm
       ...mixerSettings({
         drums: { kick: 1.15, snare: 1.0, clap: 1.0, rest: 0.9 },
         duck: 0.2,
-        reverb: { ch5: 0.25, ch2: 0.35, line1: 0.22, line2: 0.15 },
-        delay: { ch1: 0.12, line1: 0.18, line2: 0.2 },
-        faders: { ch1: 0.62, ch2: 0.45, line1: 0.5, line2: 0.42 },
+        reverb: { ch5: 0.25, line1: 0.15 },
+        delay: { ch1: 0.12, line1: 0.32 },
+        faders: { ch1: 0.62, line1: 0.5 },
       }),
     },
-    tracks: { drums: parts.drums(), synth: parts.acid(), lynch: parts.stabs(), poly: parts.pad(), duo: parts.counter() },
+    tracks: { drums: parts.drums(), synth: parts.acid(), m2600: parts.m2600() },
     // the acid filter is the song: it opens through the groove, sweeps the breakdown, opens wide at the peak and closes for the loop
     automation: [
       { page: 'synth', device: 'synth', control: 'filter.cutoff', curve: 'exp',
         points: [[0, 170], [16, 240], [46, 1100], [48, 480], [62, 1900], [64, 650], [84, 2600], [90, 1200], [96, 170]] },
       { page: 'synth', device: 'synth', control: 'filter.resonance', points: [[0, 11], [48, 13], [62, 18], [64, 14], [84, 16], [96, 11]] },
       { page: 'synth', device: 'synth', control: 'filterEnv.amount', points: [[0, 2.6], [46, 4.2], [64, 3.8], [84, 5.4], [96, 2.6]] },
+      // the 2600's breakdown: oscillators out, noise in, the envelope held open and a resonant sweep up into the snare roll
+      ...m2600Riser(),
     ],
-    humanise: { timing: { drums: 3, synth: 2, lynch: 6, poly: 10, duo: 4 }, velocity: 0.06, swing: 0.07, layback: { drums: { 39: 4 } } },
+    humanise: { timing: { drums: 3, synth: 2, m2600: 3 }, velocity: 0.06, swing: 0.07, layback: { drums: { 39: 4 } } },
     localOnly: true, // a candidate until approved
   };
+}
+
+/** Automation that turns the 2600's bleep into a noise riser for the breakdown and back again after it. */
+function m2600Riser(): Automation[] {
+  const [a, b] = BREAK;
+  const swap = (control: string, normal: number, during: number): Automation => ({
+    page: 'm2600', device: 'm2600', control, points: [[0, normal], [a - 0.1, normal], [a, during], [b - 0.1, during], [b, normal]],
+  });
+  return [
+    swap('adsr.sustain', 0, 1),
+    swap('vcf.in.vco1', 0.7, 0),
+    swap('vcf.in.vco2', 0.5, 0),
+    { page: 'm2600', device: 'm2600', control: 'vcf.in.noise', points: [[0, 0], [a - 0.1, 0], [a, 0.15], [b - 0.5, 0.65], [b, 0]] },
+    { page: 'm2600', device: 'm2600', control: 'vcf.freq', curve: 'exp', points: [[0, 2200], [a - 0.1, 2200], [a, 300], [b - 0.5, 9000], [b, 2200], [84, 3200], [96, 2200]] },
+    { page: 'm2600', device: 'm2600', control: 'vcf.res', points: [[0, 0.45], [a - 0.1, 0.45], [a, 0.5], [b - 0.5, 0.78], [b, 0.45]] },
+  ];
 }

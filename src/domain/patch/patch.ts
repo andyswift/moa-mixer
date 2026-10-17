@@ -4,6 +4,7 @@ import { DRUM_VOICES, DrumMachine } from '../devices/drumMachine';
 import { GranularFx } from '../devices/granular';
 import { OuroborosFx } from '../devices/ouroboros';
 import { DuoSynth } from '../devices/duoSynth';
+import { M2600Synth } from '../devices/m2600Synth';
 import { FilterBox } from '../devices/filterBox';
 import { LynchSynth } from '../devices/lynchSynth';
 import { PipeSynth } from '../devices/pipeSynth';
@@ -104,6 +105,11 @@ export class Patch {
   /** The Lynch 106 page: just the synth, straight to the speakers. */
   static lynch(clock = new MidiClock()): Patch {
     return new Patch().add('lynch', new LynchSynth('Lynch', clock)).setOutput('lynch', 'out');
+  }
+
+  /** The MOA-2600 page: the synth (with the MOA-SQ16 under it) straight to the speakers. */
+  static m2600(): Patch {
+    return new Patch().add('m2600', new M2600Synth('MOA-2600')).setOutput('m2600', 'out');
   }
 
   /** The MOA-DUO page: the synth straight to the speakers. */
