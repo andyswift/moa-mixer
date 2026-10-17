@@ -1,5 +1,6 @@
 import { arpeggio, at16, chordAt, DRUM, note, steps } from '../generators';
 import { DRUM_PUNCH, mixerSettings, STANDARD_EFFECTS } from '../mixes';
+import { pluck2600 } from '../m2600Sounds';
 import type { NoteEvent, Song } from '../types';
 
 /**
@@ -90,28 +91,30 @@ export function fjordLight(): Song {
     bars: BARS,
     beatsPerBar: 4,
     sleeve: { art: 'aurora', colors: ['#0b2a4a', '#5cffb1', '#e9eef5'] },
-    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', ...STANDARD_EFFECTS],
+    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', 'm2600', ...STANDARD_EFFECTS],
     setup: {
       drums: DRUM_PUNCH,
       synth: { synth: { preset: 6 } }, // Rubber Bass
       poly: { poly: { preset: 9 } }, // Analog Poly
       lynch: { lynch: { preset: 11 } }, // Lead Saw
       duo: { duo: { preset: 11 } }, // Infinite Cathedral
+      // the chorus arp on the 2600: a narrow pulse and a detuned saw, a little longer than a pluck
+      m2600: pluck2600({ 'vco1.pw': 0.3, 'vcf.in.vco2': 0, 'vcf.in.vco3': 0.45, 'vco3.fine': 0.1, 'vcf.freq': 1800, 'adsr.decay': 0.25, 'adsr.sustain': 0.2 }),
       df2: { lynch: { preset: 6 }, box: { preset: 13, controls: { 'f1.res': 0.22, 'f2.res': 0.2, 'delay.level': 0.1 } } }, // Slow Pad into Ghost Pad
       pipe: { pipe: { preset: 8 } }, // Pan Flute
       ...mixerSettings({
         drums: { kick: 1.1, snare: 1.05, clap: 1.0, rest: 0.9 },
         duck: 0.28,
-        reverb: { ch4: 0.34, ch5: 0.38, ch2: 0.3, line1: 0.3, line2: 0.3, line3: 0.3, line4: 0.4 },
-        delay: { line1: 0.2, line3: 0.18, line4: 0.14 },
-        faders: { line1: 0.6, line2: 0.55, line4: 0.8 },
+        reverb: { ch4: 0.34, ch5: 0.38, ch2: 0.3, line1: 0.3, line2: 0.3, line3: 0.3, line4: 0.4, line5: 0.3 },
+        delay: { line1: 0.2, line3: 0.18, line4: 0.14, line5: 0.2 },
+        faders: { line1: 0.6, line2: 0.55, line4: 0.8, line5: 0.45 },
       }),
     },
-    tracks: { drums: parts.drums(), synth: parts.bass(), poly: parts.pad(), lynch: parts.lead(), pipe: parts.flute(), duo: parts.cathedral(), df2: parts.box() },
+    tracks: { drums: parts.drums(), synth: parts.bass(), poly: parts.pad(), lynch: parts.lead(), pipe: parts.flute(), duo: parts.cathedral(), df2: parts.box(), m2600: parts.arp() },
     automation: [
       { page: 'df2', device: 'box', control: 'f1.cutoff', curve: 'exp', points: [[0, 500], [8, 500], [24, 2400], [36, 2400], [48, 700]] },
       { page: 'df2', device: 'box', control: 'f2.cutoff', curve: 'exp', points: [[0, 650], [8, 650], [24, 3000], [36, 3000], [48, 900]] },
     ],
-    humanise: { timing: { drums: 5, synth: 5, poly: 12, lynch: 8, duo: 9, pipe: 9, df2: 9 }, velocity: 0.1, swing: 0.03, layback: { drums: { 38: 5, 39: 5 } } },
+    humanise: { timing: { drums: 5, synth: 5, poly: 12, lynch: 8, duo: 9, pipe: 9, df2: 9, m2600: 4 }, velocity: 0.1, swing: 0.03, layback: { drums: { 38: 5, 39: 5 } } },
   };
 }

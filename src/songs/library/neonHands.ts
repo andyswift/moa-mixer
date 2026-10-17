@@ -1,5 +1,6 @@
 import { arpeggio, at16, chordAt, DRUM, note, steps } from '../generators';
 import { DRUM_PUNCH, mixerSettings, STANDARD_EFFECTS } from '../mixes';
+import { pluck2600 } from '../m2600Sounds';
 import type { NoteEvent, Song } from '../types';
 
 /** An original synth-pop tune: 118 bpm, D minor, the loop Dm - Bb - F - C, a bar a chord. Twelve bars. */
@@ -68,6 +69,16 @@ const lines = {
   },
 };
 
+/** The MOA-2600: a sparkly sixteenth arp over the chord, high above the DUO's, in the chorus. */
+function sparkle2600(): NoteEvent[] {
+  const out: NoteEvent[] = [];
+  for (let bar = 6; bar < 10; bar++) {
+    const [a, b, c] = chordAt(PADS, bar, 1).map((n) => n + 12);
+    out.push(...arpeggio(bar, [a!, b!, c!, a! + 12, c!, b!], 1, 0.6, 72));
+  }
+  return out;
+}
+
 export function neonHands(): Song {
   return {
     id: 'neon-hands',
@@ -78,28 +89,29 @@ export function neonHands(): Song {
     bars: BARS,
     beatsPerBar: 4,
     sleeve: { art: 'hands', colors: ['#3a1d6e', '#ff4fa3', '#59d8e6'] },
-    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', ...STANDARD_EFFECTS],
+    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', 'm2600', ...STANDARD_EFFECTS],
     setup: {
       drums: DRUM_PUNCH,
       synth: { synth: { preset: 3 } }, // Fat Pulse Bass
       poly: { poly: { preset: 4 } }, // Slow Strings
       lynch: { lynch: { preset: 11 } }, // Lead Saw
       duo: { duo: { preset: 12 } }, // Pulse Sweep
+      m2600: pluck2600({ 'vcf.freq': 3000, 'vcf.res': 0.25, 'adsr.decay': 0.1, 'vco2.fine': 0.12 }),
       df2: { lynch: { preset: 11 }, box: { preset: 4, controls: { 'f1.res': 0.25, 'f2.res': 0.22, 'delay.level': 0.08 } } },
       pipe: { pipe: { preset: 4 } }, // Marimba
       ...mixerSettings({
         drums: { kick: 1.1, snare: 1.1, clap: 1.05, rest: 0.95 },
         duck: 0.25,
-        reverb: { ch4: 0.28, ch5: 0.3, ch2: 0.25, line1: 0.22, line4: 0.35, line3: 0.22 },
-        delay: { line1: 0.14, line3: 0.16 },
-        faders: { line1: 0.6, line2: 0.75 },
+        reverb: { ch4: 0.28, ch5: 0.3, ch2: 0.25, line1: 0.22, line4: 0.35, line3: 0.22, line5: 0.25 },
+        delay: { line1: 0.14, line3: 0.16, line5: 0.18 },
+        faders: { line1: 0.6, line2: 0.75, line5: 0.45 },
       }),
     },
-    tracks: { drums: drums(), synth: lines.bass(), poly: lines.pad(), pipe: lines.plucks(), lynch: lines.hook(), duo: lines.arp(), df2: lines.box() },
+    tracks: { drums: drums(), synth: lines.bass(), poly: lines.pad(), pipe: lines.plucks(), lynch: lines.hook(), duo: lines.arp(), df2: lines.box(), m2600: sparkle2600() },
     automation: [
       { page: 'df2', device: 'box', control: 'f1.cutoff', curve: 'exp', points: [[0, 600], [24, 600], [32, 3000], [40, 3000], [48, 900]] },
       { page: 'df2', device: 'box', control: 'f2.cutoff', curve: 'exp', points: [[0, 760], [24, 760], [32, 3800], [40, 3800], [48, 1100]] },
     ],
-    humanise: { timing: { drums: 5, synth: 6, poly: 12, lynch: 8, duo: 8, pipe: 9, df2: 9 }, velocity: 0.1, swing: 0.04, layback: { drums: { 38: 4, 39: 4 } } },
+    humanise: { timing: { drums: 5, synth: 6, poly: 12, lynch: 8, duo: 8, pipe: 9, df2: 9, m2600: 4 }, velocity: 0.1, swing: 0.04, layback: { drums: { 38: 4, 39: 4 } } },
   };
 }

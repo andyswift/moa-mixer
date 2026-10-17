@@ -1,5 +1,6 @@
 import { at16, DRUM, note, steps } from '../generators';
 import { mixerSettings } from '../mixes';
+import { drone2600 } from '../m2600Sounds';
 import type { NoteEvent, Song } from '../types';
 
 /**
@@ -114,13 +115,18 @@ function wind(): NoteEvent[] {
   return [note(at16(0, 0), steps(31), 64, 70), note(at16(8, 0), steps(63), 64, 66), note(at16(18, 0), steps(16 * 6 - 1), 64, 64)];
 }
 
+/** The MOA-2600: a cold drone on E (noise and a ring-modulated tone, a slowly sweeping filter) under the dirge and the outro. */
+function drone(): NoteEvent[] {
+  return [note(at16(8, 0), 4 * 4 - 0.25, 40, 100), note(at16(18, 0), 6 * 4 - 0.5, 40, 100)];
+}
+
 export function blackFjordLiturgy(): Song {
   const base = mixerSettings({
     drums: { kick: 1.0, snare: 1.5, clap: 1.5, rest: 1.5 }, // balanced by RMS: the snare, clap and cymbals lifted so the kit snaps
     duck: 0, // no pumping: this one is meant to be relentless
-    reverb: { ch5: 0.3, ch2: 0.5, line1: 0.1, line2: 0.5, line3: 0.1, line4: 0.4 },
+    reverb: { ch5: 0.3, ch2: 0.5, line1: 0.1, line2: 0.5, line3: 0.1, line4: 0.4, line5: 0.45 },
     delay: {},
-    faders: { line1: 0.55, line3: 0.5, line2: 0.7, line4: 0.8 }, // guitars tucked back so the kit cuts through
+    faders: { line1: 0.55, line3: 0.5, line2: 0.7, line4: 0.8, line5: 0.4 }, // guitars tucked back so the kit cuts through
   });
   const mixerControls = base.mixer.mixer!.controls!;
   Object.assign(mixerControls, {
@@ -138,13 +144,14 @@ export function blackFjordLiturgy(): Song {
     bars: BARS,
     beatsPerBar: 4,
     sleeve: { art: 'frost', colors: ['#08080d', '#e8eef7', '#8aa0b8'] },
-    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', 'reverb', 'buscomp', 'ouroboros', 'granular'],
+    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', 'm2600', 'reverb', 'buscomp', 'ouroboros', 'granular'],
     setup: {
       drums: { drums: { controls: { 'snare.level': 1, 'clap.level': 1, 'closedHat.level': 1, 'openHat.level': 1, 'ride.level': 1 } } },
       synth: { synth: { preset: 3 } }, // Fat Pulse Bass
       poly: { poly: { preset: 10 } }, // Choir Air
       lynch: { lynch: { preset: 11 } }, // Lead Saw: the rhythm guitar
       duo: { duo: { preset: 11 } }, // Infinite Cathedral
+      m2600: drone2600(),
       df2: { lynch: { preset: 11 }, box: { preset: 3, controls: { 'f1.res': 0.6, 'f2.res': 0.55, 'delay.level': 0 } } }, // the second guitar, through Screaming Madman
       pipe: { pipe: { preset: 14 } }, // Steam Drone: wind
       mixer: base.mixer,
@@ -169,12 +176,12 @@ export function blackFjordLiturgy(): Song {
         },
       },
     },
-    tracks: { drums: drums(), synth: bass(), poly: choir(), lynch: guitar(0, 112), df2: guitar(-5, 100), duo: organ(), pipe: wind() },
+    tracks: { drums: drums(), synth: bass(), poly: choir(), lynch: guitar(0, 112), df2: guitar(-5, 100), duo: organ(), pipe: wind(), m2600: drone() },
     automation: [
       // the filter box on the second guitar: slow rise through the dirge, bright through the second riff, closing in the outro
       { page: 'df2', device: 'box', control: 'f1.cutoff', curve: 'exp', points: [[0, 3000], [32, 700], [48, 2600], [49, 3600], [72, 3600], [96, 300]] },
       { page: 'df2', device: 'box', control: 'f2.cutoff', curve: 'exp', points: [[0, 3500], [32, 900], [48, 3000], [49, 4200], [72, 4200], [96, 400]] },
     ],
-    humanise: { timing: { drums: 3, synth: 4, poly: 8, lynch: 3, duo: 6, pipe: 8, df2: 3 }, velocity: 0.07 },
+    humanise: { timing: { drums: 3, synth: 4, poly: 8, lynch: 3, duo: 6, pipe: 8, df2: 3, m2600: 4 }, velocity: 0.07 },
   };
 }

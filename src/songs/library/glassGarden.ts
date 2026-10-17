@@ -1,5 +1,6 @@
 import { arpeggio, at16, chordAt, DRUM, note, steps } from '../generators';
 import { DRUM_PUNCH, mixerSettings, STANDARD_EFFECTS } from '../mixes';
+import { pluck2600 } from '../m2600Sounds';
 import type { NoteEvent, Song } from '../types';
 
 /** An original dream-trance tune: 132 bpm, B minor, the loop Bm - G - D - A, two bars a chord. Sixteen bars. */
@@ -75,6 +76,16 @@ const parts = {
   },
 };
 
+/** The MOA-2600: trance off-beat plucks, the root and its octave and fifth, through the lift and the outro. */
+function offbeats2600(): NoteEvent[] {
+  const out: NoteEvent[] = [];
+  for (let bar = 8; bar < BARS; bar++) {
+    const r = chordAt(ROOTS, bar, 2) + 36;
+    [r, r + 12, r + 7, r + 12].forEach((n, i) => out.push(note(at16(bar, 2 + i * 4), steps(1.2), n, bar < 12 ? 80 : 68)));
+  }
+  return out;
+}
+
 export function glassGarden(): Song {
   return {
     id: 'glass-garden',
@@ -85,28 +96,31 @@ export function glassGarden(): Song {
     bars: BARS,
     beatsPerBar: 4,
     sleeve: { art: 'garden', colors: ['#1f7a74', '#ff8fb1', '#fff4df'] },
-    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', ...STANDARD_EFFECTS],
+    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', 'm2600', ...STANDARD_EFFECTS],
     setup: {
       drums: DRUM_PUNCH,
       synth: { synth: { preset: 1 } }, // Sub Bass
       poly: { poly: { preset: 0 } }, // Soft Pad
       lynch: { lynch: { preset: 17 } }, // Harp
       duo: { duo: { preset: 11 } }, // Infinite Cathedral
+      m2600: pluck2600({ 'vcf.res': 0.45, 'adsr.decay': 0.16 }),
       df2: { lynch: { preset: 6 }, box: { preset: 13, controls: { 'f1.res': 0.22, 'f2.res': 0.2, 'delay.level': 0.1 } } }, // Slow Pad into Ghost Pad
       pipe: { pipe: { preset: 5 } }, // Glass Bell
       ...mixerSettings({
         drums: { kick: 1.05, snare: 1.0, clap: 1.0, rest: 0.9 },
         duck: 0.3,
-        reverb: { ch4: 0.3, ch5: 0.32, ch2: 0.3, line1: 0.3, line2: 0.3, line3: 0.28, line4: 0.4 },
-        delay: { line1: 0.2, line3: 0.18 },
-        faders: { line1: 0.6, line2: 0.55 },
+        reverb: { ch4: 0.3, ch5: 0.32, ch2: 0.3, line1: 0.3, line2: 0.3, line3: 0.28, line4: 0.4, line5: 0.28 },
+        delay: { line1: 0.2, line3: 0.18, line5: 0.25 },
+        faders: { line1: 0.6, line2: 0.55, line5: 0.45 },
       }),
     },
-    tracks: { drums: parts.drums(), synth: parts.bass(), poly: parts.pad(), lynch: parts.line(), pipe: parts.bells(), df2: parts.hold(), duo: parts.arp() },
+    tracks: { drums: parts.drums(), synth: parts.bass(), poly: parts.pad(), lynch: parts.line(), pipe: parts.bells(), df2: parts.hold(), duo: parts.arp(), m2600: offbeats2600() },
     automation: [
+      // the 2600's plucks open up through the lift and close again in the outro
+      { page: 'm2600', device: 'm2600', control: 'vcf.freq', curve: 'exp', points: [[0, 700], [32, 700], [48, 3600], [56, 3600], [64, 900]] },
       { page: 'df2', device: 'box', control: 'f1.cutoff', curve: 'exp', points: [[0, 500], [28, 500], [32, 2600], [44, 3200], [52, 700], [64, 700]] },
       { page: 'df2', device: 'box', control: 'f2.cutoff', curve: 'exp', points: [[0, 650], [28, 650], [32, 3200], [44, 4000], [52, 900], [64, 900]] },
     ],
-    humanise: { timing: { drums: 5, synth: 6, poly: 12, lynch: 8, duo: 9, pipe: 9, df2: 9 }, velocity: 0.1, swing: 0.03, layback: { drums: { 38: 4, 39: 4 } } },
+    humanise: { timing: { drums: 5, synth: 6, poly: 12, lynch: 8, duo: 9, pipe: 9, df2: 9, m2600: 4 }, velocity: 0.1, swing: 0.03, layback: { drums: { 38: 4, 39: 4 } } },
   };
 }

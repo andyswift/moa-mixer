@@ -1,5 +1,6 @@
 import { arpeggio, at16, chordAt, DRUM, note, steps } from '../generators';
 import { DRUM_PUNCH } from '../mixes';
+import { pluck2600 } from '../m2600Sounds';
 import type { NoteEvent, Song } from '../types';
 
 /**
@@ -104,6 +105,16 @@ function filterBox(): NoteEvent[] {
   return out;
 }
 
+/** The MOA-2600: a rolling sixteenth-note pluck arp over the chord, from the break to the second drop. */
+function arp2600(): NoteEvent[] {
+  const out: NoteEvent[] = [];
+  for (let bar = 8; bar < BARS - 1; bar++) {
+    const [a, b, c, d] = chordAt(PADS, bar, 2).map((n) => n + 12);
+    out.push(...arpeggio(bar, [a!, b!, c!, d!, c!, b!], 1, 0.7, section(bar) === 'break' ? 64 : 76));
+  }
+  return out;
+}
+
 export function twoStepSunrise(): Song {
   return {
     id: 'two-step-sunrise',
@@ -114,7 +125,7 @@ export function twoStepSunrise(): Song {
     bars: BARS,
     beatsPerBar: 4,
     sleeve: { art: 'sunrise', colors: ['#ff7a3d', '#ffd25e', '#3a1d46'] },
-    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', 'reverb', 'delay', 'buscomp'],
+    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', 'm2600', 'reverb', 'delay', 'buscomp'],
     setup: {
       drums: DRUM_PUNCH,
       synth: { synth: { preset: 1 } }, // Sub Bass
@@ -123,6 +134,7 @@ export function twoStepSunrise(): Song {
       duo: { duo: { preset: 3 } }, // Dual Fifths
       df2: { lynch: { preset: 7 }, box: { preset: 4, controls: { 'f1.res': 0.28, 'f2.res': 0.25, 'delay.level': 0.1, 'delay.repeats': 0.25, 'delay.time': 0.32 } } }, // Sweep Pad into Silk Sweep
       pipe: { pipe: { preset: 5 } }, // Glass Bell
+      m2600: pluck2600({ 'vcf.freq': 2200, 'adsr.decay': 0.12 }),
       mixer: {
         mixer: {
           controls: {
@@ -134,13 +146,14 @@ export function twoStepSunrise(): Song {
             'line1.fader': 0.55,
             'ch4.aux1': 0.3, 'ch5.aux1': 0.35, 'ch2.aux1': 0.22, 'line1.aux1': 0.25, 'line2.aux1': 0.2, 'line3.aux1': 0.25, 'line4.aux1': 0.4,
             'line1.aux2': 0.15, 'line2.aux2': 0.12, 'line3.aux2': 0.2,
+            'line5.aux1': 0.25, 'line5.aux2': 0.22, 'line5.fader': 0.5, // the 2600
             'ret1.fader': 0.8, 'ret2.fader': 0.7, 'ret4.fader': 0.9,
           },
         },
       },
       buscomp: { buscomp: { controls: { 'bc.duck.depth': 0.3, 'bc.duck.release': 220, 'bc.threshold': -10, 'bc.ratio': 2, 'bc.makeup': 1 } } },
     },
-    tracks: { drums: drums(), synth: bass(), poly: pad(), lynch: vibes(), duo: stabs(), pipe: bells(), df2: filterBox() },
+    tracks: { drums: drums(), synth: bass(), poly: pad(), lynch: vibes(), duo: stabs(), pipe: bells(), df2: filterBox(), m2600: arp2600() },
     automation: [
       // the filter box opens through each build and the break, and closes again at the drops
       { page: 'df2', device: 'box', control: 'f1.cutoff', curve: 'exp', points: [[0, 400], [8, 400], [16, 4500], [16.1, 700], [32, 700], [36, 1800], [40, 1800], [40.1, 500], [48, 4500], [48.1, 900], [64, 900]] },
