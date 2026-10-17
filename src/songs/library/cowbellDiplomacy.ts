@@ -141,6 +141,5 @@ export function cowbellDiplomacy(): Song {
       ...robotToTrombone(),
     ],
     humanise: { timing: { drums: 3, synth: 2, m2600: 4 }, velocity: 0.06, swing: 0.05 },
-    localOnly: true, // a candidate until approved
   };
 }
