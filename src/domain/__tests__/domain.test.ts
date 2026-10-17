@@ -496,10 +496,10 @@ describe('Patch', () => {
 });
 
 describe('Synth presets', () => {
-  it('has Init plus eighteen mono patches with unique names', () => {
+  it('has Init plus nineteen mono patches with unique names', () => {
     expect(SYNTH_PRESETS[0]?.name).toBe('Init');
-    expect(SYNTH_PRESETS).toHaveLength(19);
-    expect(new Set(SYNTH_PRESETS.map((x) => x.name)).size).toBe(19);
+    expect(SYNTH_PRESETS).toHaveLength(20);
+    expect(new Set(SYNTH_PRESETS.map((x) => x.name)).size).toBe(20);
     const names = SYNTH_PRESETS.map((x) => x.name);
     for (const polyOnly of ['Strings', 'Warm Pad']) expect(names).not.toContain(polyOnly);
     expect(names).toContain('Random SFX');

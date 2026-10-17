@@ -51,8 +51,7 @@ export function acidWorkbench(): Song {
     band: ['drums', 'synth', ...STANDARD_EFFECTS],
     setup: {
       drums: DRUM_PUNCH,
-      // Acid Squelch with the wavefolder on, so there is something to hear straight away
-      synth: { synth: { preset: 2, controls: { 'perf.notes': 'legato', 'perf.glide': 0.07, 'filter.cutoff': 380, drive: 0.45, 'drive.tilt': 6 } } },
+      synth: { synth: { preset: 19 } }, // Acid Fold: Acid Squelch through the wavefolder
       ...mixerSettings({ drums: { kick: 1.0, snare: 1.0, clap: 1.0, rest: 0.8 }, duck: 0.15, delay: { ch1: 0.1 }, faders: { ch1: 0.95 } }),
     },
     tracks: { drums: drums(), synth: acid() },

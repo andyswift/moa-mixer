@@ -46,7 +46,7 @@ export const INIT: PresetValues = {
 const p = (name: string, values: PresetValues): SynthPreset => ({ name, values });
 
 /**
- * Eighteen classic mono-synth sounds in the SH-101 vocabulary. The original has no patch memory, so
+ * Nineteen classic mono-synth sounds in the SH-101 vocabulary (the last through the drive's wavefolder). The original has no patch memory, so
  * these are recipes for the sounds the instrument is known for, not factory dumps.
  */
 export const SYNTH_PRESETS: readonly SynthPreset[] = [
@@ -155,5 +155,14 @@ export const SYNTH_PRESETS: readonly SynthPreset[] = [
     'mix.saw': 0, 'mix.pulse': 0, 'mix.sub': 0, 'mix.noise': 0.6, 'filter.cutoff': 2000, 'filter.resonance': 20,
     'filter.keyFollow': 100, 'filterEnv.amount': 0, 'osc.mod': 20, 'lfo.rate': 5, 'ampEnv.attack': 0.05,
     'ampEnv.sustain': 1, 'ampEnv.release': 0.2, level: 0.35,
+  }),
+
+  // --- With the wavefolder ---
+  // Acid Squelch through the drive's wavefolder, tilted bright so the low end stays clean (the Acid Workbench sound)
+  p('Acid Fold', {
+    'osc.range': "16'", 'mix.saw': 1, 'mix.sub': 0.35, 'mix.noise': 0, 'filter.cutoff': 380, 'filter.resonance': 14,
+    'filter.keyFollow': 40, 'filterEnv.amount': 4, 'filterEnv.attack': 0.001, 'filterEnv.decay': 0.18,
+    'filterEnv.sustain': 0, 'filterEnv.release': 0.1, 'ampEnv.sustain': 0.9, 'ampEnv.release': 0.08,
+    'perf.glide': 0.07, 'perf.notes': 'legato', accent: 0.7, drive: 0.45, 'drive.tilt': 6, level: 0.45,
   }),
 ];
