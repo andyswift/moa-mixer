@@ -123,7 +123,6 @@ export function squelchTheory(): Song {
     ],
     // a 6 % velocity spread keeps the 127s above the accent line (110) and the 96s below it
     humanise: { timing: { drums: 3, synth: 2, m2600: 3 }, velocity: 0.06, swing: 0.07, layback: { drums: { 39: 4 } } },
-    localOnly: true, // a candidate until approved
   };
 }
 
