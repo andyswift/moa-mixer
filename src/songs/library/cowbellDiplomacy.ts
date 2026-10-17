@@ -3,17 +3,18 @@ import { DRUM_PUNCH, mixerSettings, STANDARD_EFFECTS } from '../mixes';
 import type { Automation, NoteEvent, Song } from '../types';
 
 /**
- * An original, silly acid house tune, 128 bpm, F major: F F Bb C, two bars a chord. The cowbell keeps getting more
- * important, the MOA-2600 plays a robot who answers the bass line, and it all ends in a sad trombone before the loop
+ * An original, silly acid house tune, 128 bpm, F major: F F Bb C, two bars a chord. The cowbell keeps getting busier
+ * (syncopated, with ghost notes and an echo, rather than louder), the MOA-2600 plays a robot who answers the bass line, and it all ends in a sad trombone before the loop
  * starts again on a lonely cowbell. It shows off the ladder filter's drive (Acid Ladder), the mixer's Tape and the
  * new percussion.
  *
  * Bars 1-4: cowbell alone, then the kick and the robot saying hello. 5-12: the groove (bass, clap, hats, cowbell
- * on the off-beats, the robot answering every phrase). 13-16: breakdown: cowbell, toms and a robot conversation over
- * a filter sweep. 17-22: MORE COWBELL (eighths, then sixteenths). 23-24: everything stops; sad trombone.
+ * in an 808-style syncopation, the robot answering every phrase). 13-16: breakdown: cowbell, toms and a robot
+ * conversation over a filter sweep. 17-22: MORE COWBELL (a busier, funkier pattern, then ghost notes in between).
+ * 23-24: everything stops; sad trombone.
  */
 const BARS = 24;
-const ROOT = 41; // F2 (the patch's 16' range puts it an octave lower)
+const ROOT = 53; // F3 (the patch's 16' range puts it an octave lower: it sounds at F2)
 const SHIFT = [0, 0, 5, 7]; // F F Bb C
 const section = (bar: number) => (bar < 4 ? 'intro' : bar < 12 ? 'groove' : bar < 16 ? 'break' : bar < 22 ? 'cowbell' : 'trombone');
 
@@ -41,13 +42,14 @@ const parts = {
       for (let s = 0; s < 16; s++) {
         const hit = (pitch: number, vel: number) => out.push(note(at16(bar, s), steps(1), pitch, vel));
         const full = sec === 'groove' || sec === 'cowbell';
-        // the cowbell, ever more important
-        if (sec === 'intro' && s % 4 === 0) hit(DRUM.cowbell, 100);
-        if (sec === 'groove' && (s % 4 === 2 || s === 15)) hit(DRUM.cowbell, s === 15 ? 70 : 92);
-        if (sec === 'break' && s % 4 === 0) hit(DRUM.cowbell, 96);
+        // the cowbell: syncopated patterns with accents and ghost notes, getting busier, not louder
+        const bell = (pattern: Record<number, number>) => { if (pattern[s]) hit(DRUM.cowbell, pattern[s]!); };
+        if (sec === 'intro') bell(bar < 2 ? { 0: 96, 10: 80 } : { 0: 96, 6: 70, 10: 84 });
+        if (sec === 'groove') bell(bar % 2 === 0 ? { 3: 92, 6: 76, 10: 96, 15: 60 } : { 2: 80, 6: 92, 11: 70, 14: 96 });
+        if (sec === 'break') bell({ 0: 88, 7: 60 });
         if (sec === 'cowbell') {
-          if (bar < 20 && s % 2 === 0) hit(DRUM.cowbell, s % 4 === 0 ? 112 : 88); // eighths
-          if (bar >= 20) hit(DRUM.cowbell, s % 4 === 0 ? 120 : s % 2 === 0 ? 96 : 76); // sixteenths
+          bell({ 0: 104, 3: 90, 6: 96, 8: 70, 10: 100, 13: 84, 14: 64 });
+          if (bar >= 20 && [1, 5, 9, 12].includes(s)) hit(DRUM.cowbell, 44); // ghost notes in between
         }
         if ((full || (sec === 'intro' && bar >= 2)) && s % 4 === 0) hit(DRUM.kick, s === 0 ? 124 : 116);
         if (full && (s === 4 || s === 12)) hit(DRUM.clap, 110);
@@ -103,8 +105,8 @@ export function cowbellDiplomacy(): Song {
   const mix = mixerSettings({
     drums: { kick: 1.1, snare: 1.0, clap: 1.0, rest: 0.85 },
     duck: 0.3,
-    reverb: { ch5: 0.22, ch9: 0.18, line5: 0.2 },
-    delay: { line5: 0.3, ch9: 0.08 },
+    reverb: { ch5: 0.22, ch9: 0.22, line5: 0.2 },
+    delay: { line5: 0.3, ch9: 0.3 }, // the cowbell's echo makes its own rhythm under the dry hits
     faders: { ch1: 0.9, ch9: 0.6, line5: 0.55 },
   });
   // Tape on the bass, the kick and the cowbell: warmth and weight, not fuzz
@@ -120,7 +122,7 @@ export function cowbellDiplomacy(): Song {
     sleeve: { art: 'sunrise', colors: ['#2b1d0e', '#ffb627', '#ff4f79'] },
     band: ['drums', 'synth', 'm2600', ...STANDARD_EFFECTS],
     setup: {
-      drums: { drums: { controls: { ...DRUM_PUNCH.drums!.controls, 'cowbell.level': 0.8, 'cowbell.decay': 0.22 } } },
+      drums: { drums: { controls: { ...DRUM_PUNCH.drums!.controls, 'cowbell.level': 0.8, 'cowbell.decay': 0.18 } } },
       synth: { synth: { preset: 20 } }, // Acid Ladder: the ladder filter driven
       // the 2600 from Init: a bright pulse through the 4072, a short blip; portamento on (the automation sets how much)
       m2600: { m2600: { preset: 0, controls: {

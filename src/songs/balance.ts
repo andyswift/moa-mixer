@@ -17,8 +17,9 @@ export const BALANCE: Record<string, Record<string, number>> = {
   'salt-flats': { ch4: 1.0, ch5: 0.95, ch6: 1.5, ch7: 1.2, ch8: 0.78, ch1: 0.78, ch2: 0.56, line1: 0.41, line2: 0.33, line3: 1.0, line4: 1.13 },
   'fjord-light': { ch4: 1.0, ch5: 0.84, ch6: 1.38, ch7: 1.11, ch1: 0.52, ch2: 0.51, line1: 0.51, line2: 0.35, line3: 1.13, line4: 0.18 },
   // measured in headless Chrome on the dev Records page: the percussion (rimshot, toms) 8 under the kick, the 2600 10 under
-  // measured in headless Chrome on the dev Records page; the cowbell is the star (6 under the kick), the 2600 8 under
-  'cowbell-diplomacy': { ch1: 1.0, ch5: 0.82, ch6: 1.48, ch7: 1.29, ch9: 0.8, line5: 0.53 },
+  // measured in headless Chrome on the dev Records page; the 2600 8 under the kick. The cowbell is set by ear, not to a
+  // number: it sits where the ear is most sensitive, so 6 under the kick measured right but sounded far too loud
+  'cowbell-diplomacy': { ch1: 1.0, ch5: 0.82, ch6: 1.48, ch7: 1.29, ch9: 0.2, line5: 0.53 },
   'squelch-theory': { ch1: 0.95, ch4: 1.1, ch5: 0.88, ch6: 1.5, ch7: 0.93, ch8: 0.79, ch9: 0.43, line5: 0.79 },
 };
 
