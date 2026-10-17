@@ -1,3 +1,5 @@
+import { SQ16_INPUTS, SQ16_OUTPUTS, SQ16_PARAMS } from './sq16Params';
+
 /**
  * The MOA-2600's controls and jacks in one table, shared by the device (which builds its controls from it), the
  * worklet (whose AudioParams are these same ids, injected into its source) and the panel. A choice is sent to the
@@ -30,7 +32,7 @@ const t = (id: string, label: string, def = 0): M2600Param => ({ id, label, kind
 /** An input attenuator slider. */
 const s = (id: string, label: string, def = 0): M2600Param => n(id, label, 0, 1, def);
 
-export const M2600_PARAMS: readonly M2600Param[] = [
+const SYNTH_PARAMS: readonly M2600Param[] = [
   // ---- keyboard controller: portamento, LFO with delayed vibrato, voice and trigger modes
   n('kb.porta', 'Portamento', 0, 1, 0.25),
   t('kb.portaOn', 'Portamento on', 0),
@@ -156,6 +158,9 @@ export const M2600_PARAMS: readonly M2600Param[] = [
   s('out.volume', 'Volume', 0.8),
 ];
 
+/** The synth's controls, then the MOA-SQ16 sequencer's (mounted under it, in the same worklet). */
+export const M2600_PARAMS: readonly M2600Param[] = [...SYNTH_PARAMS, ...SQ16_PARAMS];
+
 /** Performance params set by the device, not controls: pitch bend in semitones and the mod wheel (adds vibrato). */
 export const M2600_PERFORMANCE: readonly M2600Param[] = [n('bend', 'Bend', -2, 2, 0, 'st'), s('modw', 'Mod wheel')];
 
@@ -173,6 +178,7 @@ export const M2600_OUTPUTS = [
   'vco1.saw', 'vco1.pulse', 'vco2.tri', 'vco2.saw', 'vco2.sine', 'vco2.pulse', 'vco3.tri', 'vco3.saw', 'vco3.sine', 'vco3.pulse',
   'vcf.out', 'sem.out', 'adsr.out', 'ar.out', 'vca.out', 'mix.out', 'reverb.out',
   'vp.inv1', 'vp.inv2', 'vp.lag', 'sh.out', 'sh.clk', 'esw.c',
+  ...SQ16_OUTPUTS,
 ] as const;
 export type M2600Output = (typeof M2600_OUTPUTS)[number];
 
@@ -218,4 +224,5 @@ export const M2600_INPUTS: readonly M2600Input[] = [
   { id: 'sh.in', normal: 'noise.out', slider: 'sh.level' }, { id: 'sh.extclk' },
   { id: 'esw.a' }, { id: 'esw.b' },
   { id: 'out.left' }, { id: 'out.right' },
+  ...SQ16_INPUTS,
 ];

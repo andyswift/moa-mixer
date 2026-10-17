@@ -4,6 +4,7 @@ import type { M2600Synth } from '../domain/devices/m2600Synth';
 import { M2600_CHANNELS } from '../domain/devices/m2600Synth';
 import { DEST_JACKS, SOURCE_JACKS, jackKind, jackName } from '../domain/devices/m2600Cords';
 import { type JackSpot, mountCables } from './m2600Cables';
+import { drawSq16, sq16Cards } from './sq16Panel';
 import { STEPS, fromSlider, toSlider } from './controls';
 import { persistPatch } from './m2600Storage';
 import { el } from './widgets';
@@ -15,8 +16,11 @@ import { el } from './widgets';
  * from the same coordinates, so the jacks are already where the phase 2 patch cords will plug in. On narrow screens
  * the same controls stack in cards.
  */
-const W = 1380;
-const H = 925;
+export const W = 1380;
+/** The synth's own height; the MOA-SQ16 band hangs below it, to H. */
+const SYN_H = 925;
+export const SQ_TOP = SYN_H;
+const H = SYN_H + 300;
 /** The top of the upper and lower sections; their contents are laid out in local y from there. */
 const TOP = 50;
 const BOT = 640;
@@ -27,12 +31,12 @@ const VS_BOT = 445;
 const JACK_Y = 492;
 
 type Num = NumberControl;
-const num = (d: M2600Synth, id: string): Num => {
+export const num = (d: M2600Synth, id: string): Num => {
   const c = d.control(id);
   if (c.kind !== 'number') throw new Error(`${id} is not a number control`);
   return c;
 };
-const choice = (d: M2600Synth, id: string): ChoiceControl => {
+export const choice = (d: M2600Synth, id: string): ChoiceControl => {
   const c = d.control(id);
   if (c.kind !== 'choice') throw new Error(`${id} is not a choice control`);
   return c;
@@ -44,7 +48,7 @@ const toggle = (d: M2600Synth, id: string): ToggleControl => {
 };
 
 /** A number for people: kHz above 1000 Hz, fewer decimals as values grow. */
-function formatValue(c: Num): string {
+export function formatValue(c: Num): string {
   const v = c.value;
   if (c.unit === 'Hz' && v >= 1000) return `${(v / 1000).toFixed(2)} kHz`;
   const text = Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
@@ -56,7 +60,7 @@ const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;'
 // ---------------------------------------------------------------- the readout
 
 /** One line in the header that names the control last touched and its value. */
-class Readout {
+export class Readout {
   readonly el = el('div', 'm26-readout');
   constructor() {
     this.el.setAttribute('aria-live', 'polite');
@@ -70,7 +74,7 @@ class Readout {
 // ---------------------------------------------------------------- controls
 
 /** An LED-capped slider over a transparent native range input (pointer, keyboard and screen readers all work). */
-function slider(c: Num, section: string, vertical: boolean, readout?: Readout): HTMLElement {
+export function slider(c: Num, section: string, vertical: boolean, readout?: Readout): HTMLElement {
   const wrap = el('div', `m26-slider ${vertical ? 'm26-v' : 'm26-h'}`);
   wrap.append(el('div', 'm26-slot'), el('div', 'm26-cap'));
   const input = el('input', 'm26-input');
@@ -103,14 +107,14 @@ function slider(c: Num, section: string, vertical: boolean, readout?: Readout): 
   return wrap;
 }
 
-interface SwitchModel {
+export interface SwitchModel {
   positions: readonly string[];
   aria: string;
   get: () => number;
   set: (i: number) => void;
   subscribe: (fn: () => void) => void;
 }
-const choiceSwitch = (c: ChoiceControl, aria: string, order?: readonly string[]): SwitchModel => {
+export const choiceSwitch = (c: ChoiceControl, aria: string, order?: readonly string[]): SwitchModel => {
   const positions = order ?? c.options;
   return { positions, aria, get: () => positions.indexOf(c.value), set: (i) => c.set(positions[i]!), subscribe: (fn) => void c.onChange(fn) };
 };
@@ -122,7 +126,7 @@ const toggleSwitch = (c: ToggleControl, aria: string, onFirst = true): SwitchMod
 });
 
 /** A black rocker switch whose lever sits at the top, middle or bottom of its slot; click steps through, arrows move. */
-function rocker(m: SwitchModel, readout?: Readout): HTMLElement {
+export function rocker(m: SwitchModel, readout?: Readout): HTMLElement {
   const b = el('button', 'm26-switch');
   b.type = 'button';
   b.setAttribute('aria-label', m.aria);
@@ -149,7 +153,7 @@ function rocker(m: SwitchModel, readout?: Readout): HTMLElement {
 }
 
 /** A momentary red button: held down while pressed. */
-function momentary(aria: string, press: (on: boolean) => void): HTMLElement {
+export function momentary(aria: string, press: (on: boolean) => void): HTMLElement {
   const b = el('button', 'm26-button');
   b.type = 'button';
   b.setAttribute('aria-label', aria);
@@ -208,7 +212,7 @@ function knob(c: Num, section: string, readout?: Readout): HTMLElement {
   return k;
 }
 
-function led(cls = ''): HTMLElement {
+export function led(cls = ''): HTMLElement {
   const l = el('i', `m26-led ${cls}`.trim());
   l.setAttribute('aria-hidden', 'true');
   return l;
@@ -217,7 +221,7 @@ function led(cls = ''): HTMLElement {
 // ---------------------------------------------------------------- the desktop panel
 
 /** Collects placed controls and the SVG artwork drawn around them. */
-class Board {
+export class Board {
   readonly root = el('div', 'm26-desktop');
   readonly jacks = new Map<string, JackSpot>();
   private svg: string[] = [];
@@ -433,8 +437,8 @@ function buildDesktop(d: M2600Synth, lamps: Lamps): HTMLElement {
   const u = (y: number) => BOT + y;
 
   // ---- frame, header and section dividers
-  b.draw(`<rect class="m26-face" x="1" y="1" width="${W - 2}" height="${H - 2}" rx="10"/>`);
-  for (const [x, y] of [[18, 18], [W - 18, 18], [18, H - 18], [W - 18, H - 18], [W / 2, 18], [W / 2, H - 18]] as const) {
+  b.draw(`<rect class="m26-face" x="1" y="1" width="${W - 2}" height="${SYN_H - 2}" rx="10"/>`);
+  for (const [x, y] of [[18, 18], [W - 18, 18], [18, SYN_H - 18], [W - 18, SYN_H - 18], [W / 2, 18], [W / 2, SYN_H - 18]] as const) {
     b.draw(`<g class="m26-screw"><circle cx="${x}" cy="${y}" r="7"/><path d="M${x - 4} ${y} H${x + 4} M${x} ${y - 4} V${y + 4}"/></g>`);
   }
   b.text(40, 37, 'MOA-2600', 28, 'start', 'class="m26-logo"');
@@ -449,7 +453,7 @@ function buildDesktop(d: M2600Synth, lamps: Lamps): HTMLElement {
   b.place(channelSelect(d), 1270, 26, 108, 24);
   b.draw(`<rect x="32" y="${TOP - 4}" width="${W - 64}" height="${BOT - TOP - 6}" rx="4" fill="none" stroke-width="1.4"/>`);
   for (const x of [200, 360, 520, 765, 975, 1100, 1240]) b.line(x, t(0), x, t(570), 1.4);
-  b.draw(`<rect x="32" y="${BOT - 2}" width="${W - 64}" height="${H - BOT - 22}" rx="4" fill="none" stroke-width="1.4"/>`);
+  b.draw(`<rect x="32" y="${BOT - 2}" width="${W - 64}" height="${SYN_H - BOT - 22}" rx="4" fill="none" stroke-width="1.4"/>`);
   for (const x of [270, 420, 570, 710, 1020, 1225]) b.line(x, u(4), x, u(252), 1.4);
 
   // ---- VCOs
@@ -825,6 +829,7 @@ function buildDesktop(d: M2600Synth, lamps: Lamps): HTMLElement {
     b.text(1280, u(172), 'GATE', 8);
   }
 
+  drawSq16(b, d, readout, lamps, SQ_TOP);
   const root = b.finish();
   mountCables(root, d, b.jacks, W, H, (text) => readout.show(text));
   return root;
@@ -834,7 +839,7 @@ function buildDesktop(d: M2600Synth, lamps: Lamps): HTMLElement {
 
 
 /** LEDs that follow the worklet's view, polled once a frame. */
-class Lamps {
+export class Lamps {
   private list: [HTMLElement, (v: M2600View) => boolean][] = [];
   add(e: HTMLElement, on: (v: M2600View) => boolean): void {
     this.list.push([e, on]);
@@ -879,47 +884,51 @@ function buildMobile(d: M2600Synth): HTMLElement {
   const tools = el('div', 'm26-patch-row');
   tools.append(channelSelect(d), manual);
   root.append(row, tools, cordsCard(d));
-  for (const [title, ids] of CARDS) {
-    const card = el('section', 'm26-card');
-    card.append(el('h2', 'm26-card-title', title));
-    for (const id of ids) {
-      const c = d.control(id);
-      const item = el('div', 'm26-item');
-      if (c.kind === 'number') {
-        const name = el('span', 'm26-item-label', c.label);
-        const value = el('span', 'm26-item-value');
-        const sync = () => { value.textContent = formatValue(c); };
-        c.onChange(sync);
-        sync();
-        item.append(name, value, slider(c, title, false));
-      } else {
-        item.classList.add('m26-item-choice');
-        item.append(el('span', 'm26-item-label', c.label));
-        const options = c.kind === 'choice' ? c.options : ['off', 'on'];
-        const group = el('div', 'm26-seg');
-        group.setAttribute('role', 'group');
-        group.setAttribute('aria-label', `${title} ${c.label}`);
-        const buttons = options.map((o) => {
-          const btn = el('button', 'm26-seg-btn', o.toUpperCase());
-          btn.type = 'button';
-          btn.addEventListener('click', () => (c.kind === 'choice' ? c.set(o) : c.set(o === 'on')));
-          group.append(btn);
-          return [o, btn] as const;
-        });
-        const paint = () => buttons.forEach(([o, btn]) => {
-          const on = c.kind === 'choice' ? c.value === o : (o === 'on') === c.value;
-          btn.classList.toggle('on', on);
-          btn.setAttribute('aria-pressed', String(on));
-        });
-        c.onChange(paint);
-        paint();
-        item.append(group);
-      }
-      card.append(item);
-    }
-    root.append(card);
-  }
+  for (const [title, ids] of CARDS) root.append(controlCard(d, title, ids));
+  root.append(...sq16Cards(d));
   return root;
+}
+
+/** A card of controls for the stacked layout: number controls as sliders with their value, choices and toggles as buttons. */
+export function controlCard(d: M2600Synth, title: string, ids: readonly string[]): HTMLElement {
+  const card = el('section', 'm26-card');
+  card.append(el('h2', 'm26-card-title', title));
+  for (const id of ids) {
+    const c = d.control(id);
+    const item = el('div', 'm26-item');
+    if (c.kind === 'number') {
+      const name = el('span', 'm26-item-label', c.label);
+      const value = el('span', 'm26-item-value');
+      const sync = () => { value.textContent = formatValue(c); };
+      c.onChange(sync);
+      sync();
+      item.append(name, value, slider(c, title, false));
+    } else {
+      item.classList.add('m26-item-choice');
+      item.append(el('span', 'm26-item-label', c.label));
+      const options = c.kind === 'choice' ? c.options : ['off', 'on'];
+      const group = el('div', 'm26-seg');
+      group.setAttribute('role', 'group');
+      group.setAttribute('aria-label', `${title} ${c.label}`);
+      const buttons = options.map((o) => {
+        const btn = el('button', 'm26-seg-btn', o.toUpperCase());
+        btn.type = 'button';
+        btn.addEventListener('click', () => (c.kind === 'choice' ? c.set(o) : c.set(o === 'on')));
+        group.append(btn);
+        return [o, btn] as const;
+      });
+      const paint = () => buttons.forEach(([o, btn]) => {
+        const on = c.kind === 'choice' ? c.value === o : (o === 'on') === c.value;
+        btn.classList.toggle('on', on);
+        btn.setAttribute('aria-pressed', String(on));
+      });
+      c.onChange(paint);
+      paint();
+      item.append(group);
+    }
+    card.append(item);
+  }
+  return card;
 }
 
 /** The MOA-2600 front panel: the hardware-style layout on wide screens, stacked cards on narrow ones. */

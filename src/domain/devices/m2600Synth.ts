@@ -5,6 +5,7 @@ import { type Cord, addCord, orient, parse, removeAt, resolve, serialize } from 
 import { M2600_CORDS_KEY, M2600_INIT, M2600_NOT_IN_PATCH, M2600_PRESETS } from './m2600Presets';
 import { M2600_PARAMS, M2600_PERFORMANCE } from './m2600Params';
 import type { Playable } from './playable';
+import { SQ16_DIVS, type SQ16Message } from './sq16Params';
 import type { PresetValues, SynthPreset } from './synthPresets';
 
 export const M2600_BEND_SEMITONES = 2;
@@ -35,6 +36,7 @@ export class M2600Synth extends Device implements Playable {
   private portaHeld = false;
   private manualOn = false;
   private cordList: Cord[] = [];
+  private midiPulses = 0;
   private readonly cordListeners = new Set<() => void>();
   private readonly noteListeners = new Set<() => void>();
   private readonly performanceListeners = new Set<() => void>();
@@ -169,9 +171,39 @@ export class M2600Synth extends Device implements Playable {
     return () => this.performanceListeners.delete(fn);
   }
 
-  /** MIDI on the chosen channel (or any): notes, pitch bend, mod wheel (CC 1), sustain pedal (CC 64), program change. */
+  // ---- The MOA-SQ16 sequencer ----
+
+  /** Run, stop, toggle, step once or reset the sequencer (`jump` goes to a step, 0-15). */
+  sequencer(action: 'run' | 'stop' | 'toggle' | 'step' | 'reset'): void {
+    this.circuit.send('synth', { type: 'sq', action } satisfies SQ16Message);
+  }
+
+  jumpTo(index: number): void {
+    this.circuit.send('synth', { type: 'sq', action: 'jump', index } satisfies SQ16Message);
+  }
+
+  /** MIDI clock, start, continue and stop drive the sequencer when its clock source is MIDI. */
+  private handleClock(event: MidiEvent): void {
+    if ((this.control('sq.sync') as ChoiceControl).value !== 'midi') return;
+    if (event.type === 'start') {
+      this.midiPulses = 0;
+      this.sequencer('reset');
+      this.sequencer('run');
+    } else if (event.type === 'continue') this.sequencer('run');
+    else if (event.type === 'stop') this.sequencer('stop');
+    else if (event.type === 'clock') {
+      const per = SQ16_DIVS[(this.control('sq.div') as ChoiceControl).value as keyof typeof SQ16_DIVS];
+      if (this.midiPulses % per === 0) this.circuit.send('synth', { type: 'sqtick' } satisfies SQ16Message);
+      this.midiPulses++;
+    }
+  }
+
+  /** MIDI on the chosen channel (or any): notes, pitch bend, mod wheel (CC 1), sustain pedal (CC 64), program change; and MIDI clock for the sequencer. */
   handleMidi(event: MidiEvent): void {
-    if (!('channel' in event)) return;
+    if (!('channel' in event)) {
+      this.handleClock(event);
+      return;
+    }
     const channel = (this.control('play.channel') as ChoiceControl).value;
     if (channel !== 'omni' && Number(channel) !== event.channel) return;
     switch (event.type) {

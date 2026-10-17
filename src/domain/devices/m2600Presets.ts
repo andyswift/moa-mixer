@@ -126,6 +126,22 @@ export const M2600_FACTORY: readonly SynthPreset[] = [
     [M2600_CORDS_KEY]: 'vp.inv2>esw.b;esw.c>mult.1;mult.2>vco1.fm.sh;mult.3>vco2.fm.sh', 'vp.6': 0.1, 'vco1.fm.sh': 1, 'vco2.fm.sh': 1,
     'vco2.fine': 0.07, 'vcf.in.vco2': 0.6, 'vcf.freq': 2000, 'vcf.res': 0.3, 'vcf.cv.adsr': 0.1, 'sh.rate': 6, 'adsr.sustain': 0.8,
   }),
+  // ---- with the MOA-SQ16 sequencer patched in (press RUN)
+  p('SQ16 Bass Line', {
+    [M2600_CORDS_KEY]: 'sq.qa>mult.1;mult.2>vco1.fm.kybd;mult.3>vco2.fm.kybd;sq.cgate1>adsr.gate',
+    'vco1.freq': C2, 'vco2.freq': C2, 'vco2.fine': 0.08, 'vcf.in.vco2': 0.5, 'vcf.freq': 300, 'vcf.res': 0.45, 'vcf.cv.adsr': 0.4,
+    'adsr.attack': 0.002, 'adsr.decay': 0.2, 'adsr.sustain': 0.2, 'adsr.release': 0.1, 'sq.scale': 'minor', 'sq.rate': 7,
+  }),
+  p('Keys Pitch, SQ16 Rhythm', {
+    [M2600_CORDS_KEY]: 'sq.cgate1>adsr.gate;sq.b>vcf.cv.vco2', 'vcf.cv.vco2': 0.25, 'vcf.freq': 400, 'vcf.res': 0.5, 'vcf.cv.adsr': 0.2,
+    'vcf.in.vco3': 0.5, 'vco3.fine': 0.07, 'adsr.attack': 0.002, 'adsr.decay': 0.15, 'adsr.sustain': 0.3, 'adsr.release': 0.1,
+    'sq.mode': '8x2', 'sq.rate': 8,
+  }),
+  p('SQ16 Random Bleeps', {
+    [M2600_CORDS_KEY]: 'sq.qa>vco1.fm.kybd;sq.cgate1>adsr.gate', 'vco1.freq': C3, 'vcf.freq': 2500, 'vcf.cv.adsr': 0.15,
+    'adsr.attack': 0.001, 'adsr.decay': 0.1, 'adsr.sustain': 0, 'adsr.release': 0.08, 'sq.dir': 'random', 'sq.scale': 'pent',
+    'sq.range': '4', 'sq.rate': 9, 'reverb.left': 0.35, 'reverb.right': 0.35,
+  }),
 ];
 
 export const M2600_PRESETS: readonly SynthPreset[] = Array.from({ length: M2600_SLOTS }, (_, i) => M2600_FACTORY[i] ?? p('Init', {}));

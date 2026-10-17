@@ -109,6 +109,7 @@ describe('patches', () => {
       process(l: Float32Array, r: Float32Array, n: number, p: Record<string, number>): void;
     };
     if (withCords) core.setCords(resolve(s.cords));
+    (core as unknown as { seqMessage(m: unknown): void }).seqMessage({ type: 'sq', action: 'run' });
     core.play(60, 60, true, true);
     const l = new Float32Array(SR), r = new Float32Array(SR);
     for (let at = 0; at < SR; at += 128) core.process(l.subarray(at, at + 128), r.subarray(at, at + 128), 128, p);
@@ -134,7 +135,9 @@ describe('patches', () => {
       }
       let seed = 7;
       const core = new mod.M26Core(SR, () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296));
-      (core as unknown as { setCords(c: unknown): void }).setCords(resolve(s.cords));
+      const c2 = core as unknown as { setCords(c: unknown): void; seqMessage(m: unknown): void };
+      c2.setCords(resolve(s.cords));
+      if (s.cords.some((c) => c.from.startsWith('sq.'))) c2.seqMessage({ type: 'sq', action: 'run' });
       core.play(60, 67, true, true);
       const n = SR * 1.5;
       const l = new Float32Array(n), r = new Float32Array(n);
@@ -210,5 +213,32 @@ describe('patch cords', () => {
 
   it('every jack on the table has a readable name', () => {
     for (const id of ['kb.cv', 'kb.upper', 'esw.c', 'vp.inv1', 'sh.extclk', 'out.left']) expect(jackName(id)).not.toMatch(/undefined/);
+  });
+});
+
+describe('MOA-SQ16 on the device', () => {
+  it('steps on MIDI clock at the chosen division when synced, and follows MIDI start and stop', () => {
+    const s = new M2600Synth();
+    const sent: unknown[] = [];
+    s.circuit.onChange((c) => { if (c.type === 'message') sent.push(c.data); });
+    s.handleMidi({ type: 'clock' });
+    expect(sent).toEqual([]); // internal clock: MIDI clock ignored
+    choose(s, 'sq.sync', 'midi');
+    choose(s, 'sq.div', '1/8');
+    s.handleMidi({ type: 'start' });
+    for (let i = 0; i < 24; i++) s.handleMidi({ type: 'clock' });
+    expect(sent.filter((m) => (m as { type: string }).type === 'sqtick')).toHaveLength(2);
+    expect(sent.slice(0, 2)).toEqual([{ type: 'sq', action: 'reset' }, { type: 'sq', action: 'run' }]);
+    s.handleMidi({ type: 'stop' });
+    expect(sent.at(-1)).toEqual({ type: 'sq', action: 'stop' });
+  });
+
+  it('the sequencer jacks patch like any other, with their own MULT', () => {
+    const s = new M2600Synth();
+    expect(s.connect('sq.cgate1', 'adsr.gate')).toBe(true);
+    expect(s.connect('sq.qa', 'sq.mult.1')).toBe(true);
+    expect(s.connect('sq.mult.2', 'vco1.fm.kybd')).toBe(true);
+    expect(resolve(s.cords)).toEqual([{ from: 'sq.cgate1', to: 'adsr.gate' }, { from: 'sq.qa', to: 'vco1.fm.kybd' }]);
+    expect(jackName('sq.cgate1')).toBe('SQ16 · clocked gate 1');
   });
 });

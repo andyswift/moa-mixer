@@ -1,4 +1,5 @@
 import { M2600_INPUTS, M2600_OUTPUTS, M2600_PARAMS, M2600_PERFORMANCE } from '../domain/devices/m2600Params';
+import { SQ16_SOURCE } from './sq16Dsp';
 
 export const M2600_NAME = 'moa-2600';
 
@@ -14,7 +15,7 @@ const INPUTS = M2600_INPUTS.map((i) => ({ id: i.id, normal: i.normal ?? null }))
  * `M2600_INPUTS` unless a cord (`setCords`) overrides it. Modules run in a fixed order each sample; an input that
  * reads a module further down the order hears the previous sample, as a cord would.
  *
- *   keyboard + LFO -> noise -> S/H -> ADSR, AR -> VCO 1, 2, 3 -> ring mod -> preamp, env follower
+ *   keyboard + LFO -> SQ16 sequencer -> noise -> S/H -> ADSR, AR -> VCO 1, 2, 3 -> ring mod -> preamp, env follower
  *     -> VCF (4012 / 4072) -> SEM (LP-notch-HP / BP; off, series or parallel) -> VCA -> mixer -> reverb -> out
  *     -> voltage processors, electronic switch
  *
@@ -166,6 +167,7 @@ class M26Reverb {
   }
 }
 
+${SQ16_SOURCE}
 class M26Core {
   constructor(sampleRate, random) {
     this.sr = sampleRate;
@@ -192,7 +194,8 @@ class M26Core {
     this.lag = 0;
     this.rev = new M26Reverb(sampleRate);
     this.seed = 12345;
-    this.view = { gate: false, lfo: false, clk: false, esw: 0, adsr: 0, ar: 0 };
+    this.seq = new M26Seq(sampleRate, this.random);
+    this.view = { gate: false, lfo: false, clk: false, esw: 0, adsr: 0, ar: 0, sq: { step: 0, running: false, clk: false } };
   }
 
   play(n1, n2, gate, retrig) {
@@ -204,6 +207,9 @@ class M26Core {
   }
 
   manual(on) { this.manualOn = !!on; }
+
+  /** The sequencer's messages: { type: 'sq', action, index? } and { type: 'sqtick' }. */
+  seqMessage(m) { this.seq.message(m); }
 
   /** Patch cords: a list of { from: output id, to: input id }; replaces every cord. Unknown ids are skipped. */
   setCords(list) {
@@ -242,6 +248,11 @@ class M26Core {
     const sMixVcf = this.patched('mix.in.vcf') ? src('mix.in.vcf') : filterBus;
     const sVcaSem = this.patched('vca.in.sem') ? src('vca.in.sem') : (route === 2 ? O['sem.out'] : M26_ZERO);
     const sMixVca = src('mix.in.vca');
+    const sqFm = src('sq.fmin'), sqPwm = src('sq.pwm'), sqExt = src('sq.extclk'), sqStart = src('sq.start'), sqStop = src('sq.stop');
+    const sqSs = src('sq.startstop'), sqStep = src('sq.stepin'), sqReset = src('sq.resetin');
+    const sqIna = src('sq.ina'), sqInb = src('sq.inb'), sqCv = src('sq.cvin');
+    const seq = this.seq;
+    seq.block(p, this.patched('sq.extclk'), this.patched('sq.startstop'));
     const k1Patched = this.patched('vco1.fm.kybd'), k2Patched = this.patched('vco2.fm.kybd'), k3Patched = this.patched('vco3.fm.kybd');
 
     // ---- per-block: params
@@ -323,6 +334,14 @@ class M26Core {
       sig[O['kb.gate']] = gate ? 10 : 0;
       sig[O['kb.trig']] = this.trigLeft > 0 ? 10 : 0;
       if (this.trigLeft > 0) this.trigLeft--;
+
+      // ---- SQ16 sequencer
+      seq.tick(sig[sqFm], sig[sqPwm], sig[sqExt], sig[sqStart], sig[sqStop], sig[sqSs], sig[sqStep], sig[sqReset]);
+      sig[O['sq.a']] = seq.a; sig[O['sq.b']] = seq.b;
+      sig[O['sq.bus1']] = seq.bus[0]; sig[O['sq.bus2']] = seq.bus[1]; sig[O['sq.bus3']] = seq.bus[2];
+      sig[O['sq.pos1']] = seq.pos1; sig[O['sq.cgate1']] = seq.cgate1; sig[O['sq.clk']] = seq.clk;
+      sig[O['sq.qa']] = seq.quant(sig[sqIna], sig[sqCv]);
+      sig[O['sq.qb']] = seq.quant(sig[sqInb], sig[sqCv]);
 
       // ---- noise: white > pink > low-frequency random
       const w = rnd() * 2 - 1;
@@ -458,6 +477,7 @@ class M26Core {
     const v = this.view;
     v.gate = this.keyGate; v.lfo = this.lfoSq; v.clk = this.shHigh; v.esw = this.esw;
     v.adsr = this.adsr.v; v.ar = this.ar.v;
+    v.sq.step = seq.pos; v.sq.running = seq.running; v.sq.clk = seq.high;
   }
 }
 
@@ -480,6 +500,7 @@ if (typeof registerProcessor === 'function') {
         if (m.type === 'play') this.core.play(m.n1, m.n2, m.gate, m.retrig);
         else if (m.type === 'manual') this.core.manual(m.on);
         else if (m.type === 'cords') this.core.setCords(m.cords);
+        else if (m.type === 'sq' || m.type === 'sqtick') this.core.seqMessage(m);
       };
     }
     process(inputs, outputs, params) {

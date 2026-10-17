@@ -41,6 +41,8 @@ export interface M2600View {
   esw: number;
   adsr: number;
   ar: number;
+  /** The MOA-SQ16 sequencer: the current step (0-15), whether it runs, and its clock lamp. */
+  sq?: { step: number; running: boolean; clk: boolean };
 }
 
 /** Compiles a Patch into Web Audio nodes and keeps them in sync with domain state. */
