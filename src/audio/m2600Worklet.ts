@@ -16,7 +16,7 @@ const INPUTS = M2600_INPUTS.map((i) => ({ id: i.id, normal: i.normal ?? null }))
  * reads a module further down the order hears the previous sample, as a cord would.
  *
  *   keyboard + LFO -> SQ16 sequencer -> noise -> S/H -> ADSR, AR -> VCO 1, 2, 3 -> ring mod -> preamp, env follower
- *     -> VCF (4012 / 4072) -> SEM (LP-notch-HP / BP; off, series or parallel) -> VCA -> mixer -> reverb -> out
+ *     -> VCF (4012 / 4072) and SEM (LP-notch-HP / BP, in parallel; series by a cord) -> VCA -> mixer -> reverb -> out
  *     -> voltage processors, electronic switch
  *
  * The params are the control ids of `m2600Params.ts` (choices arrive as option indices, toggles as 0 / 1). Notes
@@ -242,11 +242,7 @@ class M26Core {
     const sShIn = src('sh.in'), sExtClk = src('sh.extclk'), extClk = this.patched('sh.extclk');
     const sEswA = src('esw.a'), sEswB = src('esw.b'), sOutL = src('out.left'), sOutR = src('out.right');
     const arPatched = this.patched('ar.gate'), sArGate = src('ar.gate');
-    const route = Math.round(p['sem.route']); // 0 off, 1 series, 2 parallel
-    const filterBus = route === 1 ? O['sem.out'] : O['vcf.out'];
-    const sVcaVcf = this.patched('vca.in.vcf') ? src('vca.in.vcf') : filterBus;
-    const sMixVcf = this.patched('mix.in.vcf') ? src('mix.in.vcf') : filterBus;
-    const sVcaSem = this.patched('vca.in.sem') ? src('vca.in.sem') : (route === 2 ? O['sem.out'] : M26_ZERO);
+    const sVcaVcf = src('vca.in.vcf'), sMixVcf = src('mix.in.vcf'), sVcaSem = src('vca.in.sem');
     const sMixVca = src('mix.in.vca');
     const sqFm = src('sq.fmin'), sqPwm = src('sq.pwm'), sqExt = src('sq.extclk'), sqStart = src('sq.start'), sqStop = src('sq.stop');
     const sqSs = src('sq.startstop'), sqStep = src('sq.stepin'), sqReset = src('sq.resetin');
@@ -426,10 +422,8 @@ class M26Core {
       sig[O['vcf.out']] = 10 * m26Tanh(fy * vcfComp * 0.5);
 
       // ---- SEM
-      if (route === 0) sig[O['sem.out']] = 0;
-      else {
-        let sx = (sig[ssV1] * sV1 + sig[ssV2] * sV2 + sig[ssV3] * sV3 + sig[ssNz] * sNz) / 5 + tiny;
-        if (route === 1) sx += sig[O['vcf.out']] / 5;
+      {
+        const sx = (sig[ssV1] * sV1 + sig[ssV2] * sV2 + sig[ssV3] * sV3 + sig[ssNz] * sNz) / 5 + tiny;
         const scv = sig[ssK] * sK + sig[ssAd] * sAd + sig[ssLfo] * sLfo;
         const sfc = Math.min(maxHz, Math.max(5, semBase * Math.pow(2, scv)));
         const sem = this.sem;

@@ -12,12 +12,16 @@ export const M2600_INIT: PresetValues = {
 
 /** The MIDI channel belongs to the setup, not the sound. */
 export const M2600_NOT_IN_PATCH = ['play.channel'] as const;
+/** Values older patches may hold for controls since taken out (the SEM's route switch: series is now a cord); ignored. */
+export const M2600_RETIRED = ['sem.route'] as const;
 export const M2600_SLOTS = 32;
 
 const p = (name: string, values: PresetValues): SynthPreset => ({ name, values });
 
 // Oscillator frequencies are the pitch at middle C, so 65.41 Hz plays two octaves down.
 const C2 = 65.41, C3 = 130.81, C4 = 261.63, C5 = 523.25;
+/** The two filters in series: the VCF's output into the SEM (which then needs its VCA slider up instead of the VCF's). */
+const SERIES = 'vcf.out>sem.in.vco1';
 
 /**
  * Factory patches: sounds the 2600 is known for, made on its normalled routing (no cords), and a few that use the
@@ -90,22 +94,22 @@ export const M2600_FACTORY: readonly SynthPreset[] = [
   // ---- the second filter
   p('Dual Filter Pad', {
     'vco2.fine': 0.1, 'vco3.fine': -0.1, 'vcf.in.vco1': 0.6, 'vcf.in.vco2': 0.6, 'vcf.freq': 700, 'vcf.res': 0.3, 'vcf.cv.adsr': 0.15,
-    'sem.route': 'parallel', 'sem.in.vco1': 0.6, 'sem.in.vco3': 0.5, 'sem.freq': 1800, 'sem.mode': 0.8, 'sem.res': 0.4,
+    'sem.in.vco1': 0.6, 'sem.in.vco3': 0.5, 'sem.freq': 1800, 'sem.mode': 0.8, 'sem.res': 0.4,
     'sem.cv.lfo': 0.08, 'lfo.speed': 0.3, 'vca.in.sem': 0.7,
     'adsr.attack': 0.8, 'adsr.decay': 1.5, 'adsr.sustain': 0.8, 'adsr.release': 2, 'reverb.left': 0.35, 'reverb.right': 0.35,
   }),
   p('Notch Sweep', {
-    'vcf.in.vco1': 0, 'vcf.in.vco2': 0.6, 'vcf.in.vco3': 0.6, 'vco3.fine': 0.07, 'vcf.freq': 8000, 'vcf.cv.adsr': 0,
+    [M2600_CORDS_KEY]: SERIES, 'sem.in.vco1': 1, 'vca.in.vcf': 0, 'vca.in.sem': 0.8, 'vcf.in.vco1': 0, 'vcf.in.vco2': 0.6, 'vcf.in.vco3': 0.6, 'vco3.fine': 0.07, 'vcf.freq': 8000, 'vcf.cv.adsr': 0,
     'sem.mode': 0.5, 'sem.res': 0.5, 'sem.freq': 800, 'sem.cv.kybd': 0, 'sem.cv.lfo': 0.25, 'lfo.speed': 0.25,
     'adsr.sustain': 1, 'adsr.release': 0.6,
   }),
   p('Band Pass Voice', {
-    'vcf.in.vco1': 0.7, 'vcf.in.vco3': 0.6, 'vco3.fine': 0.07, 'vcf.freq': 5000, 'vcf.cv.adsr': 0,
+    [M2600_CORDS_KEY]: SERIES, 'sem.in.vco1': 1, 'vca.in.vcf': 0, 'vca.in.sem': 0.8, 'vcf.in.vco1': 0.7, 'vcf.in.vco3': 0.6, 'vco3.fine': 0.07, 'vcf.freq': 5000, 'vcf.cv.adsr': 0,
     'sem.bp': 1, 'sem.freq': 900, 'sem.res': 0.6, 'sem.cv.adsr': 0.15, 'adsr.attack': 0.03, 'adsr.sustain': 0.8,
     'lfo.delay': 0.3, 'lfo.depth': 0.15,
   }),
   p('Twin Resonance', {
-    'vco1.freq': C3, 'vcf.mode': '4012', 'vcf.freq': 350, 'vcf.res': 0.7, 'vcf.cv.adsr': 0.4,
+    [M2600_CORDS_KEY]: SERIES, 'sem.in.vco1': 1, 'vca.in.vcf': 0, 'vca.in.sem': 0.8, 'vco1.freq': C3, 'vcf.mode': '4012', 'vcf.freq': 350, 'vcf.res': 0.7, 'vcf.cv.adsr': 0.4,
     'sem.freq': 1400, 'sem.res': 0.75, 'sem.cv.adsr': 0.25, 'sem.mode': 0.15,
     'adsr.attack': 0.002, 'adsr.decay': 0.4, 'adsr.sustain': 0.2, 'adsr.release': 0.2,
   }),

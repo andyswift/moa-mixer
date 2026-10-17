@@ -564,15 +564,10 @@ function buildDesktop(d: M2600Synth, lamps: Lamps): HTMLElement {
     b.text((x1 + x2) / 2, t(120), 'MODE', 8);
     b.text(x1 + 6, t(128), 'LP', 7); b.text((x1 + x2) / 2, t(128), 'NOTCH', 7); b.text(x2 - 6, t(128), 'HP', 7);
     b.hslider(num(d, 'sem.mode'), 'SEM', x1, x2, t(HS[2]), readout);
-    b.text(790, t(176), 'BAND', 7.5);
-    b.text(790, t(186), 'BP', 6.5);
-    b.place(rocker(toggleSwitch(toggle(d, 'sem.bp'), 'SEM band pass'), readout), 790, t(206), 14, 30);
-    b.text(790, t(232), 'MODE', 6.5);
-    b.text(828, t(176), 'ROUTE', 7.5);
-    b.text(828, t(186), 'OFF', 6.5);
-    b.place(rocker(choiceSwitch(choice(d, 'sem.route'), 'SEM route: off, series or parallel'), readout), 828, t(206), 14, 30);
-    b.text(843, t(209), 'SER', 6.5, 'start');
-    b.text(828, t(232), 'PARALLEL', 6.5);
+    b.text(806, t(176), 'BAND', 7.5);
+    b.text(806, t(186), 'BP', 6.5);
+    b.place(rocker(toggleSwitch(toggle(d, 'sem.bp'), 'SEM band pass'), readout), 806, t(206), 14, 30);
+    b.text(806, t(232), 'MODE', 6.5);
     b.box(856, t(196), 82, 52, 'SEM\nSTATE-VARIABLE\nFILTER\nLP · N · HP · BP', 7.5);
     b.outJack('sem.out', 957, t(240), 'OUTPUT', false);
     b.path(`M938 ${t(222)} H957 V${t(229)}`);
@@ -634,7 +629,7 @@ function buildDesktop(d: M2600Synth, lamps: Lamps): HTMLElement {
     b.box(1144, t(186), 88, 40, 'VOLTAGE\nCONTROLLED\nAMPLIFIER', 8);
     b.outJack('vca.out', 1188, t(150), 'OUTPUT');
     b.line(1188, t(161), 1188, t(186));
-    const inputs: [string, string][] = [['in.vcf', 'VCF\n/SEM'], ['in.sem', 'SEM'], ['in.ring', 'RING\nMOD'], ['cv.ar', 'AR'], ['cv.adsr', 'ADSR']];
+    const inputs: [string, string][] = [['in.vcf', 'VCF'], ['in.sem', 'SEM'], ['in.ring', 'RING\nMOD'], ['cv.ar', 'AR'], ['cv.adsr', 'ADSR']];
     inputs.forEach(([key, label], i) => {
       const x = 1118 + i * 28;
       b.vslider(num(d, `vca.${key}`), 'VCA', x, t(VS_TOP), t(VS_BOT), readout);
@@ -664,7 +659,7 @@ function buildDesktop(d: M2600Synth, lamps: Lamps): HTMLElement {
     b.vslider(num(d, 'mix.vcf'), 'Mixer', 1265, t(VS_TOP + 20), t(VS_BOT - 10), readout);
     b.vslider(num(d, 'mix.vca'), 'Mixer', 1315, t(VS_TOP + 20), t(VS_BOT - 10), readout);
     b.box(1268, t(450), 44, 14, 'MIXER', 8);
-    b.inJack('mix.in.vcf', 1265, t(JACK_Y), 'VCF\n/SEM');
+    b.inJack('mix.in.vcf', 1265, t(JACK_Y), 'VCF');
     b.inJack('mix.in.vca', 1315, t(JACK_Y), 'VCA');
   }
 
@@ -862,7 +857,7 @@ const CARDS: [title: string, ids: string[]][] = [
   ['VCO 2', ['vco2.range', 'vco2.sync', 'vco2.freq', 'vco2.fine', 'vco2.pw', 'vco2.fm.sh', 'vco2.fm.adsr', 'vco2.fm.vco1', 'vco2.pwm']],
   ['VCO 3', ['vco3.range', 'vco3.sync', 'vco3.freq', 'vco3.fine', 'vco3.pw', 'vco3.fm.noise', 'vco3.fm.adsr', 'vco3.fm.vco2', 'vco3.pwm']],
   ['VCF', ['vcf.mode', 'vcf.freq', 'vcf.fine', 'vcf.res', 'vcf.in.ring', 'vcf.in.vco1', 'vcf.in.vco2', 'vcf.in.vco3', 'vcf.in.noise', 'vcf.cv.kybd', 'vcf.cv.adsr', 'vcf.cv.vco2']],
-  ['SEM FILTER', ['sem.route', 'sem.bp', 'sem.freq', 'sem.res', 'sem.mode', 'sem.in.vco1', 'sem.in.vco2', 'sem.in.vco3', 'sem.in.noise', 'sem.cv.kybd', 'sem.cv.adsr', 'sem.cv.lfo']],
+  ['SEM FILTER', ['sem.bp', 'sem.freq', 'sem.res', 'sem.mode', 'sem.in.vco1', 'sem.in.vco2', 'sem.in.vco3', 'sem.in.noise', 'sem.cv.kybd', 'sem.cv.adsr', 'sem.cv.lfo']],
   ['ADSR', ['adsr.factor', 'adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release']],
   ['AR', ['ar.source', 'ar.factor', 'ar.attack', 'ar.release']],
   ['VCA', ['vca.gain', 'vca.in.vcf', 'vca.in.sem', 'vca.in.ring', 'vca.cv.ar', 'vca.cv.adsr']],

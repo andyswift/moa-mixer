@@ -104,13 +104,12 @@ const SYNTH_PARAMS: readonly M2600Param[] = [
   s('vcf.cv.vco2', 'Control VCO 2'),
 
   // ---- SEM: a 12 dB state-variable filter, mode sweeps LP > notch > HP, BP replaces it with band-pass.
-  // route off: a stock 2600; series: the VCF's output feeds the SEM and the SEM's output takes the VCF's place
-  // at the VCA and mixer; parallel: the SEM hears only its own sliders and reaches the VCA on its own slider.
+  // It sits in parallel with the VCF: it hears its own sliders and reaches the VCA on its own slider (at 0 the
+  // synth is a stock 2600). For series, patch the VCF's output into one of its audio inputs.
   n('sem.freq', 'Frequency', 10, 16000, 16000, 'Hz', 'log'),
   s('sem.res', 'Resonance', 0),
   s('sem.mode', 'LP / notch / HP', 0),
   t('sem.bp', 'Band pass'),
-  c('sem.route', 'Route', ['off', 'series', 'parallel'], 'series'),
   s('sem.in.vco1', 'Audio VCO 1'),
   s('sem.in.vco2', 'Audio VCO 2'),
   s('sem.in.vco3', 'Audio VCO 3'),
@@ -214,7 +213,6 @@ export const M2600_INPUTS: readonly M2600Input[] = [
   { id: 'adsr.gate', normal: 'kb.gate' }, { id: 'adsr.trig', normal: 'kb.trig' },
   // the AR's gate follows the ar.source switch (keyboard gate or S/H clock) unless patched
   { id: 'ar.gate', normal: 'kb.gate' },
-  // with the SEM in series, vca.in.vcf and mix.in.vcf hear the SEM's output instead of the VCF's
   { id: 'vca.in.vcf', normal: 'vcf.out', slider: 'vca.in.vcf' }, { id: 'vca.in.sem', normal: 'sem.out', slider: 'vca.in.sem' },
   { id: 'vca.in.ring', normal: 'ring.out', slider: 'vca.in.ring' },
   { id: 'vca.cv.ar', normal: 'ar.out', slider: 'vca.cv.ar' }, { id: 'vca.cv.adsr', normal: 'adsr.out', slider: 'vca.cv.adsr' },

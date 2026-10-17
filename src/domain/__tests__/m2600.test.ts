@@ -242,3 +242,13 @@ describe('MOA-SQ16 on the device', () => {
     expect(jackName('sq.cgate1')).toBe('SQ16 · clocked gate 1');
   });
 });
+
+describe('retired controls', () => {
+  it('a patch saved with the old SEM route switch still loads (the value is ignored)', () => {
+    const s = new M2600Synth();
+    s.slots[30] = { name: 'Old', values: { 'sem.route': 'series', 'vcf.res': 0.4 } };
+    expect(() => s.loadSlot(30)).not.toThrow();
+    expect(s.control('vcf.res').value).toBeCloseTo(0.4);
+    expect(s.snapshot()['sem.route']).toBeUndefined();
+  });
+});

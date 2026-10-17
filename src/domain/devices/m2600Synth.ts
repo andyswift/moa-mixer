@@ -2,7 +2,7 @@ import type { MidiEvent } from '../midi/events';
 import { ChoiceControl, NumberControl, ToggleControl } from './controls';
 import { Device } from './device';
 import { type Cord, addCord, orient, parse, removeAt, resolve, serialize } from './m2600Cords';
-import { M2600_CORDS_KEY, M2600_INIT, M2600_NOT_IN_PATCH, M2600_PRESETS } from './m2600Presets';
+import { M2600_CORDS_KEY, M2600_INIT, M2600_NOT_IN_PATCH, M2600_PRESETS, M2600_RETIRED } from './m2600Presets';
 import { M2600_PARAMS, M2600_PERFORMANCE } from './m2600Params';
 import type { Playable } from './playable';
 import { SQ16_DIVS, type SQ16Message } from './sq16Params';
@@ -279,7 +279,7 @@ export class M2600Synth extends Device implements Playable {
 
   private applyValues(values: PresetValues): void {
     for (const [id, value] of Object.entries(values)) {
-      if ((M2600_NOT_IN_PATCH as readonly string[]).includes(id)) continue;
+      if ((M2600_NOT_IN_PATCH as readonly string[]).includes(id) || (M2600_RETIRED as readonly string[]).includes(id)) continue;
       if (id === M2600_CORDS_KEY) {
         if (typeof value !== 'string') throw new Error('Patch: bad cords');
         this.setCords(parse(value));

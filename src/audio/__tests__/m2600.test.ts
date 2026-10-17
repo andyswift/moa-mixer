@@ -30,7 +30,7 @@ const opt = (id: string, v: string): number => M2600_PARAMS.find((p) => p.id ===
 
 /** Init, with the VCF wide open and flat, the SEM off, the VCA held open and no reverb: VCO 1 pulse goes straight out. */
 const open = (extra: Params = {}): Params => ({
-  ...mod.M26_DEFAULTS, 'vcf.freq': 16000, 'vcf.cv.adsr': 0, 'vcf.res': 0, 'sem.route': opt('sem.route', 'off'),
+  ...mod.M26_DEFAULTS, 'vcf.freq': 16000, 'vcf.cv.adsr': 0, 'vcf.res': 0,
   'vca.gain': 1, 'vca.cv.adsr': 0, 'reverb.left': 0, 'reverb.right': 0, ...extra,
 });
 function run(core: CoreI, seconds: number, p: Params, block = 128) {
@@ -174,13 +174,10 @@ describe('VCF', () => {
 });
 
 describe('SEM', () => {
-  /** Noise through a wide-open VCF into the SEM in series at 1 kHz. */
+  /** Noise into the SEM on its own noise slider, at 1 kHz. */
   const sem = (extra: Params) => {
     const core = newCore();
-    return probe(core, 'sem.out', 1.2, open({
-      'vcf.in.vco1': 0, 'vcf.in.noise': 1, 'vcf.cv.kybd': 0, 'sem.route': opt('sem.route', 'series'),
-      'sem.freq': 1000, 'sem.cv.kybd': 0, 'sem.res': 0.3, ...extra,
-    }));
+    return probe(core, 'sem.out', 1.2, open({ 'sem.in.noise': 1, 'sem.freq': 1000, 'sem.cv.kybd': 0, 'sem.res': 0.3, ...extra }));
   };
 
   it('LP passes lows, HP passes highs', () => {
@@ -202,25 +199,27 @@ describe('SEM', () => {
     expect(band(a, 1000)).toBeGreaterThan(band(a, 10000) * 10);
   });
 
-  it('routing: off is a stock 2600, series puts the SEM after the VCF, parallel gives it its own inputs', () => {
-    const out = (route: string, extra: Params = {}) => {
+  it('routing: in parallel by default (its own sliders, its own VCA slider); in series by a cord from the VCF', () => {
+    const out = (extra: Params = {}, cords: { from: string; to: string }[] = []) => {
       const core = newCore();
+      core.setCords(cords);
       core.play(60, 60, true, true);
-      return run(core, 1, open({
-        'vcf.in.vco1': 0, 'vcf.in.noise': 1, 'vcf.cv.kybd': 0, 'sem.route': opt('sem.route', route), 'sem.freq': 200, 'sem.cv.kybd': 0, ...extra,
-      })).l;
+      return run(core, 1, open({ 'vcf.in.vco1': 0, 'vcf.in.noise': 1, 'vcf.cv.kybd': 0, 'sem.freq': 200, 'sem.cv.kybd': 0, ...extra })).l;
     };
     const bright = (a: Float32Array) => band(a, 6000) / band(a, 100);
-    const off = out('off');
-    const series = out('series');
-    expect(bright(series)).toBeLessThan(bright(off) * 0.01);
-    // parallel: the VCA's VCF slider hears the VCF alone, its SEM slider the SEM fed by its own sliders
-    expect(bright(out('parallel'))).toBeGreaterThan(bright(off) * 0.5);
-    const semOnly = out('parallel', { 'vca.in.vcf': 0, 'vca.in.sem': 1, 'sem.in.noise': 1 });
+    const stock = out();
+    // the SEM's VCA slider starts at 0: a stock 2600, the VCF's open noise
+    expect(bright(stock)).toBeGreaterThan(0.3);
+    // parallel: the SEM fed by its own noise slider, heard on its VCA slider
+    const semOnly = out({ 'vca.in.vcf': 0, 'vca.in.sem': 1, 'sem.in.noise': 1 });
     expect(rms(semOnly, SR / 10)).toBeGreaterThan(0.02);
-    expect(bright(semOnly)).toBeLessThan(bright(off) * 0.01);
-    // the SEM slider on the VCA hears nothing when the SEM is off or in series
-    for (const route of ['off', 'series']) expect(rms(out(route, { 'vca.in.vcf': 0, 'vca.in.sem': 1, 'sem.in.noise': 1 }), SR / 10)).toBeLessThan(1e-3);
+    expect(bright(semOnly)).toBeLessThan(bright(stock) * 0.01);
+    // with nothing on its sliders the SEM is silent
+    expect(rms(out({ 'vca.in.vcf': 0, 'vca.in.sem': 1 }), SR / 10)).toBeLessThan(1e-3);
+    // series: VCF out patched into an SEM input, heard on the SEM's VCA slider
+    const series = out({ 'vca.in.vcf': 0, 'vca.in.sem': 1, 'sem.in.vco1': 1 }, [{ from: 'vcf.out', to: 'sem.in.vco1' }]);
+    expect(rms(series, SR / 10)).toBeGreaterThan(0.02);
+    expect(bright(series)).toBeLessThan(bright(stock) * 0.01);
   });
 });
 
