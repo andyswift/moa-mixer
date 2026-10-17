@@ -3,7 +3,8 @@ import { DRUM_PUNCH, mixerSettings, STANDARD_EFFECTS } from '../mixes';
 import type { Automation, NoteEvent, Song } from '../types';
 
 /**
- * An original, silly acid house tune, 128 bpm, F major: F F Bb C, two bars a chord. The cowbell keeps getting busier
+ * An original, silly acid house tune, 128 bpm, F major. Kept on one root, as acid is: six bars on F and two a fifth up
+ * on C, and the bass jumps an octave for the last two bars before the trombone. The cowbell keeps getting busier
  * (syncopated, with ghost notes and an echo, rather than louder), the MOA-2600 plays a robot who answers the bass line, and it all ends in a sad trombone before the loop
  * starts again on a lonely cowbell. It shows off the ladder filter's drive (Acid Ladder), the mixer's Tape and the
  * new percussion.
@@ -15,7 +16,7 @@ import type { Automation, NoteEvent, Song } from '../types';
  */
 const BARS = 24;
 const ROOT = 53; // F3 (the patch's 16' range puts it an octave lower: it sounds at F2)
-const SHIFT = [0, 0, 5, 7]; // F F Bb C
+const SHIFT = [0, 0, 0, 7]; // two bars each: F F F, then up a fifth to C
 const section = (bar: number) => (bar < 4 ? 'intro' : bar < 12 ? 'groove' : bar < 16 ? 'break' : bar < 22 ? 'cowbell' : 'trombone');
 
 // a bouncy major bass line: [step, semitones, length]; lengths over a step slide
@@ -66,7 +67,7 @@ const parts = {
   bass(): NoteEvent[] {
     const out: NoteEvent[] = [];
     for (let bar = 4; bar < 22; bar++) {
-      const root = ROOT + chordAt(SHIFT, bar, 2);
+      const root = ROOT + chordAt(SHIFT, bar, 2) + (bar >= 20 ? 12 : 0); // an octave up to lift into the ending
       for (const [s, semis, len] of BASS) out.push(note(at16(bar, s), steps(len), root + semis, BASS_ACCENTS.has(s) ? 127 : 96));
     }
     return out;
