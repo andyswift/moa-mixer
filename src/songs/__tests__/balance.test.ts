@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyBalance, BALANCE } from '../balance';
 import { library } from '../library';
 
-const STRIPS = ['ch1', 'ch2', 'ch3', 'ch4', 'ch5', 'ch6', 'ch7', 'ch8', 'line1', 'line2', 'line3', 'line4'];
+const STRIPS = ['ch1', 'ch2', 'ch3', 'ch4', 'ch5', 'ch6', 'ch7', 'ch8', 'ch9', 'line1', 'line2', 'line3', 'line4', 'line5'];
 
 describe('balance', () => {
   it('only names real strips and keeps every fader inside the fader range', () => {

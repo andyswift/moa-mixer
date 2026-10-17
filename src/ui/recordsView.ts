@@ -8,7 +8,7 @@ import { el } from './widgets';
 
 const CHIP_NAMES: Record<PageId, string> = {
   mixer: 'MIXER', synth: 'MOA-1', poly: 'MOA-6', drums: 'MOA-DR', lynch: 'LYNCH', duo: 'DUO', df2: 'DF2', pipe: 'PIPE',
-  reverb: 'REVERB', delay: 'DELAY', ouroboros: 'OURO', buscomp: 'COMP', granular: 'GRAIN',
+  reverb: 'REVERB', delay: 'DELAY', ouroboros: 'OURO', buscomp: 'COMP', granular: 'GRAIN', m2600: '2600',
 };
 
 type View = 'crate' | 'deck';

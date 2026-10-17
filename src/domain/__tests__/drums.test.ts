@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Circuit, type CircuitChange } from '../circuit/circuit';
 import type { NumberControl, ToggleControl } from '../devices/controls';
-import { DRUM_VOICES, DrumMachine, type DrumVoice } from '../devices/drumMachine';
+import { DRUM_OUTPUTS, DRUM_VOICES, DrumMachine, type DrumVoice, PERC_VOICES } from '../devices/drumMachine';
 import { parseMidi } from '../midi/events';
 
 function record(c: Circuit): CircuitChange[] {
@@ -47,12 +47,29 @@ describe('Circuit trigger envelopes', () => {
 });
 
 describe('DrumMachine', () => {
-  it('has an individual output and meter for every voice', () => {
+  it('has an output for each main voice and one shared by the percussion, and a meter for every voice', () => {
     const d = new DrumMachine();
-    expect(d.outputs.map((j) => j.name)).toEqual([...DRUM_VOICES]);
+    expect(d.outputs.map((j) => j.name)).toEqual([...DRUM_OUTPUTS]);
     expect(d.meters.map((j) => j.name)).toEqual([...DRUM_VOICES]);
-    for (const voice of DRUM_VOICES) {
-      expect(d.circuit.node(d.jack('out', voice).nodeId).kind).toBe('gain');
+    for (const jack of DRUM_OUTPUTS) expect(d.circuit.node(d.jack('out', jack).nodeId).kind).toBe('gain');
+    // every percussion voice reaches the shared output, and no main voice does
+    const into = (voice: string) => d.circuit.cables.some((c) => c.from === `${voice}.out` && c.to === 'perc.out');
+    for (const voice of PERC_VOICES) expect(into(voice), voice).toBe(true);
+    expect(into('kick')).toBe(false);
+  });
+
+  it('plays the percussion voices from their General MIDI notes', () => {
+    const d = new DrumMachine();
+    const hits: string[] = [];
+    d.onHit((v) => hits.push(v));
+    for (const note of [37, 41, 45, 48, 56, 49]) d.handleMidi({ type: 'noteOn', channel: 10, note, velocity: 100 });
+    expect(hits).toEqual(['rim', 'lowTom', 'midTom', 'highTom', 'cowbell', 'crash']);
+  });
+
+  it('gives every voice tune, decay, a third control, level, mute and solo', () => {
+    const d = new DrumMachine();
+    for (const voice of PERC_VOICES) {
+      for (const id of ['decay', 'level', 'mute', 'solo']) expect(() => d.control(`${voice}.${id}`), `${voice}.${id}`).not.toThrow();
     }
   });
 

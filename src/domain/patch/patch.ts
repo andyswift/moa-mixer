@@ -1,9 +1,10 @@
 import { BusCompFx } from '../devices/busComp';
 import type { Device } from '../devices/device';
-import { DRUM_VOICES, DrumMachine } from '../devices/drumMachine';
+import { DRUM_OUTPUTS, DrumMachine } from '../devices/drumMachine';
 import { GranularFx } from '../devices/granular';
 import { OuroborosFx } from '../devices/ouroboros';
 import { DuoSynth } from '../devices/duoSynth';
+import { M2600Synth } from '../devices/m2600Synth';
 import { FilterBox } from '../devices/filterBox';
 import { LynchSynth } from '../devices/lynchSynth';
 import { PipeSynth } from '../devices/pipeSynth';
@@ -21,6 +22,9 @@ export interface Connection {
 }
 
 /** The user-facing aggregate: devices plus how they're routed. */
+/** The mixer page's stereo input strips: Lynch 106, MOA-DUO, MOA-DF2, MOA-PIPE and MOA-2600. */
+export const LINE_INPUTS = 5;
+
 export class Patch {
   readonly devices = new Map<string, Device>();
   readonly connections: Connection[] = [];
@@ -89,10 +93,10 @@ export class Patch {
     return new Patch().add('poly', new PolySynth('Poly', clock)).setOutput('poly', 'out');
   }
 
-  /** The drum machine page: every voice to the speakers (and, on the audio bus, one port each). */
+  /** The drum machine page: every output to the speakers (and, on the audio bus, one port each). */
   static drums(clock = new MidiClock()): Patch {
-    const patch = new Patch().add('drums', new DrumMachine('Drums', clock)).setOutput('drums', DRUM_VOICES[0]);
-    for (const voice of DRUM_VOICES.slice(1)) patch.addOutput('drums', voice);
+    const patch = new Patch().add('drums', new DrumMachine('Drums', clock)).setOutput('drums', DRUM_OUTPUTS[0]);
+    for (const jack of DRUM_OUTPUTS.slice(1)) patch.addOutput('drums', jack);
     return patch;
   }
 
@@ -104,6 +108,11 @@ export class Patch {
   /** The Lynch 106 page: just the synth, straight to the speakers. */
   static lynch(clock = new MidiClock()): Patch {
     return new Patch().add('lynch', new LynchSynth('Lynch', clock)).setOutput('lynch', 'out');
+  }
+
+  /** The MOA-2600 page: the synth (with the MOA-SQ16 under it) straight to the speakers. */
+  static m2600(): Patch {
+    return new Patch().add('m2600', new M2600Synth('MOA-2600')).setOutput('m2600', 'out');
   }
 
   /** The MOA-DUO page: the synth straight to the speakers. */
@@ -134,7 +143,7 @@ export class Patch {
    * effect pages take the sends and buses from it). Buses B and C go nowhere by themselves: they only feed effects.
    */
   static mixerRack(): Patch {
-    const patch = new Patch().add('mixer', new Mixer(2 + DRUM_VOICES.length, 'Mixer', 5, { 3: 'C', 4: 'B' }, 4));
+    const patch = new Patch().add('mixer', new Mixer(2 + DRUM_OUTPUTS.length, 'Mixer', 5, { 3: 'C', 4: 'B' }, LINE_INPUTS));
     const mixer = patch.device<Mixer>('mixer');
     (mixer.control('busC.main') as ToggleControl).set(false);
     (mixer.control('busB.main') as ToggleControl).set(false);
@@ -144,7 +153,7 @@ export class Patch {
 
   /** The whole rig in one patch: the instruments and the effects wired to the mixer directly. Used by tests and as the reference wiring (the site runs each as its own page). */
   static default(clock = new MidiClock()): Patch {
-    // Mixer channel 1 is the mono synth, 2 the poly synth, 3-8 the drum voices (one individual output each).
+    // Mixer channel 1 is the mono synth, 2 the poly synth, 3-8 the main drum voices (one output each), 9 the drums' percussion.
     const patch = new Patch()
       .add('synth', new Synthesizer('Synth', clock))
       .add('poly', new PolySynth('Poly', clock))
@@ -152,12 +161,12 @@ export class Patch {
     Patch.addRack(patch)
       .connect({ device: 'synth', jack: 'out' }, { device: 'mixer', jack: 'ch1' })
       .connect({ device: 'poly', jack: 'out' }, { device: 'mixer', jack: 'ch2' });
-    DRUM_VOICES.forEach((voice, i) =>
-      patch.connect({ device: 'drums', jack: voice }, { device: 'mixer', jack: `ch${i + 3}` }));
+    DRUM_OUTPUTS.forEach((jack, i) =>
+      patch.connect({ device: 'drums', jack }, { device: 'mixer', jack: `ch${i + 3}` }));
     return Patch.wireRack(patch);
   }
 
-  /** The mixer (channels 1-8: synth, poly, six drum voices; four stereo inputs for the other synths) and its effects, not yet wired. */
+  /** The mixer (channels 1-9: synth, poly, six drum voices and the drums' percussion; stereo inputs for the other synths) and its effects, not yet wired. */
   private static addRack(patch: Patch, lineCount = 0): Patch {
     return patch
       .add('reverb', new ReverbFx('Reverb'))
@@ -165,7 +174,7 @@ export class Patch {
       .add('ouroboros', new OuroborosFx('Ouroboros'))
       .add('buscomp', new BusCompFx('Bus Comp'))
       .add('granular', new GranularFx('Granular'))
-      .add('mixer', new Mixer(2 + DRUM_VOICES.length, 'Mixer', 5, { 3: 'C', 4: 'B' }, lineCount));
+      .add('mixer', new Mixer(2 + DRUM_OUTPUTS.length, 'Mixer', 5, { 3: 'C', 4: 'B' }, lineCount));
   }
 
   /** Sends, returns, buses and the keyed compressor, plus the mixer's starting settings and its output. */

@@ -9,7 +9,10 @@ export const steps = (n: number): number => n / 4;
 export const note = (t: number, len: number, pitch: number, vel = 100): NoteEvent => ({ t, len, note: pitch, vel });
 
 /** General MIDI drum notes the drum machine answers to. */
-export const DRUM = { kick: 36, snare: 38, clap: 39, closedHat: 42, openHat: 46, ride: 51 } as const;
+export const DRUM = {
+  kick: 36, snare: 38, clap: 39, closedHat: 42, openHat: 46, ride: 51,
+  rim: 37, lowTom: 41, midTom: 45, highTom: 48, cowbell: 56, crash: 49,
+} as const;
 
 /** Each chord is held for `barsPerChord` bars, then the loop repeats. */
 export function chordAt<T>(chords: readonly T[], bar: number, barsPerChord: number): T {

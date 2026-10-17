@@ -28,7 +28,7 @@ interface SectionSpec {
 /** Panel layout: which controls appear where. Rows wrap on narrow screens. */
 const ROWS: SectionSpec[][] = [
   [
-    { title: 'Performance', color: PINK, grow: 2, switches: ['perf.notes'], faders: ['perf.glide'] },
+    { title: 'Performance', color: PINK, grow: 2, switches: ['perf.notes'], faders: ['perf.glide', 'accent'] },
     { title: 'LFO', color: GREEN, grow: 2, switches: ['lfo.wave'], faders: ['lfo.rate'] },
     {
       title: 'Oscillator', color: ORANGE, grow: 5, switches: ['osc.range', 'osc.pwSource'],
@@ -43,7 +43,7 @@ const ROWS: SectionSpec[][] = [
     },
     { title: 'Filter envelope', color: BLUE, grow: 4, faders: adsr('filterEnv') },
     { title: 'Amp envelope', color: ORANGE, grow: 4, faders: adsr('ampEnv') },
-    { title: 'Master', color: PINK, grow: 1, faders: ['level'] },
+    { title: 'Master', color: PINK, grow: 3, faders: ['drive', { id: 'drive.tilt', label: 'Tilt' }, 'level'] },
   ],
 ];
 

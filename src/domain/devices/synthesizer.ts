@@ -19,13 +19,22 @@ const NOTE_MODES = ['legato', 'retrig'] as const;
 const LFO_WAVES = ['tri', 'sqr', 'rnd'] as const;
 const RANGES = { "16'": -1200, "8'": 0, "4'": 1200, "2'": 2400 } as const;
 const SUB_MODES = { '-1': -1200, '-2': -2400 } as const;
+/** A note at this velocity or above is accented, as a 303's accent step (most sequencers send 127 for an accent). */
+export const ACCENT_VELOCITY = 110;
+const ACCENT_AMP = 0.6; // at full accent, accented notes are this much louder
+const ACCENT_ENV = 0.8; // ... their filter envelope swings this much further
+const ACCENT_DECAY = 0.12; // ... and decays no longer than this (s)
+const DRIVE_TILT_HZ = 700; // the drive's tilt EQ pivots here
 
 /**
  * SH-101 style monophonic synth:
- *   saw + pulse + sub + noise -> source mix -> filter -> amp (VCA) -> level
+ *   saw + pulse + sub + noise -> source mix -> filter -> (dry, or drive) -> amp (VCA) -> accent -> level
  * Pitch is a CV in cents: a hidden `pitch` signal (the played note) and `range` (octave switch)
  * are both summed into every oscillator's detune, so the sub tracks the keyboard for free.
  * ampEnv drives the VCA, filterEnv sweeps the filter cutoff (and the keyboard follows it via keyFollow).
+ * Accent (for acid lines): a loud note (velocity 110 and up) is louder, with a deeper and shorter filter sweep.
+ * Drive: a parallel distortion after the filter, blended in as it rises, so at 0 the dry sound is untouched. A tilt EQ
+ * before its clipper picks what distorts: tilted bright, the lows stay clean (no mud on a bass line); dark, a fatter fuzz.
  */
 export class Synthesizer extends Device {
   readonly name: string;
@@ -43,6 +52,10 @@ export class Synthesizer extends Device {
   private bend = 0; // -1..1
   private modWheelValue = 0; // 0..1
   private oscModCents = 0; // the panel's Mod fader: LFO -> pitch depth
+  private accentAmount = 0;
+  private envAmount = 2; // oct
+  private envDecay = 0.3; // s
+  private accented = false;
   private readonly performanceListeners = new Set<() => void>();
   private readonly noteListeners = new Set<() => void>();
 
@@ -72,7 +85,16 @@ export class Synthesizer extends Device {
       .add('filter2', 'filter', { frequency: 800, Q: 0.707, detune: 0 }, { type: 'lowpass' })
       .add('keyFollow', 'gain', { gain: 0.5 }) // pitch CV scaled: 1 = cutoff tracks the keyboard 1:1
       .add('amp', 'gain', { gain: 0 }) // silent until the amp envelope opens it
+      .add('accentAmp', 'gain', { gain: 1 })
       .add('level', 'gain', { gain: 0.5 })
+      // drive: a dry path and a boosted, tilted, clipped and darkened path, blended
+      .add('driveDry', 'gain', { gain: 1 })
+      .add('drivePre', 'gain', { gain: 1 })
+      .add('driveTiltLo', 'filter', { frequency: DRIVE_TILT_HZ, Q: 0.707, gain: 0, detune: 0 }, { type: 'lowshelf' })
+      .add('driveTiltHi', 'filter', { frequency: DRIVE_TILT_HZ, Q: 0.707, gain: 0, detune: 0 }, { type: 'highshelf' })
+      .add('driveShaper', 'waveshaper', {}, { curve: 'soft' })
+      .add('driveTone', 'filter', { frequency: 4200, Q: 0.6, detune: 0 }, { type: 'lowpass' })
+      .add('driveWet', 'gain', { gain: 0 })
       .add('ampEnv', 'envelope', { attack: 0.005, decay: 0.2, sustain: 0.7, release: 0.3, gate: 0 })
       .add('filterEnv', 'envelope', { attack: 0.005, decay: 0.3, sustain: 0.3, release: 0.3, gate: 0 })
       .add('filterEnvDepth', 'gain', { gain: 2 * CENTS_PER_OCTAVE }) // envelope 0..1 -> cents
@@ -101,8 +123,17 @@ export class Synthesizer extends Device {
     for (const src of ['mix.saw', 'mix.pulse', 'mix.sub', 'mix.noise']) c.connect(src, 'mix');
     c.connect('mix', 'filter1')
       .connect('filter1', 'filter2')
-      .connect('filter2', 'amp')
-      .connect('amp', 'level')
+      .connect('filter2', 'driveDry')
+      .connect('filter2', 'drivePre')
+      .connect('drivePre', 'driveTiltLo')
+      .connect('driveTiltLo', 'driveTiltHi')
+      .connect('driveTiltHi', 'driveShaper')
+      .connect('driveShaper', 'driveTone')
+      .connect('driveTone', 'driveWet')
+      .connect('driveDry', 'amp')
+      .connect('driveWet', 'amp')
+      .connect('amp', 'accentAmp')
+      .connect('accentAmp', 'level')
       .connect('ampEnv', 'amp', 'gain')
       .connect('filterEnv', 'filterEnvDepth')
       .connect('pitch', 'keyFollow');
@@ -172,9 +203,29 @@ export class Synthesizer extends Device {
       }),
       new NumberControl('filter.lfo', 'LFO', 0, 4, 0, 'oct', (v) => c.setParam('lfoFilter', 'gain', v * CENTS_PER_OCTAVE)),
       new NumberControl('level', 'Level', 0, 1, 0.5, '', (v) => c.setParam('level', 'gain', v)),
-      new NumberControl('filterEnv.amount', 'Amount', 0, 6, 2, 'oct', (v) =>
-        c.setParam('filterEnvDepth', 'gain', v * CENTS_PER_OCTAVE)),
-      ...adsr(c, 'filterEnv', { attack: 0.005, decay: 0.3, sustain: 0.3, release: 0.3 }),
+      new NumberControl('filterEnv.amount', 'Amount', 0, 6, 2, 'oct', (v) => {
+        this.envAmount = v;
+        this.applyAccent();
+      }),
+      ...adsr(c, 'filterEnv', { attack: 0.005, decay: 0.3, sustain: 0.3, release: 0.3 }, (v) => {
+        this.envDecay = v;
+        this.applyAccent();
+      }),
+      new NumberControl('accent', 'Accent', 0, 1, 0, '', (v) => {
+        this.accentAmount = v;
+        this.applyAccent();
+      }),
+      new NumberControl('drive', 'Drive', 0, 1, 0, '', (v) => {
+        // the wet path comes in over the first third (the dry stays under it at 35 %); the boost keeps rising to the top
+        const wet = Math.min(1, v * 3);
+        c.setParam('driveDry', 'gain', 1 - wet * 0.65);
+        c.setParam('drivePre', 'gain', 1 + v * 24);
+        c.setParam('driveWet', 'gain', wet * 0.55);
+      }),
+      new NumberControl('drive.tilt', 'Tilt', -12, 12, 0, 'dB', (v) => {
+        c.setParam('driveTiltLo', 'gain', -v);
+        c.setParam('driveTiltHi', 'gain', v);
+      }),
       ...adsr(c, 'ampEnv', { attack: 0.005, decay: 0.2, sustain: 0.7, release: 0.3 }),
     );
   }
@@ -250,10 +301,13 @@ export class Synthesizer extends Device {
   /**
    * Key down for a MIDI note number. Mono with last-note priority: the newest held note plays, and
    * releasing it falls back to the previous one still held (overlapping, so legato rules apply).
+   * A velocity of ACCENT_VELOCITY or more accents the note (by the Accent amount).
    */
-  keyDown(note: number): void {
+  keyDown(note: number, velocity = 100): void {
     this.held = this.held.filter((n) => n !== note);
     this.held.push(note);
+    this.accented = velocity >= ACCENT_VELOCITY;
+    this.applyAccent();
     this.noteOn(midiToHz(note));
     this.notifyNotes();
   }
@@ -271,7 +325,7 @@ export class Synthesizer extends Device {
     if ('channel' in event && !this.transport.acceptsChannel(event.channel)) return;
     switch (event.type) {
       case 'noteOn':
-        this.keyDown(event.note);
+        this.keyDown(event.note, event.velocity);
         break;
       case 'noteOff':
         this.keyUp(event.note);
@@ -294,6 +348,15 @@ export class Synthesizer extends Device {
         break;
       }
     }
+  }
+
+  /** Sets the accent's three effects for the note about to play: level, filter envelope depth and its decay. */
+  private applyAccent(): void {
+    const a = this.accented ? this.accentAmount : 0;
+    const c = this.circuit;
+    c.setParam('accentAmp', 'gain', 1 + a * ACCENT_AMP);
+    c.setParam('filterEnvDepth', 'gain', this.envAmount * (1 + a * ACCENT_ENV) * CENTS_PER_OCTAVE);
+    c.setParam('filterEnv', 'decay', a > 0 ? Math.min(this.envDecay, ACCENT_DECAY + (1 - a) * this.envDecay) : this.envDecay);
   }
 
   /** Pulse width follows the chosen source: manual width only, or width modulated by the LFO / filter envelope. */
@@ -333,12 +396,14 @@ function adsr(
   c: Circuit,
   node: string,
   d: { attack: number; decay: number; sustain: number; release: number },
+  /** Takes over the decay (the filter envelope's, which the accent shortens). */
+  onDecay?: (v: number) => void,
 ): NumberControl[] {
   const time = (id: 'attack' | 'decay' | 'release', label: string, min: number, max: number) =>
     new NumberControl(`${node}.${id}`, label, min, max, d[id], 's', (v) => c.setParam(node, id, v), 'log');
   return [
     time('attack', 'Attack', 0.001, 5),
-    time('decay', 'Decay', 0.005, 5),
+    onDecay ? new NumberControl(`${node}.decay`, 'Decay', 0.005, 5, d.decay, 's', onDecay, 'log') : time('decay', 'Decay', 0.005, 5),
     new NumberControl(`${node}.sustain`, 'Sustain', 0, 1, d.sustain, '', (v) => c.setParam(node, 'sustain', v)),
     time('release', 'Release', 0.005, 10),
   ];

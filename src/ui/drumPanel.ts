@@ -1,6 +1,6 @@
 import type { AudioEngine } from '../audio/engine';
 import type { NumberControl, ToggleControl } from '../domain/devices/controls';
-import { DRUM_NAMES, DRUM_VOICES, type DrumMachine, type DrumVoice } from '../domain/devices/drumMachine';
+import { DRUM_NAMES, DRUM_VOICES, type DrumMachine, type DrumVoice, MAIN_VOICES } from '../domain/devices/drumMachine';
 import { type DrumSequencer, PATTERNS, STEPS } from '../domain/devices/drumSequencer';
 import { renderTransportBlock } from './transportBlock';
 import { el, renderFader, renderKnob, renderToggleButton } from './widgets';
@@ -12,19 +12,26 @@ const COLORS: Record<DrumVoice, string> = {
   closedHat: '#4fb286',
   openHat: '#dcb43c',
   ride: '#d9628a',
+  rim: '#e0a07a',
+  lowTom: '#c46a3c',
+  midTom: '#d4844c',
+  highTom: '#e49e60',
+  cowbell: '#c9c24a',
+  crash: '#8fc9e0',
 };
 
 const FADER = { height: 120, capHeight: 32, tick: 12 };
 const FADER_IDS = ['tune', 'decay', 'third', 'level'] as const;
 const THIRD: Record<DrumVoice, string> = {
   kick: 'click', snare: 'snap', clap: 'spread', closedHat: 'tone', openHat: 'tone', ride: 'bell',
+  rim: 'tone', lowTom: 'bend', midTom: 'bend', highTom: 'bend', cowbell: 'tone', crash: 'tone',
 };
 const CLAP_TONE_VOICE: DrumVoice = 'clap'; // the clap's first fader is Tone, not Tune
 const SEGMENTS = 8;
 const METER_FLOOR_DB = -48;
 
 const VELOCITY = { soft: 0.4, normal: 0.8, hard: 1 };
-const PAD_KEYS = ['1', '2', '3', '4', '5', '6'];
+const PAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '='];
 
 function num(d: DrumMachine, id: string): NumberControl {
   const c = d.control(id);
@@ -90,7 +97,7 @@ function renderVoice(d: DrumMachine, voice: DrumVoice, index: number, engine: Au
   );
 
   const out = el('div', 'drum-out');
-  out.append(el('span', 'drum-jack'), el('span', 'drum-out-label', `Out ${index + 1}`));
+  out.append(el('span', 'drum-jack'), el('span', 'drum-out-label', index < MAIN_VOICES.length ? `Out ${index + 1}` : 'Perc out'));
   const segs = el('div', 'drum-meter');
   segs.setAttribute('role', 'img');
   segs.setAttribute('aria-label', `${name} output level`);
@@ -256,13 +263,13 @@ function renderStepGrid(seq: DrumSequencer, tickers: (() => void)[]): HTMLElemen
   return section;
 }
 
-/** The drum machine's front panel: transport, six voices (pad, faders, mute/solo, own output meter) and the step grid. */
+/** The drum machine's front panel: transport, twelve voices (pad, faders, mute/solo, output meter) and the step grid. */
 export function renderDrumPanel(d: DrumMachine, seq: DrumSequencer, deviceId: string, engine: AudioEngine): HTMLElement {
   const panel = el('div', 'synth-panel drum-panel');
   const header = el('div', 'synth-header');
   const brand = el('div', 'synth-brand');
   brand.append(el('div', 'synth-name', 'MOA-DR'), el('div', 'synth-subtitle', 'Drum Machine'));
-  header.append(brand, el('div', 'drum-outputs-note', '6 individual outputs'));
+  header.append(brand, el('div', 'drum-outputs-note', '6 individual outputs + perc'));
   panel.append(header);
 
   const tickers: (() => void)[] = [];

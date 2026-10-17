@@ -1,7 +1,7 @@
 import './ui/style.css';
 import './ui/m2600.css';
 import { AudioEngine } from './audio/engine';
-import { M2600Synth } from './domain/devices/m2600Synth';
+import type { M2600Synth } from './domain/devices/m2600Synth';
 import { MidiClock } from './domain/midi/clock';
 import { Patch } from './domain/patch/patch';
 import { mountInstrumentPage } from './ui/instrumentPage';
@@ -12,8 +12,8 @@ import { loadSavedPatches } from './ui/m2600Storage';
 // The MOA-2600 page: one synth on its own patch, separate from the mixer. Its audio is also published on the audio
 // bus as "MOA-2600", where the mixer page can take it into a stereo input strip.
 const clock = new MidiClock();
-const synth = new M2600Synth('MOA-2600');
-const patch = new Patch().add('m2600', synth).setOutput('m2600', 'out');
+const patch = Patch.m2600();
+const synth = patch.device<M2600Synth>('m2600');
 const engine = new AudioEngine(patch);
 loadSavedPatches(synth);
 synth.loadSlot(synth.currentSlot);
