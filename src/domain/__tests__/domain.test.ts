@@ -430,10 +430,10 @@ describe('Mixer stereo inputs', () => {
     expect(new Mixer(2, 'Mixer', 1).lineCount).toBe(0);
   });
 
-  it('the mixer page patch has four stereo inputs and no instruments', () => {
+  it('the mixer page patch has five stereo inputs (the fifth for the MOA-2600) and no instruments', () => {
     const rack = Patch.mixerRack();
     expect([...rack.devices.keys()]).toEqual(['mixer']); // the effects are pages of their own
-    expect((rack.device('mixer') as Mixer).lineCount).toBe(4);
+    expect((rack.device('mixer') as Mixer).lineCount).toBe(5);
     expect(rack.connections.some((c) => c.to.jack.startsWith('ch') || c.to.jack.startsWith('line'))).toBe(false);
   });
 });
@@ -469,13 +469,14 @@ describe('Mixer delay compensation', () => {
 });
 
 describe('Patch', () => {
-  it('default patch routes the synth to mixer channel 1, the poly synth to 2 and each drum voice to its own channel', () => {
+  it('default patch routes the synth to mixer channel 1, the poly synth to 2, each main drum voice to its own channel and the percussion to 9', () => {
     const p = Patch.default();
-    expect(p.connections).toHaveLength(19); // 8 sources, aux1>reverb, aux2>delay and their returns, busC>Ouroboros and its return, busB>Bus Comp, its key and its return, aux3>Granular and its return
+    expect(p.connections).toHaveLength(20); // 9 sources, aux1>reverb, aux2>delay and their returns, busC>Ouroboros and its return, busB>Bus Comp, its key and its return, aux3>Granular and its return
     expect(p.connections[0]).toEqual({ from: { device: 'synth', jack: 'out' }, to: { device: 'mixer', jack: 'ch1' } });
     expect(p.connections[1]).toEqual({ from: { device: 'poly', jack: 'out' }, to: { device: 'mixer', jack: 'ch2' } });
     expect(p.connections[2]).toEqual({ from: { device: 'drums', jack: 'kick' }, to: { device: 'mixer', jack: 'ch3' } });
     expect(p.connections[7]).toEqual({ from: { device: 'drums', jack: 'ride' }, to: { device: 'mixer', jack: 'ch8' } });
+    expect(p.connections[8]).toEqual({ from: { device: 'drums', jack: 'perc' }, to: { device: 'mixer', jack: 'ch9' } });
     expect(p.output).toEqual({ device: 'mixer', jack: 'main' });
   });
 
@@ -484,7 +485,7 @@ describe('Patch', () => {
     expect(Patch.poly().output).toEqual({ device: 'poly', jack: 'out' });
     const drums = Patch.drums();
     expect([...drums.devices.keys()]).toEqual(['drums']);
-    expect([drums.output, ...drums.extraOutputs].map((o) => o?.jack)).toEqual(['kick', 'snare', 'clap', 'closedHat', 'openHat', 'ride']);
+    expect([drums.output, ...drums.extraOutputs].map((o) => o?.jack)).toEqual(['kick', 'snare', 'clap', 'closedHat', 'openHat', 'ride', 'perc']);
     expect(drums.connections).toHaveLength(0);
   });
 

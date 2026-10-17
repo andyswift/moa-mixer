@@ -52,6 +52,9 @@ const parts = {
         if (bar === 15) hit(DRUM.snare, Math.round(46 + s * 5));
         if (bar === 11 && s >= 12) hit(DRUM.snare, 70 + (s - 12) * 12);
         if (fill) hit(DRUM.snare, 80 + (s - 12) * 12);
+        // percussion, sparingly: a soft rimshot in the peak, and a tom run under the closing fill
+        if (sec === 'peak' && (s === 7 || s === 15) && !fill) hit(DRUM.rim, 70);
+        if (fill) hit([DRUM.highTom, DRUM.highTom, DRUM.midTom, DRUM.lowTom][s - 12]!, 96);
       }
     }
     return out;
@@ -91,7 +94,6 @@ export function squelchTheory(): Song {
     beatsPerBar: 4,
     sleeve: { art: 'hands', colors: ['#121212', '#f4dd1e', '#ff3d8b'] },
     band: ['drums', 'synth', 'm2600', ...STANDARD_EFFECTS],
-    inputs: { line1: 'MOA-2600' }, // the first stereo strip takes the 2600 in place of the Lynch
     setup: {
       drums: DRUM_PUNCH,
       synth: { synth: { preset: 2, controls: { 'perf.notes': 'legato', 'perf.glide': 0.07 } } }, // Acid Squelch, slides on overlapping notes
@@ -104,9 +106,9 @@ export function squelchTheory(): Song {
       ...mixerSettings({
         drums: { kick: 1.15, snare: 1.0, clap: 1.0, rest: 0.9 },
         duck: 0.2,
-        reverb: { ch5: 0.25, line1: 0.15 },
-        delay: { ch1: 0.12, line1: 0.32 },
-        faders: { ch1: 0.62, line1: 0.5 },
+        reverb: { ch5: 0.25, ch9: 0.12, line5: 0.15 },
+        delay: { ch1: 0.12, line5: 0.32 },
+        faders: { ch1: 0.62, ch9: 0.8, line5: 0.5 },
       }),
     },
     tracks: { drums: parts.drums(), synth: parts.acid(), m2600: parts.m2600() },

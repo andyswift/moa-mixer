@@ -5,8 +5,15 @@ import { Transport } from './transport';
 import { MidiClock } from '../midi/clock';
 import type { MidiEvent } from '../midi/events';
 
-export const DRUM_VOICES = ['kick', 'snare', 'clap', 'closedHat', 'openHat', 'ride'] as const;
+/** The voices with an output of their own. */
+export const MAIN_VOICES = ['kick', 'snare', 'clap', 'closedHat', 'openHat', 'ride'] as const;
+/** The percussion voices, which share one output (`perc`) so the mixer needs one strip for them. */
+export const PERC_VOICES = ['rim', 'lowTom', 'midTom', 'highTom', 'cowbell', 'crash'] as const;
+export const DRUM_VOICES = [...MAIN_VOICES, ...PERC_VOICES] as const;
 export type DrumVoice = (typeof DRUM_VOICES)[number];
+/** The output jacks: one per main voice, then the shared percussion output. */
+export const DRUM_OUTPUTS = [...MAIN_VOICES, 'perc'] as const;
+export type DrumOutput = (typeof DRUM_OUTPUTS)[number];
 
 export const DRUM_NAMES: Record<DrumVoice, string> = {
   kick: 'Kick',
@@ -15,7 +22,14 @@ export const DRUM_NAMES: Record<DrumVoice, string> = {
   closedHat: 'Closed Hat',
   openHat: 'Open Hat',
   ride: 'Ride',
+  rim: 'Rimshot',
+  lowTom: 'Low Tom',
+  midTom: 'Mid Tom',
+  highTom: 'High Tom',
+  cowbell: 'Cowbell',
+  crash: 'Crash',
 };
+export const DRUM_OUTPUT_NAMES: Record<DrumOutput, string> = { ...DRUM_NAMES, perc: 'Perc' };
 
 /** General MIDI percussion note numbers each voice answers to. */
 export const GM_DRUM_NOTES: Record<number, DrumVoice> = {
@@ -25,6 +39,12 @@ export const GM_DRUM_NOTES: Record<number, DrumVoice> = {
   42: 'closedHat', 44: 'closedHat',
   46: 'openHat',
   51: 'ride', 59: 'ride',
+  37: 'rim',
+  41: 'lowTom', 43: 'lowTom',
+  45: 'midTom', 47: 'midTom',
+  48: 'highTom', 50: 'highTom',
+  56: 'cowbell',
+  49: 'crash', 57: 'crash',
 };
 
 export const DRUM_MIDI_CHANNEL = '10'; // General MIDI percussion channel
@@ -34,7 +54,8 @@ const CENTS_PER_OCTAVE = 1200;
 const METAL_HZ = [205.3, 304.4, 369.6, 522.7, 540, 800];
 
 /**
- * 909-style drum machine: six synthesised voices, each with its own output.
+ * 909-style drum machine: twelve synthesised voices. The six main voices have an output each; the percussion voices
+ * (rimshot, three toms, cowbell, crash) share one, `perc`.
  *
  * Every voice is a small fixed circuit fired by one-shot trigger envelopes:
  *   kick   sine with a fast pitch drop + a click of noise
@@ -42,6 +63,10 @@ const METAL_HZ = [205.3, 304.4, 369.6, 522.7, 540, 800];
  *   clap   band-passed noise through a stuttering burst envelope
  *   hats   six detuned squares -> band-pass -> high-pass (closed and open are separate banks)
  *   ride   the same metallic bank pitched lower, plus a bell tone
+ *   rim    two pinged tones and a click of noise, very short
+ *   toms   a sine with a pitch drop, and a breath of band-passed noise
+ *   cowbell two squares (540 and 800 Hz) through a band-pass, a fast then a slower decay
+ *   crash  the metallic bank bright and long, with high-passed noise
  * Voice -> mute/solo gate -> level -> output jack (and meter). A closed hat chokes the open hat.
  */
 export class DrumMachine extends Device {
@@ -66,7 +91,14 @@ export class DrumMachine extends Device {
     this.addHat(c, 'closedHat', { decay: [0.015, 0.25, 0.04], tone: 0.7, level: 0.6 });
     this.addHat(c, 'openHat', { decay: [0.1, 1.5, 0.32], tone: 0.65, level: 0.6 });
     this.addRide(c);
+    this.addRim(c);
+    this.addTom(c, 'lowTom', 100);
+    this.addTom(c, 'midTom', 145);
+    this.addTom(c, 'highTom', 200);
+    this.addCowbell(c);
+    this.addCrash(c);
 
+    c.add('perc.out', 'gain', { gain: 1 });
     for (const voice of DRUM_VOICES) {
       c.add(`${voice}.mute`, 'gain', { gain: 1 })
         .add(`${voice}.out`, 'gain', { gain: 0.8 })
@@ -74,9 +106,11 @@ export class DrumMachine extends Device {
         .connect(`${voice}.sum`, `${voice}.mute`)
         .connect(`${voice}.mute`, `${voice}.out`)
         .connect(`${voice}.out`, `${voice}.meter`);
-      this.outputList.push({ name: voice, nodeId: `${voice}.out` });
       this.meterList.push({ name: voice, nodeId: `${voice}.meter` });
+      if ((PERC_VOICES as readonly string[]).includes(voice)) c.connect(`${voice}.out`, 'perc.out');
+      else this.outputList.push({ name: voice, nodeId: `${voice}.out` });
     }
+    this.outputList.push({ name: 'perc', nodeId: 'perc.out' });
     this.addLevels(c);
     this.controlList.push(this.choke);
   }
@@ -254,9 +288,115 @@ export class DrumMachine extends Device {
     this.num('ride.bell', 'Bell', 0, 1, 0.45, '', (v) => c.setParam('ride.bellEnv', 'peak', v * 0.45));
   }
 
+  private addRim(c: Circuit): void {
+    this.register('rim', 'rim.toneEnv', 'rim.clickEnv');
+    c.add('rim.osc1', 'oscillator', { frequency: 480, detune: 0 }, { waveform: 'triangle' })
+      .add('rim.osc2', 'oscillator', { frequency: 1720, detune: 0 }, { waveform: 'sine' })
+      .add('rim.tune', 'constant', { offset: 0 })
+      .add('rim.bp', 'filter', { frequency: 1600, Q: 2.2 }, { type: 'bandpass' })
+      .add('rim.toneAmp', 'gain', { gain: 0 })
+      .add('rim.toneEnv', 'trigger', { peak: 1.4, decay: 0.03, velSens: 0.8 })
+      .add('rim.noise', 'noise')
+      .add('rim.hp', 'filter', { frequency: 5000, Q: 0.707 }, { type: 'highpass' })
+      .add('rim.clickAmp', 'gain', { gain: 0 })
+      .add('rim.clickEnv', 'trigger', { peak: 0.3, decay: 0.008, velSens: 1 })
+      .add('rim.sum', 'gain', { gain: 1 })
+      .connect('rim.tune', 'rim.osc1', 'detune')
+      .connect('rim.tune', 'rim.osc2', 'detune')
+      .connect('rim.osc1', 'rim.bp')
+      .connect('rim.osc2', 'rim.bp')
+      .connect('rim.bp', 'rim.toneAmp')
+      .connect('rim.toneEnv', 'rim.toneAmp', 'gain')
+      .connect('rim.toneAmp', 'rim.sum')
+      .connect('rim.noise', 'rim.hp')
+      .connect('rim.hp', 'rim.clickAmp')
+      .connect('rim.clickEnv', 'rim.clickAmp', 'gain')
+      .connect('rim.clickAmp', 'rim.sum');
+    this.num('rim.tune', 'Tune', 0, 1, 0.5, '', (v) => c.setParam('rim.tune', 'offset', (v - 0.5) * 2 * CENTS_PER_OCTAVE));
+    this.num('rim.decay', 'Decay', 0.01, 0.12, 0.03, 's', (v) => c.setParam('rim.toneEnv', 'decay', v), 'log');
+    this.num('rim.tone', 'Tone', 600, 4000, 1600, 'Hz', (v) => c.setParam('rim.bp', 'frequency', v), 'log');
+  }
+
+  /** A 909-ish tom: a sine that drops in pitch, with a breath of noise. */
+  private addTom(c: Circuit, voice: 'lowTom' | 'midTom' | 'highTom', hz: number): void {
+    this.register(voice, `${voice}.pitchEnv`, `${voice}.ampEnv`, `${voice}.noiseEnv`);
+    c.add(`${voice}.osc`, 'oscillator', { frequency: hz, detune: 0 }, { waveform: 'sine' })
+      .add(`${voice}.pitchEnv`, 'trigger', { peak: 700, decay: 0.09, velSens: 0 })
+      .add(`${voice}.ampEnv`, 'trigger', { peak: 0.9, decay: 0.4, velSens: 0.8 })
+      .add(`${voice}.amp`, 'gain', { gain: 0 })
+      .add(`${voice}.noise`, 'noise')
+      .add(`${voice}.bp`, 'filter', { frequency: hz * 4, Q: 1.2 }, { type: 'bandpass' })
+      .add(`${voice}.noiseAmp`, 'gain', { gain: 0 })
+      .add(`${voice}.noiseEnv`, 'trigger', { peak: 0.12, decay: 0.06, velSens: 1 })
+      .add(`${voice}.sum`, 'gain', { gain: 1 })
+      .connect(`${voice}.pitchEnv`, `${voice}.osc`, 'detune')
+      .connect(`${voice}.osc`, `${voice}.amp`)
+      .connect(`${voice}.ampEnv`, `${voice}.amp`, 'gain')
+      .connect(`${voice}.amp`, `${voice}.sum`)
+      .connect(`${voice}.noise`, `${voice}.bp`)
+      .connect(`${voice}.bp`, `${voice}.noiseAmp`)
+      .connect(`${voice}.noiseEnv`, `${voice}.noiseAmp`, 'gain')
+      .connect(`${voice}.noiseAmp`, `${voice}.sum`);
+    this.num(`${voice}.tune`, 'Tune', hz * 0.6, hz * 1.6, hz, 'Hz', (v) => {
+      c.setParam(`${voice}.osc`, 'frequency', v);
+      c.setParam(`${voice}.bp`, 'frequency', v * 4);
+    }, 'log');
+    this.num(`${voice}.decay`, 'Decay', 0.1, 1.2, 0.4, 's', (v) => c.setParam(`${voice}.ampEnv`, 'decay', v), 'log');
+    this.num(`${voice}.bend`, 'Bend', 0, 1, 0.5, '', (v) => c.setParam(`${voice}.pitchEnv`, 'peak', v * 1400));
+  }
+
+  private addCowbell(c: Circuit): void {
+    this.register('cowbell', 'cowbell.env');
+    c.add('cowbell.tune', 'constant', { offset: 0 })
+      .add('cowbell.sq1', 'oscillator', { frequency: 540, detune: 0 }, { waveform: 'square' })
+      .add('cowbell.sq2', 'oscillator', { frequency: 800, detune: 0 }, { waveform: 'square' })
+      .add('cowbell.bp', 'filter', { frequency: 2640, Q: 1.4 }, { type: 'bandpass' })
+      .add('cowbell.amp', 'gain', { gain: 0 })
+      .add('cowbell.env', 'trigger', { peak: 0.7, decay: 0.25, velSens: 0.8 })
+      .add('cowbell.sum', 'gain', { gain: 1 })
+      .connect('cowbell.tune', 'cowbell.sq1', 'detune')
+      .connect('cowbell.tune', 'cowbell.sq2', 'detune')
+      .connect('cowbell.sq1', 'cowbell.bp')
+      .connect('cowbell.sq2', 'cowbell.bp')
+      .connect('cowbell.bp', 'cowbell.amp')
+      .connect('cowbell.env', 'cowbell.amp', 'gain')
+      .connect('cowbell.amp', 'cowbell.sum');
+    this.num('cowbell.tune', 'Tune', 0, 1, 0.5, '', (v) => c.setParam('cowbell.tune', 'offset', (v - 0.5) * CENTS_PER_OCTAVE));
+    this.num('cowbell.decay', 'Decay', 0.05, 1, 0.25, 's', (v) => c.setParam('cowbell.env', 'decay', v), 'log');
+    this.num('cowbell.tone', 'Tone', 1000, 6000, 2640, 'Hz', (v) => c.setParam('cowbell.bp', 'frequency', v), 'log');
+  }
+
+  private addCrash(c: Circuit): void {
+    this.register('crash', 'crash.ampEnv', 'crash.noiseEnv');
+    this.addMetal(c, 'crash', 1.15, 8000, 4500, 0.35);
+    c.add('crash.amp', 'gain', { gain: 0 })
+      .add('crash.ampEnv', 'trigger', { peak: 1, decay: 1.6, velSens: 0.8 })
+      .add('crash.noise', 'noise')
+      .add('crash.noiseHp', 'filter', { frequency: 6000, Q: 0.707 }, { type: 'highpass' })
+      .add('crash.noiseAmp', 'gain', { gain: 0 })
+      .add('crash.noiseEnv', 'trigger', { peak: 0.3, decay: 1.2, velSens: 0.8 })
+      .add('crash.sum', 'gain', { gain: 1 })
+      .connect('crash.hp', 'crash.amp')
+      .connect('crash.ampEnv', 'crash.amp', 'gain')
+      .connect('crash.amp', 'crash.sum')
+      .connect('crash.noise', 'crash.noiseHp')
+      .connect('crash.noiseHp', 'crash.noiseAmp')
+      .connect('crash.noiseEnv', 'crash.noiseAmp', 'gain')
+      .connect('crash.noiseAmp', 'crash.sum');
+    this.num('crash.tune', 'Tune', 0, 1, 0.5, '', (v) => c.setParam('crash.tune', 'offset', (v - 0.5) * 2 * CENTS_PER_OCTAVE));
+    this.num('crash.decay', 'Decay', 0.5, 4, 1.6, 's', (v) => {
+      c.setParam('crash.ampEnv', 'decay', v);
+      c.setParam('crash.noiseEnv', 'decay', v * 0.75);
+    }, 'log');
+    this.num('crash.tone', 'Tone', 0, 1, 0.5, '', (v) => c.setParam('crash.hp', 'frequency', 2500 + v * 6000));
+  }
+
   /** Per-voice level, mute and solo (solo-in-place, like the mixer). */
   private addLevels(c: Circuit): void {
-    const initial: Record<DrumVoice, number> = { kick: 0.8, snare: 0.75, clap: 0.7, closedHat: 0.6, openHat: 0.6, ride: 0.55 };
+    const initial: Record<DrumVoice, number> = {
+      kick: 0.8, snare: 0.75, clap: 0.7, closedHat: 0.6, openHat: 0.6, ride: 0.55,
+      rim: 0.6, lowTom: 0.7, midTom: 0.7, highTom: 0.7, cowbell: 0.5, crash: 0.5,
+    };
     for (const voice of DRUM_VOICES) {
       this.num(`${voice}.level`, 'Level', 0, 1, initial[voice], '', (v) => c.setParam(`${voice}.out`, 'gain', v));
       this.controlList.push(

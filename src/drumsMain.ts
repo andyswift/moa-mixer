@@ -1,17 +1,15 @@
 import './ui/style.css';
 import { AudioEngine } from './audio/engine';
-import { DRUM_VOICES, type DrumMachine } from './domain/devices/drumMachine';
+import { DRUM_OUTPUT_NAMES, DRUM_OUTPUTS, type DrumMachine } from './domain/devices/drumMachine';
 import { DrumSequencer } from './domain/devices/drumSequencer';
 import { MidiClock } from './domain/midi/clock';
 import { Patch } from './domain/patch/patch';
 import { renderDrumPanel } from './ui/drumPanel';
 import { mountInstrumentPage } from './ui/instrumentPage';
 
-// The drum machine and its step sequencer on their own page. Each of the six voices is published on the audio bus
-// as its own port ("Drums: Kick", ...), so the mixer can give every voice its own channel.
-const VOICE_NAMES: Record<(typeof DRUM_VOICES)[number], string> = {
-  kick: 'Kick', snare: 'Snare', clap: 'Clap', closedHat: 'Closed Hat', openHat: 'Open Hat', ride: 'Ride',
-};
+// The drum machine and its step sequencer on their own page. Each of the six main voices is published on the audio
+// bus as its own port ("Drums: Kick", ...), and the percussion voices together as "Drums: Perc", so the mixer can give
+// each its own channel.
 
 const clock = new MidiClock();
 const patch = Patch.drums(clock);
@@ -22,7 +20,7 @@ setInterval(() => sequencer.tick(), 25);
 
 const page = mountInstrumentPage({
   id: 'drums', patch, engine, clock, self: '/drums/', panel: renderDrumPanel(drums, sequencer, 'drums', engine),
-  ports: DRUM_VOICES.map((voice) => ({ device: 'drums', jack: voice, name: `Drums: ${VOICE_NAMES[voice]}` })),
+  ports: DRUM_OUTPUTS.map((jack) => ({ device: 'drums', jack, name: `Drums: ${DRUM_OUTPUT_NAMES[jack]}` })),
   onMidi: (event) => {
     drums.handleMidi(event);
     sequencer.handleMidi(event);

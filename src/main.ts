@@ -27,9 +27,9 @@ const engine = new AudioEngine(patch);
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
 // Each channel starts on the port its instrument page publishes (a choice made in the strip is remembered instead).
-const CHANNEL_PORTS = ['Synth', 'Poly', 'Drums: Kick', 'Drums: Snare', 'Drums: Clap', 'Drums: Closed Hat', 'Drums: Open Hat', 'Drums: Ride'];
+const CHANNEL_PORTS = ['Synth', 'Poly', 'Drums: Kick', 'Drums: Snare', 'Drums: Clap', 'Drums: Closed Hat', 'Drums: Open Hat', 'Drums: Ride', 'Drums: Perc'];
 // The four stereo inputs take the other synths, which have a stereo sound of their own.
-const LINE_PORTS = ['Lynch 106', 'MOA-DUO', 'MOA-DF2', 'MOA-PIPE'];
+const LINE_PORTS = ['Lynch 106', 'MOA-DUO', 'MOA-DF2', 'MOA-PIPE', 'MOA-2600'];
 // The mixer's sends and buses are published as ports, for effect pages to take (a port only does work while some
 // page listens to it). The return strips can listen to effect pages' output instead of in-page effects.
 const SEND_PORTS: [jack: string, name: string][] = [
@@ -132,7 +132,7 @@ bus.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
 
 app.append(renderPageNav('/mixer/'), renderMidiStrip(midi, clock, monitor, start, bus));
 
-app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride'], ['Reverb', 'Delay', 'Ouroboros', 'Bus Comp', 'Granular'], { B: 'to Bus Comp', C: 'to Ouroboros' }, inputs, ['Lynch 106', 'DUO', 'DF2', 'Pipe']));
+app.append(renderMixerPanel(patch.device<Mixer>('mixer'), 'mixer', engine, ['Synth', 'Poly', 'Kick', 'Snare', 'Clap', 'Closed Hat', 'Open Hat', 'Ride', 'Perc'], ['Reverb', 'Delay', 'Ouroboros', 'Bus Comp', 'Granular'], { B: 'to Bus Comp', C: 'to Ouroboros' }, inputs, ['Lynch 106', 'DUO', 'DF2', 'Pipe', '2600']));
 
 // Dev-only handle for poking at the engine from the browser console.
 if (import.meta.env.DEV) Object.assign(window, { __mixer: { engine, patch, pcm, midi: handleMidiBytes }, __capture: () => captureSettings(patch) });
