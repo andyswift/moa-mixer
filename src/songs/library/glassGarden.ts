@@ -1,5 +1,5 @@
 import { arpeggio, at16, chordAt, DRUM, note, steps } from '../generators';
-import { DRUM_PUNCH, mixerSettings } from '../mixes';
+import { DRUM_PUNCH, mixerSettings, STANDARD_EFFECTS } from '../mixes';
 import type { NoteEvent, Song } from '../types';
 
 /** An original dream-trance tune: 132 bpm, B minor, the loop Bm - G - D - A, two bars a chord. Sixteen bars. */
@@ -85,7 +85,7 @@ export function glassGarden(): Song {
     bars: BARS,
     beatsPerBar: 4,
     sleeve: { art: 'garden', colors: ['#1f7a74', '#ff8fb1', '#fff4df'] },
-    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe'],
+    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', ...STANDARD_EFFECTS],
     setup: {
       drums: DRUM_PUNCH,
       synth: { synth: { preset: 1 } }, // Sub Bass
@@ -94,7 +94,7 @@ export function glassGarden(): Song {
       duo: { duo: { preset: 11 } }, // Infinite Cathedral
       df2: { lynch: { preset: 6 }, box: { preset: 13, controls: { 'f1.res': 0.22, 'f2.res': 0.2, 'delay.level': 0.1 } } }, // Slow Pad into Ghost Pad
       pipe: { pipe: { preset: 5 } }, // Glass Bell
-      mixer: mixerSettings({
+      ...mixerSettings({
         drums: { kick: 1.05, snare: 1.0, clap: 1.0, rest: 0.9 },
         duck: 0.3,
         reverb: { ch4: 0.3, ch5: 0.32, ch2: 0.3, line1: 0.3, line2: 0.3, line3: 0.28, line4: 0.4 },

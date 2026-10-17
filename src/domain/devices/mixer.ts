@@ -4,6 +4,8 @@ import { ChoiceControl, NumberControl, ToggleControl } from './controls';
 const LOW_CUT_HZ = 75;
 const LOW_CUT_OFF_HZ = 10; // effectively transparent
 const EQ_RANGE_DB = 15;
+/** The most delay compensation the mixer can apply to its dry strips (seconds). */
+const MAX_COMP_S = 0.3;
 
 export const BUSES = ['A', 'B', 'C'] as const;
 export type Bus = (typeof BUSES)[number];
@@ -29,6 +31,8 @@ export const AUX_PAIRS = [
  * limiter and ceiling keep even a runaway loop inside the speakers' range.
  * One channel at a time can be the sidechain key (`key.source`): a pre-fader tap on the `key` output, which a
  * bus compressor uses to duck the bus.
+ * `comp.ms` delays every channel and stereo input on its way to bus A, to line it up with effects that return from other
+ * pages after a send/return round trip over the audio bus (about 40 ms); returns are not delayed.
  * Each bus has a "To main" switch: turn it off and the bus only goes where it is patched (e.g. into an
  * effect that returns on a strip). A return that is fed by a bus can't be assigned back to that bus.
  * A fixed `main` output sums the three buses through a limiter and a hard ceiling just under full scale, so
@@ -95,6 +99,10 @@ export class Mixer extends Device {
     for (let l = 1; l <= lineCount; l++) this.addStrip(`line${l}`, l, 'line');
 
     this.controlList.push(
+      new NumberControl('comp.ms', 'Delay comp', 0, MAX_COMP_S * 1000, 0, 'ms', (v) => {
+        for (let i = 1; i <= channelCount; i++) c.setParam(`ch${i}.comp`, 'delayTime', v / 1000);
+        for (let l = 1; l <= lineCount; l++) c.setParam(`line${l}.comp`, 'delayTime', v / 1000);
+      }),
       new ChoiceControl('key.source', 'Key source', ['off', ...Array.from({ length: channelCount }, (_, k) => `${k + 1}`)], 'off',
         (v) => {
           for (let i = 1; i <= channelCount; i++) c.setParam(`ch${i}.keySend`, 'gain', v === `${i}` ? 1 : 0);
@@ -141,8 +149,12 @@ export class Mixer extends Device {
 
     // Bus assigns: pan -> gate -> bus. (Not the bus that feeds this return: that would be an endless loop.)
     const assignable = BUSES.filter((bus) => !(kind === 'return' && this.returnFeeds[i] === bus));
+    // Effects on other pages come back over the audio bus a little late. Channels and inputs reach bus A through a
+    // delay (see `comp.ms`) so the dry signal lines up with insert effects (bus B and C) that return from outside.
+    if (kind !== 'return') c.add(id('comp'), 'delay', { delayTime: 0, maxTime: MAX_COMP_S }).connect(id('pan'), id('comp'));
     for (const bus of assignable) {
-      c.add(id(`assign${bus}`), 'gain', { gain: 0 }).connect(id('pan'), id(`assign${bus}`)).connect(id(`assign${bus}`), `bus${bus}`);
+      const from = bus === 'A' && kind !== 'return' ? id('comp') : id('pan');
+      c.add(id(`assign${bus}`), 'gain', { gain: 0 }).connect(from, id(`assign${bus}`)).connect(id(`assign${bus}`), `bus${bus}`);
     }
 
     // Aux sends: pre tap (after mute, before fader) and post tap (after fader), each gated by pre/post.

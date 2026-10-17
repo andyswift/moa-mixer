@@ -4,8 +4,16 @@ import { SYNTH_PRESETS } from '../domain/devices/synthPresets';
 import type { Patch } from '../domain/patch/patch';
 
 /** The pages a song conducts: each is an instrument page (or the mixer) loaded alongside the records page. */
-export const PAGE_IDS = ['mixer', 'synth', 'poly', 'drums', 'lynch', 'duo', 'df2', 'pipe'] as const;
+/** The mixer and the instruments: the band every record loads up front. */
+export const BAND_PAGES = ['mixer', 'synth', 'poly', 'drums', 'lynch', 'duo', 'df2', 'pipe'] as const;
+/** Effects, each a page of its own: a record loads the ones it uses. */
+export const EFFECT_PAGES = ['reverb', 'delay', 'ouroboros', 'buscomp', 'granular'] as const;
+export const PAGE_IDS = [...BAND_PAGES, ...EFFECT_PAGES] as const;
 export type PageId = (typeof PAGE_IDS)[number];
+/** Instruments on a page of their own that no record conducts (yet): they listen for orders but announce nothing. */
+export const SOLO_PAGES = ['m2600'] as const;
+export type AnyPageId = PageId | (typeof SOLO_PAGES)[number];
+export const isConducted = (page: AnyPageId): page is PageId => (PAGE_IDS as readonly string[]).includes(page);
 
 export type SettingValue = number | string | boolean;
 
@@ -29,18 +37,18 @@ export interface StatusMessage {
   state: PageState;
 }
 
-const controlName = (page: PageId) => `moa-control-${page}`;
+const controlName = (page: AnyPageId) => `moa-control-${page}`;
 const STATUS_NAME = 'moa-control-status';
 
 /** The name of the channel a page listens on for the notes of a song (see `MidiBus`). */
-export const songChannelName = (page: PageId): string => `moa-song-${page}`;
+export const songChannelName = (page: AnyPageId): string => `moa-song-${page}`;
 
 function open(name: string): BroadcastChannel | undefined {
   return typeof BroadcastChannel === 'undefined' ? undefined : new BroadcastChannel(name);
 }
 
 /** A page listens for orders from the records page. Returns a function that stops listening. */
-export function listenForControl(page: PageId, onMessage: (m: ControlMessage) => void): () => void {
+export function listenForControl(page: AnyPageId, onMessage: (m: ControlMessage) => void): () => void {
   const channel = open(controlName(page));
   if (!channel) return () => {};
   channel.onmessage = (e: MessageEvent<ControlMessage>) => {

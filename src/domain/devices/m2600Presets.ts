@@ -1,0 +1,221 @@
+import { M2600_PARAMS } from './m2600Params';
+import type { PresetValues, SynthPreset } from './synthPresets';
+
+/** The patch value that holds the patch cords ("from>to;from>to", see `m2600Cords.ts`); no cords in Init. */
+export const M2600_CORDS_KEY = 'cords';
+
+/** Every sound control at its default, so loading a patch always resets everything the patch does not mention. */
+export const M2600_INIT: PresetValues = {
+  ...Object.fromEntries(M2600_PARAMS.map((p) => [p.id, p.kind === 'choice' ? p.options![p.def]! : p.def])),
+  [M2600_CORDS_KEY]: '',
+};
+
+/** The MIDI channel belongs to the setup, not the sound. */
+export const M2600_NOT_IN_PATCH = ['play.channel'] as const;
+/** Values older patches may hold for controls since taken out (the SEM's route switch: series is now a cord); ignored. */
+export const M2600_RETIRED = ['sem.route'] as const;
+export const M2600_SLOTS = 48;
+
+const p = (name: string, values: PresetValues): SynthPreset => ({ name, values });
+
+// Oscillator frequencies are the pitch at middle C, so 65.41 Hz plays two octaves down.
+const C2 = 65.41, C3 = 130.81, C4 = 261.63, C5 = 523.25;
+/** The two filters in series: the VCF's output into the SEM (which then needs its VCA slider up instead of the VCF's). */
+const SERIES = 'vcf.out>sem.in.vco1';
+
+/**
+ * Sequencer steps from notes: `semis` are semitones above the oscillator's pitch, set for the quantizer's `range`
+ * (in octaves, chromatic scale exact); `gates` has one character per step: 1, 2 or 3 for a bus, anything else off.
+ * `from` is the first step written (9 writes channel B in 8 x 2 mode).
+ */
+function steps(semis: readonly number[], gates = '', range = 2, from = 1): PresetValues {
+  const v: PresetValues = {};
+  semis.forEach((n, i) => { v[`sq.step.${from + i}`] = Math.min(1, Math.max(0, n / (12 * range))); });
+  [...gates].forEach((g, i) => { v[`sq.gate.${from + i}`] = '123'.includes(g) ? g : 'off'; });
+  return v;
+}
+/** Raw step levels (0..1) for a channel that drives something other than pitch. */
+function levels(values: readonly number[], from = 1): PresetValues {
+  return Object.fromEntries(values.map((x, i) => [`sq.step.${from + i}`, x]));
+}
+
+/**
+ * Factory patches: sounds the 2600 is known for, made on its normalled routing (no cords), and a few that use the
+ * second filter. Everything not listed falls back to Init.
+ */
+export const M2600_FACTORY: readonly SynthPreset[] = [
+  p('Init', {}),
+  p('Classic Bass', {
+    'vco1.freq': C2, 'vco2.freq': C2, 'vco2.fine': 0.08, 'vco3.freq': C2 / 2,
+    'vcf.in.vco1': 0.7, 'vcf.in.vco2': 0.6, 'vcf.in.vco3': 0.4, 'vcf.freq': 180, 'vcf.res': 0.35, 'vcf.cv.adsr': 0.45,
+    'adsr.attack': 0.002, 'adsr.decay': 0.35, 'adsr.sustain': 0.25, 'adsr.release': 0.12,
+  }),
+  p('Sync Lead', {
+    'vco2.sync': 1, 'vco2.freq': C5, 'vco2.fm.adsr': 0.2, 'vcf.in.vco1': 0, 'vcf.in.vco2': 0.8,
+    'vcf.freq': 3000, 'vcf.res': 0.2, 'vcf.cv.adsr': 0.15, 'adsr.decay': 0.8, 'adsr.sustain': 0.7,
+    'kb.portaOn': 1, 'kb.porta': 0.2, 'lfo.delay': 0.4, 'lfo.depth': 0.25,
+  }),
+  p('Ladder Squelch', {
+    'vcf.mode': '4012', 'vco1.freq': C3, 'vcf.freq': 220, 'vcf.res': 0.85, 'vcf.cv.adsr': 0.5,
+    'adsr.attack': 0.001, 'adsr.decay': 0.25, 'adsr.sustain': 0.1, 'adsr.release': 0.1,
+  }),
+  p('Brass', {
+    'vcf.in.vco1': 0.6, 'vcf.in.vco3': 0.6, 'vco3.fine': 0.06, 'vcf.freq': 500, 'vcf.res': 0.1, 'vcf.cv.adsr': 0.35,
+    'adsr.attack': 0.06, 'adsr.decay': 0.5, 'adsr.sustain': 0.7, 'adsr.release': 0.25, 'lfo.delay': 0.6, 'lfo.depth': 0.15,
+  }),
+  p('Duo Lead', {
+    'kb.voice': 'duo', 'vcf.in.vco1': 0.6, 'vcf.in.vco2': 0.6, 'vcf.in.vco3': 0.5, 'vco3.fine': 0.05,
+    'vcf.freq': 2200, 'vcf.res': 0.25, 'adsr.decay': 0.6, 'adsr.sustain': 0.7,
+    'kb.portaOn': 1, 'kb.porta': 0.15, 'lfo.delay': 0.5, 'lfo.depth': 0.2,
+  }),
+  p('Ring Bells', {
+    'vcf.in.vco1': 0, 'vcf.in.ring': 0.9, 'vco2.freq': C4 * 2.76, 'vcf.freq': 6000, 'vcf.cv.adsr': 0,
+    'adsr.attack': 0.001, 'adsr.decay': 1.8, 'adsr.sustain': 0, 'adsr.release': 1.5, 'reverb.left': 0.35, 'reverb.right': 0.35,
+  }),
+  p('FM Clang', {
+    'vcf.in.vco1': 0, 'vcf.in.vco3': 0.8, 'vco3.fm.vco2': 0.3, 'vco2.freq': C4 * 3.5, 'vcf.freq': 4000, 'vcf.cv.adsr': 0.2,
+    'adsr.attack': 0.001, 'adsr.decay': 1.2, 'adsr.sustain': 0, 'adsr.release': 0.8, 'reverb.left': 0.25, 'reverb.right': 0.25,
+  }),
+  p('Droid Chatter', {
+    'vco1.fm.sh': 0.25, 'sh.rate': 9, 'vcf.freq': 2500, 'vcf.cv.adsr': 0, 'kb.repeat': 'kybd', 'lfo.speed': 9,
+    'adsr.attack': 0.001, 'adsr.decay': 0.08, 'adsr.sustain': 0, 'adsr.release': 0.05,
+  }),
+  p('Laser Zap', {
+    'vco1.freq': C5, 'vco1.fm.adsr': 0.35, 'vcf.freq': 5000, 'vcf.res': 0.2, 'vcf.cv.adsr': 0,
+    'adsr.attack': 0.001, 'adsr.decay': 0.25, 'adsr.sustain': 0, 'adsr.release': 0.2,
+  }),
+  p('Repeat Bleeps', {
+    'kb.repeat': 'kybd', 'lfo.speed': 7, 'vcf.freq': 900, 'vcf.res': 0.6, 'vcf.cv.adsr': 0.35,
+    'adsr.attack': 0.001, 'adsr.decay': 0.12, 'adsr.sustain': 0, 'adsr.release': 0.1,
+  }),
+  p('Wind and Surf', {
+    'vcf.in.vco1': 0, 'vcf.in.noise': 0.9, 'noise.color': 0.5, 'vcf.freq': 400, 'vcf.res': 0.75, 'vcf.cv.kybd': 0,
+    'vcf.cv.adsr': 0, 'vcf.cv.vco2': 0.35, 'vco2.range': 'lf', 'vco2.freq': 33,
+    'adsr.attack': 1.5, 'adsr.sustain': 1, 'adsr.release': 3, 'reverb.left': 0.4, 'reverb.right': 0.4,
+  }),
+  p('Noise Snare', {
+    'vcf.in.vco1': 0.2, 'vco1.freq': 196, 'vcf.in.noise': 0.9, 'vcf.freq': 3500, 'vcf.cv.kybd': 0, 'vcf.cv.adsr': 0.1,
+    'adsr.attack': 0.001, 'adsr.decay': 0.18, 'adsr.sustain': 0, 'adsr.release': 0.15,
+  }),
+  p('Kick Drum', {
+    'vco1.freq': 50, 'vco1.fm.adsr': 0.3, 'vcf.in.vco1': 0.9, 'vcf.freq': 120, 'vcf.res': 0.3, 'vcf.cv.kybd': 0, 'vcf.cv.adsr': 0.35,
+    'vca.in.vcf': 1, 'adsr.attack': 0.001, 'adsr.decay': 0.22, 'adsr.sustain': 0, 'adsr.release': 0.18,
+    'reverb.left': 0.05, 'reverb.right': 0.05,
+  }),
+  p('Space Organ', {
+    'vcf.in.vco1': 0.6, 'vco2.freq': C5, 'vcf.in.vco2': 0.5, 'vcf.freq': 3000, 'vcf.cv.adsr': 0,
+    'adsr.attack': 0.01, 'adsr.decay': 0.1, 'adsr.sustain': 1, 'adsr.release': 0.1,
+    'lfo.speed': 6, 'lfo.depth': 0.12, 'reverb.left': 0.5, 'reverb.right': 0.5,
+  }),
+  // ---- the second filter
+  p('Dual Filter Pad', {
+    'vco2.fine': 0.1, 'vco3.fine': -0.1, 'vcf.in.vco1': 0.6, 'vcf.in.vco2': 0.6, 'vcf.freq': 700, 'vcf.res': 0.3, 'vcf.cv.adsr': 0.15,
+    'sem.in.vco1': 0.6, 'sem.in.vco3': 0.5, 'sem.freq': 1800, 'sem.mode': 0.8, 'sem.res': 0.4,
+    'sem.cv.lfo': 0.08, 'lfo.speed': 0.3, 'vca.in.sem': 0.7,
+    'adsr.attack': 0.8, 'adsr.decay': 1.5, 'adsr.sustain': 0.8, 'adsr.release': 2, 'reverb.left': 0.35, 'reverb.right': 0.35,
+  }),
+  p('Notch Sweep', {
+    [M2600_CORDS_KEY]: SERIES, 'sem.in.vco1': 1, 'vca.in.vcf': 0, 'vca.in.sem': 0.8, 'vcf.in.vco1': 0, 'vcf.in.vco2': 0.6, 'vcf.in.vco3': 0.6, 'vco3.fine': 0.07, 'vcf.freq': 8000, 'vcf.cv.adsr': 0,
+    'sem.mode': 0.5, 'sem.res': 0.5, 'sem.freq': 800, 'sem.cv.kybd': 0, 'sem.cv.lfo': 0.25, 'lfo.speed': 0.25,
+    'adsr.sustain': 1, 'adsr.release': 0.6,
+  }),
+  p('Band Pass Voice', {
+    [M2600_CORDS_KEY]: SERIES, 'sem.in.vco1': 1, 'vca.in.vcf': 0, 'vca.in.sem': 0.8, 'vcf.in.vco1': 0.7, 'vcf.in.vco3': 0.6, 'vco3.fine': 0.07, 'vcf.freq': 5000, 'vcf.cv.adsr': 0,
+    'sem.bp': 1, 'sem.freq': 900, 'sem.res': 0.6, 'sem.cv.adsr': 0.15, 'adsr.attack': 0.03, 'adsr.sustain': 0.8,
+    'lfo.delay': 0.3, 'lfo.depth': 0.15,
+  }),
+  p('Twin Resonance', {
+    [M2600_CORDS_KEY]: SERIES, 'sem.in.vco1': 1, 'vca.in.vcf': 0, 'vca.in.sem': 0.8, 'vco1.freq': C3, 'vcf.mode': '4012', 'vcf.freq': 350, 'vcf.res': 0.7, 'vcf.cv.adsr': 0.4,
+    'sem.freq': 1400, 'sem.res': 0.75, 'sem.cv.adsr': 0.25, 'sem.mode': 0.15,
+    'adsr.attack': 0.002, 'adsr.decay': 0.4, 'adsr.sustain': 0.2, 'adsr.release': 0.2,
+  }),
+  // ---- patched with cords
+  p('S&H Filter', {
+    [M2600_CORDS_KEY]: 'sh.out>vcf.cv.vco2', 'vcf.cv.vco2': 0.3, 'vcf.freq': 700, 'vcf.res': 0.7, 'vcf.cv.adsr': 0,
+    'sh.rate': 7, 'adsr.sustain': 1, 'adsr.release': 0.3,
+  }),
+  p('Inverted Envelope', {
+    [M2600_CORDS_KEY]: 'adsr.out>vp.1;vp.inv1>vcf.cv.vco2', 'vcf.cv.vco2': 0.4, 'vcf.freq': 5000, 'vcf.res': 0.5, 'vcf.cv.adsr': 0,
+    'adsr.attack': 0.3, 'adsr.decay': 0.8, 'adsr.sustain': 0.4, 'adsr.release': 0.5,
+  }),
+  p('Mult Wobble', {
+    [M2600_CORDS_KEY]: 'lfo.tri>mult.1;mult.2>vcf.cv.vco2;mult.3>vco2.pwm', 'vco2.freq': C2, 'vcf.in.vco1': 0, 'vcf.in.vco2': 0.8,
+    'vco2.pwm': 0.5, 'vcf.cv.vco2': 0.25, 'vcf.freq': 600, 'vcf.res': 0.5, 'vcf.cv.adsr': 0, 'lfo.speed': 3, 'adsr.sustain': 1,
+  }),
+  p('Octave Switch', {
+    [M2600_CORDS_KEY]: 'vp.inv2>esw.b;esw.c>mult.1;mult.2>vco1.fm.sh;mult.3>vco2.fm.sh', 'vp.6': 0.1, 'vco1.fm.sh': 1, 'vco2.fm.sh': 1,
+    'vco2.fine': 0.07, 'vcf.in.vco2': 0.6, 'vcf.freq': 2000, 'vcf.res': 0.3, 'vcf.cv.adsr': 0.1, 'sh.rate': 6, 'adsr.sustain': 0.8,
+  }),
+  // ---- with the MOA-SQ16 sequencer patched in (press RUN)
+  p('SQ16 Bass Line', {
+    [M2600_CORDS_KEY]: 'sq.qa>mult.1;mult.2>vco1.fm.kybd;mult.3>vco2.fm.kybd;sq.cgate1>adsr.gate',
+    'vco1.freq': C2, 'vco2.freq': C2, 'vco2.fine': 0.08, 'vcf.in.vco2': 0.5, 'vcf.freq': 300, 'vcf.res': 0.45, 'vcf.cv.adsr': 0.4,
+    'adsr.attack': 0.002, 'adsr.decay': 0.2, 'adsr.sustain': 0.2, 'adsr.release': 0.1, 'sq.scale': 'minor', 'sq.rate': 7,
+  }),
+  p('Keys Pitch, SQ16 Rhythm', {
+    [M2600_CORDS_KEY]: 'sq.cgate1>adsr.gate;sq.b>vcf.cv.vco2', 'vcf.cv.vco2': 0.25, 'vcf.freq': 400, 'vcf.res': 0.5, 'vcf.cv.adsr': 0.2,
+    'vcf.in.vco3': 0.5, 'vco3.fine': 0.07, 'adsr.attack': 0.002, 'adsr.decay': 0.15, 'adsr.sustain': 0.3, 'adsr.release': 0.1,
+    'sq.mode': '8x2', 'sq.rate': 8,
+  }),
+  p('SQ16 Random Bleeps', {
+    [M2600_CORDS_KEY]: 'sq.qa>vco1.fm.kybd;sq.cgate1>adsr.gate', 'vco1.freq': C3, 'vcf.freq': 2500, 'vcf.cv.adsr': 0.15,
+    'adsr.attack': 0.001, 'adsr.decay': 0.1, 'adsr.sustain': 0, 'adsr.release': 0.08, 'sq.dir': 'random', 'sq.scale': 'pent',
+    'sq.range': '4', 'sq.rate': 9, 'reverb.left': 0.35, 'reverb.right': 0.35,
+  }),
+  // ---- sequencer and cords: patch techniques
+  // 8 x 2: A plays the line, B raw into the VCF for a per-step accent; rests are steps with their gate off.
+  p('Acid 8x2', {
+    [M2600_CORDS_KEY]: 'sq.qa>vco1.fm.kybd;sq.cgate1>adsr.gate;sq.b>vcf.cv.vco2',
+    'vco1.freq': C2, 'vcf.mode': '4012', 'vcf.freq': 250, 'vcf.res': 0.8, 'vcf.cv.adsr': 0.35, 'vcf.cv.vco2': 0.2, 'vcf.cv.kybd': 0,
+    'adsr.attack': 0.002, 'adsr.decay': 0.18, 'adsr.sustain': 0, 'adsr.release': 0.1,
+    'sq.mode': '8x2', 'sq.rate': 8, ...steps([0, 0, 12, 0, 3, 15, 0, 10], '1.111.11'), ...levels([0.2, 0, 0.8, 0.1, 0.3, 0, 0.6, 0.2], 9),
+  }),
+  // The keyboard CV goes into the quantizers' CV input: hold a key and the arpeggio moves to it.
+  p('Keys Transpose Arp', {
+    [M2600_CORDS_KEY]: 'kb.cv>sq.cvin;sq.qa>mult.1;mult.2>vco1.fm.kybd;mult.3>vco2.fm.kybd;sq.cgate1>adsr.gate',
+    'vco1.freq': C3, 'vco2.freq': C3, 'vco2.fine': 0.07, 'vcf.in.vco2': 0.5, 'vcf.freq': 1800, 'vcf.res': 0.2, 'vcf.cv.adsr': 0.25,
+    'adsr.attack': 0.002, 'adsr.decay': 0.25, 'adsr.sustain': 0.3, 'adsr.release': 0.2, 'reverb.left': 0.25, 'reverb.right': 0.25,
+    'sq.scale': 'major', 'sq.rate': 10, ...steps([0, 4, 7, 12, 16, 12, 7, 4, 0, 4, 7, 11, 14, 11, 7, 4], '1111111111111111'),
+  }),
+  // 8 x 2 with both quantizers on pitch: VCO 1 plays line A and VCO 2 line B, two voices from one sequencer.
+  p('Two-Voice Counterpoint', {
+    [M2600_CORDS_KEY]: 'sq.qa>vco1.fm.kybd;sq.qb>vco2.fm.kybd;sq.cgate1>adsr.gate',
+    'vco1.freq': C3, 'vco2.freq': C3, 'vcf.in.vco1': 0.6, 'vcf.in.vco2': 0.6, 'vcf.freq': 2000, 'vcf.res': 0.15, 'vcf.cv.adsr': 0.2,
+    'adsr.attack': 0.005, 'adsr.decay': 0.3, 'adsr.sustain': 0.5, 'adsr.release': 0.25, 'sq.mode': '8x2', 'sq.scale': 'dorian', 'sq.rate': 5,
+    ...steps([0, 3, 7, 5, 3, 2, 0, 10], '11111111'), ...steps([12, 14, 15, 17, 15, 14, 12, 19], '', 2, 9),
+  }),
+  // No RUN needed: the 2600's S&H, lifted by an inverter into 0-10 V, through the sequencer's quantizer, clocked by the S&H.
+  p('Random Pentatonic', {
+    [M2600_CORDS_KEY]: 'sh.out>vp.1;vp.inv1>sq.ina;sq.qa>vco1.fm.kybd;sh.clk>adsr.gate', 'vp.2': 0.5,
+    'vco1.freq': C3, 'sh.rate': 6, 'vcf.freq': 2200, 'vcf.cv.adsr': 0.2, 'adsr.attack': 0.002, 'adsr.decay': 0.15, 'adsr.sustain': 0.2,
+    'adsr.release': 0.15, 'sq.scale': 'pent', 'reverb.left': 0.35, 'reverb.right': 0.35,
+  }),
+  // The LFO into the clock's FM input: the tempo drifts slowly faster and slower.
+  p('Swaying Tempo', {
+    [M2600_CORDS_KEY]: 'sq.qa>vco1.fm.kybd;sq.cgate1>adsr.gate;lfo.tri>sq.fmin', 'sq.fm': 0.12, 'lfo.speed': 0.15,
+    'vco1.freq': C3, 'vcf.in.vco3': 0.5, 'vco3.fine': 0.05, 'vcf.freq': 1500, 'vcf.res': 0.3, 'vcf.cv.adsr': 0.3,
+    'adsr.attack': 0.003, 'adsr.decay': 0.3, 'adsr.sustain': 0.2, 'adsr.release': 0.3, 'reverb.left': 0.3, 'reverb.right': 0.3,
+    'sq.scale': 'minor', 'sq.rate': 6, ...steps([0, 7, 3, 10, 12, 10, 7, 3, 5, 7, 8, 12, 15, 12, 8, 7], '1111111111111111'),
+  }),
+  // The keyboard plays as normal (pitch and gate); the sequencer's raw output A only steps the filter. Hold a key.
+  p('Step Filter (hold a key)', {
+    [M2600_CORDS_KEY]: 'sq.a>vcf.cv.vco2', 'vcf.cv.vco2': 0.3, 'vcf.freq': 150, 'vcf.res': 0.6, 'vcf.cv.adsr': 0,
+    'vcf.in.vco1': 0.6, 'vcf.in.vco3': 0.6, 'vco3.fine': 0.07, 'adsr.attack': 0.01, 'adsr.sustain': 1, 'adsr.release': 0.4,
+    'sq.rate': 8, ...levels([0.1, 0.5, 0.25, 0.8, 0.1, 0.6, 0.35, 0.9, 0.15, 0.5, 0.2, 0.7, 0.1, 0.4, 0.6, 1]),
+  }),
+  // Step 6 is on bus 3 with the switch on RESET: a five-step riff that turns against the bar.
+  p('Odd Loop (5 steps)', {
+    [M2600_CORDS_KEY]: 'sq.qa>vco1.fm.kybd;sq.cgate1>adsr.gate', 'sq.skip': 'reset',
+    'vco1.freq': C2, 'vco2.freq': C2, 'vco2.fine': 0.1, 'vcf.in.vco2': 0.5, 'vcf.freq': 400, 'vcf.res': 0.5, 'vcf.cv.adsr': 0.4,
+    'adsr.attack': 0.002, 'adsr.decay': 0.2, 'adsr.sustain': 0.1, 'adsr.release': 0.1, 'sq.scale': 'minor', 'sq.rate': 7,
+    ...steps([0, 12, 7, 10, 3, 0], '111113'),
+  }),
+  // The sequence moves only VCO 2; the ring mod multiplies it with VCO 1 for a clangorous bell line.
+  p('Ring Mod Sequence', {
+    [M2600_CORDS_KEY]: 'sq.qa>vco2.fm.kybd;sq.cgate1>adsr.gate', 'vco2.freq': C4 * 1.5, 'vcf.in.vco1': 0, 'vcf.in.ring': 0.9,
+    'vcf.freq': 5000, 'vcf.cv.adsr': 0, 'adsr.attack': 0.001, 'adsr.decay': 0.6, 'adsr.sustain': 0, 'adsr.release': 0.5,
+    'reverb.left': 0.4, 'reverb.right': 0.4, 'sq.rate': 5, ...steps([0, 7, 12, 5, 10, 3, 15, 8, 0, 12, 7, 19, 5, 14, 10, 2], '1111111111111111'),
+  }),
+];
+
+export const M2600_PRESETS: readonly SynthPreset[] = Array.from({ length: M2600_SLOTS }, (_, i) => M2600_FACTORY[i] ?? p('Init', {}));

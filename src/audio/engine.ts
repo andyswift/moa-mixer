@@ -1,8 +1,10 @@
 import type { Circuit } from '../domain/circuit/circuit';
 import type { Patch } from '../domain/patch/patch';
 import { DF_NAME, DF_SOURCE } from './dfWorklet';
+import { M2600_SWITCHES } from '../domain/devices/m2600Params';
 import { DUO_NAME, DUO_SOURCE } from './duoWorklet';
 import { GRANULAR_NAME, GRANULAR_SOURCE } from './granularWorklet';
+import { M2600_NAME, M2600_SOURCE } from './m2600Worklet';
 import { PIPE_NAME, PIPE_SOURCE, SPRING_NAME } from './pipeWorklet';
 
 const SMOOTHING = 0.01; // seconds; avoids zipper noise on param changes
@@ -31,6 +33,18 @@ export interface DuoView {
   gate: boolean;
 }
 
+/** What a 2600 node reports for display: the keyboard gate, LFO and S/H clock lamps, the electronic switch, envelope levels (0-10 V). */
+export interface M2600View {
+  gate: boolean;
+  lfo: boolean;
+  clk: boolean;
+  esw: number;
+  adsr: number;
+  ar: number;
+  /** The MOA-SQ16 sequencer: the current step (0-15), whether it runs, and its clock lamp. */
+  sq?: { step: number; running: boolean; clk: boolean };
+}
+
 /** Compiles a Patch into Web Audio nodes and keeps them in sync with domain state. */
 export class AudioEngine {
   private ctx?: AudioContext;
@@ -42,6 +56,7 @@ export class AudioEngine {
   private readonly pipeViews = new Map<string, PipeView>();
   private readonly dfViews = new Map<string, DFView>();
   private readonly duoViews = new Map<string, DuoView>();
+  private readonly m2600Views = new Map<string, M2600View>();
   private readonly meters = new Map<string, { analyser: AnalyserNode; buffer: Float32Array<ArrayBuffer> }>();
 
   constructor(private readonly patch: Patch) {}
@@ -113,6 +128,11 @@ export class AudioEngine {
   /** The latest envelope and gate state of a filter-box node; undefined until audio has started. */
   readDF(deviceId: string, nodeId: string): DFView | undefined {
     return this.dfViews.get(`${deviceId}/${nodeId}`);
+  }
+
+  /** The latest lamps and envelope levels of a 2600 node; undefined until audio has started. */
+  readM2600(deviceId: string, nodeId: string): M2600View | undefined {
+    return this.m2600Views.get(`${deviceId}/${nodeId}`);
   }
 
   /** The latest modulator levels of a duo-synth node; undefined until audio has started. */
@@ -239,6 +259,15 @@ export class AudioEngine {
           nodes.set(n.id, node);
           break;
         }
+        case 'm2600': {
+          const node = new AudioWorkletNode(ctx, M2600_NAME, {
+            numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], parameterData: n.params,
+            processorOptions: { cords: JSON.parse(n.options.cords ?? '[]') as unknown },
+          });
+          node.port.onmessage = (e: MessageEvent<M2600View>) => this.m2600Views.set(`${deviceId}/${n.id}`, e.data);
+          nodes.set(n.id, node);
+          break;
+        }
         case 'compressor': {
           const comp = ctx.createDynamicsCompressor();
           this.compressors.set(`${deviceId}/${n.id}`, comp);
@@ -355,6 +384,10 @@ export class AudioEngine {
         if (node instanceof AudioWorkletNode) node.port.postMessage(change);
         return;
       }
+      if (change.type === 'message') {
+        if (node instanceof AudioWorkletNode) node.port.postMessage(change.data);
+        return;
+      }
       if (change.type === 'trigger' || change.type === 'choke') {
         if (node instanceof ConstantSourceNode) {
           if (change.type === 'trigger') fireTrigger(ctx, node.offset, circuit.node(change.nodeId).params, circuit.node(change.nodeId).options.shape, change.velocity, change.when);
@@ -388,6 +421,10 @@ export class AudioEngine {
         return;
       }
       const param = audioParam(node, change.name);
+      if (circuit.node(change.nodeId).kind === 'm2600' && M2600_SWITCHES.has(change.name)) {
+        param?.setValueAtTime(change.value, ctx.currentTime);
+        return;
+      }
       if (circuit.node(change.nodeId).kind === 'duo' && DUO_SWITCHES.test(change.name)) {
         param?.setValueAtTime(change.value, ctx.currentTime);
         return;
@@ -634,7 +671,7 @@ registerProcessor('${FOLLOWER_NAME}', MoaFollower);
 `;
 
 /** Every processor, as the one script the audio worklet loads. Top-level names must not clash between them. */
-export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE].join('\n');
+export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE].join('\n');
 
 /** The processors are one worklet module, loaded from an in-memory script. */
 function workletModuleUrl(): string {

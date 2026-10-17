@@ -1,0 +1,124 @@
+/* ---- MOA-2600: a grey panel with white outlines, LED-capped sliders, black rocker switches and jacks ---- */
+.m26-wrap { margin-bottom: 16px; font-family: 'Barlow Semi Condensed', 'Barlow Condensed', system-ui, sans-serif; color: #f1f1ec; }
+.m26-wrap .keybed { margin: 0; border-radius: 0 0 12px 12px; }
+.m26-case { background: #53575e; border-radius: 12px 12px 0 0; border: 1px solid #2c2e33; border-bottom: 0; overflow: hidden; }
+
+/* wide screens: the hardware layout, scaled to the container width (1 layout unit = 100cqw / 1380) */
+.m26-desktop { position: relative; container-type: inline-size; width: 100%; aspect-ratio: 1380 / 1225; }
+.m26-art { position: absolute; inset: 0; width: 100%; height: 100%; font-family: 'Barlow Semi Condensed', system-ui, sans-serif; font-weight: 600; }
+.m26-face { fill: #5a5e65; stroke: none; }
+.m26-ink { stroke: #ecece6; fill: none; }
+.m26-ink text { fill: #f1f1ec; stroke: none; letter-spacing: 0.04em; }
+.m26-ink text.m26-dim { fill: #c4c6c9; }
+.m26-ink text.m26-logo { font-family: 'Barlow Condensed', system-ui, sans-serif; font-style: italic; font-weight: 700; letter-spacing: 0.02em; }
+.m26-ink text.m26-sub { fill: #d9dadc; font-weight: 500; }
+.m26-screw circle { fill: #3c3f45; stroke: #26282c; stroke-width: 1.5; }
+.m26-screw path { stroke: #1d1f22; stroke-width: 1.6; }
+.m26-mark circle, .m26-mark path { stroke: #ecece6; stroke-width: 1.4; fill: none; }
+.m26-desktop .m26-placed { position: absolute; box-sizing: border-box; }
+
+/* LED-capped sliders: a black slot, a glowing red cap at --t (0..1); a transparent native range input on top */
+.m26-slider { position: relative; touch-action: none; --cap: 0.85cqw; }
+.m26-slot { position: absolute; border-radius: 99px; background: #0b0b0c; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.05); }
+.m26-v .m26-slot { left: 50%; top: 0; bottom: 0; width: 46%; transform: translateX(-50%); }
+.m26-h .m26-slot { top: 50%; left: 0; right: 0; height: 46%; transform: translateY(-50%); }
+.m26-cap { position: absolute; pointer-events: none; border-radius: 2px; background: linear-gradient(180deg, #ffb3a6, #ff4a32 45%, #c41d10); box-shadow: 0 0 0.45cqw 0.1cqw rgba(255, 70, 45, 0.75), inset 0 0 0 1px rgba(80, 0, 0, 0.5); }
+.m26-v .m26-cap { left: 50%; width: 38%; height: var(--cap); transform: translateX(-50%); top: calc((1 - var(--t, 0)) * (100% - var(--cap))); }
+.m26-h .m26-cap { top: 50%; height: 38%; width: var(--cap); transform: translateY(-50%); left: calc(var(--t, 0) * (100% - var(--cap))); }
+.m26-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.m26-v .m26-input { writing-mode: vertical-lr; direction: rtl; cursor: ns-resize; }
+.m26-h .m26-input { cursor: ew-resize; }
+.m26-slider:focus-within .m26-cap { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* rocker switches: a black slot and a ridged lever at --p (0 top .. 1 bottom) */
+.m26-switch { position: relative; padding: 0; border: 0; border-radius: 3px; background: #121214; box-shadow: inset 0 0 0 1px #2c2d31, 0 1px 2px rgba(0, 0, 0, 0.6); cursor: pointer; }
+.m26-switch i { position: absolute; left: 12%; right: 12%; height: 46%; top: calc(4% + var(--p, 0) * 46%); border-radius: 2px; background: repeating-linear-gradient(180deg, #3a3b40 0 2px, #26272b 2px 4px); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); transition: top 0.08s; }
+.m26-switch:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* momentary red button, knob, jacks and lamps */
+.m26-button { padding: 0; border: 0; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #ff6a5c, #c8180e 60%, #7a0b05); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(0, 0, 0, 0.4); cursor: pointer; }
+.m26-button.down { background: radial-gradient(circle at 50% 50%, #ff8a7c, #e8261a 60%, #8a0d06); box-shadow: 0 0 0.8cqw rgba(255, 60, 40, 0.8); }
+.m26-button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.m26-knob { position: relative; border-radius: 50%; background: radial-gradient(circle at 42% 36%, #f6f6f6, #b9b9b9 55%, #808080); box-shadow: 0 0 0 0.35cqw #1a1a1c, 0 2px 4px rgba(0, 0, 0, 0.7); cursor: ns-resize; touch-action: none; }
+.m26-knob i { position: absolute; left: 50%; top: 6%; width: 7%; height: 36%; margin-left: -3.5%; border-radius: 2px; background: #202022; transform-origin: 50% 122%; transform: rotate(var(--a, 0deg)); }
+.m26-knob:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.m26-jack { border-radius: 50%; background: radial-gradient(circle, #050506 0 27%, #3a3b3f 29% 36%, #b8b9bc 40%, #5d5f63 52%, #1b1c1f 62%, #0d0d0e 70%); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+.m26-led { display: block; border-radius: 50%; background: #4a2320; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.5); }
+.m26-led.on { background: #ff4433; box-shadow: 0 0 0.6cqw 0.15cqw rgba(255, 60, 40, 0.8); }
+.m26-led.m26-amber { background: #4c3c18; }
+.m26-led.m26-amber.on { background: #ffbc2c; box-shadow: 0 0 0.6cqw 0.15cqw rgba(255, 180, 40, 0.8); }
+
+/* header: readout, patch display, buttons and MIDI channel */
+.m26-readout { display: flex; align-items: center; padding: 0 0.6cqw; border-radius: 0.3cqw; background: #1b1c1f; box-shadow: inset 0 0 0 1px #34363b; font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 0.82cqw; color: #ffb27a; white-space: nowrap; overflow: hidden; }
+.m26-patch-desktop { display: flex; align-items: center; padding: 0 0.6cqw; border-radius: 0.3cqw; background: #101113; box-shadow: inset 0 0 0 1px #34363b; font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 1.05cqw; letter-spacing: 0.04em; color: #ff5a40; text-shadow: 0 0 0.4cqw rgba(255, 70, 45, 0.6); white-space: nowrap; overflow: hidden; }
+.m26-patch-btn { border: 1px solid #6c6f75; border-radius: 0.3cqw; background: #2a2c30; color: #f1f1ec; font-family: inherit; font-weight: 700; letter-spacing: 0.08em; cursor: pointer; padding: 0; }
+.m26-patch-btn:hover { border-color: #f1f1ec; }
+.m26-desktop .m26-patch-btn { font-size: 0.8cqw; }
+.m26-channel { border: 1px solid #6c6f75; border-radius: 0.3cqw; background: #2a2c30; color: #f1f1ec; font: 600 0.8cqw/1 'Barlow Semi Condensed', system-ui, sans-serif; letter-spacing: 0.08em; padding: 0 0.3cqw; }
+
+/* narrow screens: one card per module */
+.m26-mobile { display: none; padding: 16px; flex-direction: column; gap: 18px; }
+.m26-patch-row { display: flex; gap: 6px; align-items: stretch; }
+.m26-patch-mobile { flex: 1; display: flex; align-items: center; min-height: 44px; padding: 0 12px; border-radius: 6px; background: #101113; box-shadow: inset 0 0 0 1px #34363b; font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 15px; color: #ff5a40; white-space: nowrap; overflow: hidden; }
+.m26-mobile .m26-patch-btn { min-width: 44px; min-height: 44px; padding: 0 10px; font-size: 13px; }
+.m26-mobile .m26-channel { flex: 1; min-height: 44px; font-size: 14px; padding: 0 8px; }
+.m26-manual-mobile { flex: 1; min-height: 44px; border-radius: 22px; color: #fff; font: 700 13px/1 inherit; font-family: inherit; letter-spacing: 0.12em; }
+.m26-card { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 22px 14px 14px; border: 1.5px solid #ecece6; border-radius: 4px; }
+.m26-card-title { position: absolute; top: -10px; left: 12px; margin: 0; padding: 0 8px; background: #53575e; font-size: 13px; font-weight: 700; letter-spacing: 0.18em; line-height: 20px; }
+.m26-item { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+.m26-item-label { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #ecece6; }
+.m26-item-value { font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 12px; color: #ffb27a; }
+.m26-mobile .m26-slider { grid-column: 1 / -1; height: 36px; --cap: 22px; }
+.m26-mobile .m26-cap { box-shadow: 0 0 6px 1px rgba(255, 70, 45, 0.75); }
+.m26-item-choice { grid-template-columns: 1fr; }
+.m26-seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.m26-seg-btn { min-width: 52px; min-height: 40px; padding: 0 10px; border: 1px solid #7a7d83; border-radius: 4px; background: #2a2c30; color: #ecece6; font: 700 12px/1 inherit; font-family: inherit; letter-spacing: 0.08em; cursor: pointer; }
+.m26-seg-btn.on { background: #ecece6; color: #1b1c1f; }
+
+@media (max-width: 1099px) {
+  .m26-desktop { display: none; }
+  .m26-mobile { display: flex; }
+}
+.m26-mobile, .m26-card, .m26-item, .m26-item > *, .m26-patch-mobile, .m26-mobile .m26-channel { min-width: 0; }
+.m26-mobile .m26-slider { width: 100%; }
+
+/* patch cords */
+.m26-desktop button.m26-jack { padding: 0; border: 0; cursor: grab; touch-action: none; }
+.m26-desktop button.m26-jack:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.m26-jack.m26-target { box-shadow: 0 0 0 0.18cqw #ffd34a, 0 0 0.7cqw 0.1cqw rgba(255, 211, 74, 0.7); }
+.m26-jack.m26-anchor { box-shadow: 0 0 0 0.2cqw #fff, 0 0 0.8cqw 0.15cqw rgba(255, 255, 255, 0.7); }
+.m26-cables { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; overflow: visible; }
+.m26-cable { opacity: 0.93; }
+.m26-cable-live { opacity: 0.75; }
+.m26-desktop .m26-clear { font-size: 0.72cqw; }
+.m26-patch-btn:disabled { opacity: 0.45; cursor: default; }
+.m26-cord-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.m26-cord { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+.m26-cord .m26-patch-btn { min-width: 40px; min-height: 36px; }
+.m26-cord-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.m26-cord-form select { flex: 1 1 140px; min-height: 40px; font-size: 13px; }
+.m26-cord-form .m26-patch-btn { min-height: 40px; padding: 0 12px; }
+.m26-cord-note { margin: 0; font-size: 12px; color: #c4c6c9; }
+
+/* ---- MOA-SQ16: black panel, gold ink, walnut cheeks ---- */
+.sq-wood { fill: #6b3b1f; stroke: #3b1e0e; stroke-width: 1.5; }
+.sq-face { fill: #141416; stroke: #2a2a2e; stroke-width: 1; }
+.m26-ink .sq-ink { stroke: #c9a961; }
+.m26-ink .sq-ink text { fill: #d8bc76; }
+.m26-ink .sq-ink text.m26-dim { fill: #9c8653; }
+.m26-ink .sq-ink text.m26-logo { fill: #e3c983; }
+.sq-chip, .sq-gate, .sq-push { padding: 0; border: 1px solid #8a7444; border-radius: 0.2cqw; background: #1e1e21; color: #d8bc76; font: 700 0.58cqw/1 'Barlow Semi Condensed', system-ui, sans-serif; letter-spacing: 0.06em; cursor: pointer; }
+.sq-chip.on { background: #d8bc76; color: #141416; border-color: #d8bc76; }
+.sq-gate { font-size: 0.72cqw; }
+.sq-gate[data-bus='1'] { background: #c8321f; border-color: #e0553f; color: #fff; }
+.sq-gate[data-bus='2'] { background: #d99a1e; border-color: #f0b640; color: #141416; }
+.sq-gate[data-bus='3'] { background: #2f6fc0; border-color: #4c8ae0; color: #fff; }
+.sq-push { background: linear-gradient(#f2f0ea, #cfcdc6); border-color: #9a988f; border-radius: 0.25cqw; box-shadow: 0 2px 3px rgba(0, 0, 0, 0.7); color: #1b1b1d; }
+.sq-push:active { transform: translateY(1px); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.7); }
+.sq-run { display: flex; align-items: center; justify-content: center; gap: 0.4cqw; font-size: 0.75cqw; }
+.sq-run .m26-led { width: 0.6cqw; height: 0.6cqw; }
+.sq-lamp { padding: 0; border: 0; background: transparent; cursor: pointer; }
+.sq-lamp .m26-led { width: 100%; height: 100%; }
+.sq-chip:focus-visible, .sq-gate:focus-visible, .sq-push:focus-visible, .sq-lamp:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.m26-readout.sq-display { color: #e3c983; justify-content: center; }
+.sq-mobile-btn { flex: 1; min-height: 44px; font-size: 13px; border-radius: 6px; }

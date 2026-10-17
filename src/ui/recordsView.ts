@@ -8,6 +8,7 @@ import { el } from './widgets';
 
 const CHIP_NAMES: Record<PageId, string> = {
   mixer: 'MIXER', synth: 'MOA-1', poly: 'MOA-6', drums: 'MOA-DR', lynch: 'LYNCH', duo: 'DUO', df2: 'DF2', pipe: 'PIPE',
+  reverb: 'REVERB', delay: 'DELAY', ouroboros: 'OURO', buscomp: 'COMP', granular: 'GRAIN',
 };
 
 type View = 'crate' | 'deck';
@@ -221,7 +222,7 @@ export function renderRecords(root: HTMLElement, songs: Song[], band: Band, play
     deck.hidden = view !== 'deck';
     sleeveButtons.forEach((b, i) => b.classList.toggle('picked', i === selected));
     pickTitle.textContent = s.title;
-    pickMeta.textContent = `${s.bpm} BPM · ${s.key.toUpperCase()} · ${s.bars} BARS · ${s.band.length + 1} INSTRUMENTS`;
+    pickMeta.textContent = `${s.bpm} BPM · ${s.key.toUpperCase()} · ${s.bars} BARS · ${s.band.length + 1} IN THE BAND`;
     chips(pickChips, false);
     deckSleeve.innerHTML = sleeveSvg(s);
     deckTitle.textContent = s.title;
@@ -255,6 +256,7 @@ export function renderRecords(root: HTMLElement, songs: Song[], band: Band, play
     grooveFill.style.width = '0%';
     paint();
     try {
+      band.setEffects(song().band); // the effects this record uses are loaded, the others let go
       await band.start();
       status.textContent = 'Setting up the room…';
       player.setup(song());

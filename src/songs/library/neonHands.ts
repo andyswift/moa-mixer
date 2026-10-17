@@ -1,5 +1,5 @@
 import { arpeggio, at16, chordAt, DRUM, note, steps } from '../generators';
-import { DRUM_PUNCH, mixerSettings } from '../mixes';
+import { DRUM_PUNCH, mixerSettings, STANDARD_EFFECTS } from '../mixes';
 import type { NoteEvent, Song } from '../types';
 
 /** An original synth-pop tune: 118 bpm, D minor, the loop Dm - Bb - F - C, a bar a chord. Twelve bars. */
@@ -78,7 +78,7 @@ export function neonHands(): Song {
     bars: BARS,
     beatsPerBar: 4,
     sleeve: { art: 'hands', colors: ['#3a1d6e', '#ff4fa3', '#59d8e6'] },
-    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe'],
+    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', ...STANDARD_EFFECTS],
     setup: {
       drums: DRUM_PUNCH,
       synth: { synth: { preset: 3 } }, // Fat Pulse Bass
@@ -87,7 +87,7 @@ export function neonHands(): Song {
       duo: { duo: { preset: 12 } }, // Pulse Sweep
       df2: { lynch: { preset: 11 }, box: { preset: 4, controls: { 'f1.res': 0.25, 'f2.res': 0.22, 'delay.level': 0.08 } } },
       pipe: { pipe: { preset: 4 } }, // Marimba
-      mixer: mixerSettings({
+      ...mixerSettings({
         drums: { kick: 1.1, snare: 1.1, clap: 1.05, rest: 0.95 },
         duck: 0.25,
         reverb: { ch4: 0.28, ch5: 0.3, ch2: 0.25, line1: 0.22, line4: 0.35, line3: 0.22 },

@@ -114,7 +114,7 @@ export function twoStepSunrise(): Song {
     bars: BARS,
     beatsPerBar: 4,
     sleeve: { art: 'sunrise', colors: ['#ff7a3d', '#ffd25e', '#3a1d46'] },
-    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe'],
+    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', 'reverb', 'delay', 'buscomp'],
     setup: {
       drums: DRUM_PUNCH,
       synth: { synth: { preset: 1 } }, // Sub Bass
@@ -137,8 +137,8 @@ export function twoStepSunrise(): Song {
             'ret1.fader': 0.8, 'ret2.fader': 0.7, 'ret4.fader': 0.9,
           },
         },
-        buscomp: { controls: { 'bc.duck.depth': 0.3, 'bc.duck.release': 220, 'bc.threshold': -10, 'bc.ratio': 2, 'bc.makeup': 1 } },
       },
+      buscomp: { buscomp: { controls: { 'bc.duck.depth': 0.3, 'bc.duck.release': 220, 'bc.threshold': -10, 'bc.ratio': 2, 'bc.makeup': 1 } } },
     },
     tracks: { drums: drums(), synth: bass(), poly: pad(), lynch: vibes(), duo: stabs(), pipe: bells(), df2: filterBox() },
     automation: [

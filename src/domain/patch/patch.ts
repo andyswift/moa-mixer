@@ -63,6 +63,27 @@ export class Patch {
     return this;
   }
 
+  /** An effect page: just the effect, its output to the speakers (and the audio bus). The input is fed from outside. */
+  static reverb(): Patch {
+    return new Patch().add('reverb', new ReverbFx('Reverb')).setOutput('reverb', 'out');
+  }
+
+  static delay(): Patch {
+    return new Patch().add('delay', new DelayFx('Delay')).setOutput('delay', 'out');
+  }
+
+  static ouroboros(): Patch {
+    return new Patch().add('ouroboros', new OuroborosFx('Ouroboros')).setOutput('ouroboros', 'out');
+  }
+
+  static buscomp(): Patch {
+    return new Patch().add('buscomp', new BusCompFx('Bus Comp')).setOutput('buscomp', 'out');
+  }
+
+  static granular(): Patch {
+    return new Patch().add('granular', new GranularFx('Granular')).setOutput('granular', 'out');
+  }
+
   /** The poly synth page: just the synth, straight to the speakers. */
   static poly(clock = new MidiClock()): Patch {
     return new Patch().add('poly', new PolySynth('Poly', clock)).setOutput('poly', 'out');
@@ -108,12 +129,20 @@ export class Patch {
       .setOutput('spring', 'out');
   }
 
-  /** The mixer page: the mixer and its effects, with no instruments (their audio arrives over the audio bus). */
+  /**
+   * The mixer page: just the mixer, with no instruments and no effects (their audio arrives over the audio bus, and the
+   * effect pages take the sends and buses from it). Buses B and C go nowhere by themselves: they only feed effects.
+   */
   static mixerRack(): Patch {
-    return Patch.wireRack(Patch.addRack(new Patch(), 4));
+    const patch = new Patch().add('mixer', new Mixer(2 + DRUM_VOICES.length, 'Mixer', 5, { 3: 'C', 4: 'B' }, 4));
+    const mixer = patch.device<Mixer>('mixer');
+    (mixer.control('busC.main') as ToggleControl).set(false);
+    (mixer.control('busB.main') as ToggleControl).set(false);
+    (mixer.control('key.source') as ChoiceControl).set('3');
+    return patch.setOutput('mixer', 'main');
   }
 
-  /** The whole rig in one patch: the instruments feed the mixer directly. Used by tests and as the reference wiring. */
+  /** The whole rig in one patch: the instruments and the effects wired to the mixer directly. Used by tests and as the reference wiring (the site runs each as its own page). */
   static default(clock = new MidiClock()): Patch {
     // Mixer channel 1 is the mono synth, 2 the poly synth, 3-8 the drum voices (one individual output each).
     const patch = new Patch()

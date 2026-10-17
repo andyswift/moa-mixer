@@ -192,7 +192,7 @@ interface SourceOption {
  * The MOA-FX2 front panel: a fixed 1440x400 vintage rack compressor that scales to fit the page. The VU needle
  * shows gain reduction (compressor plus ducker), or the input or output level.
  */
-export function renderBusCompPanel(d: BusCompFx, mixer: Mixer, deviceId: string, engine: AudioEngine,
+export function renderBusCompPanel(d: BusCompFx, mixer: Mixer | undefined, deviceId: string, engine: AudioEngine,
   sources: SourceOption[]): HTMLElement {
   loadSavedPatches(STORAGE_KEY, d);
   d.loadSlot(d.currentSlot);
@@ -367,11 +367,11 @@ export function renderBusCompPanel(d: BusCompFx, mixer: Mixer, deviceId: string,
   keyLabel.style.cssText = 'font-size:11px;color:#c4c2a4';
   const keyGrid = el('div');
   keyGrid.style.cssText = 'display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px';
-  const source = mixer.control('key.source') as ChoiceControl;
-  const sourceButtons = sources.map((s) => {
+  const source = mixer?.control('key.source') as ChoiceControl | undefined;
+  const sourceButtons = (source ? sources : []).map((s) => {
     const b = el('button', 'bc-keybtn', s.label);
     b.type = 'button';
-    b.addEventListener('click', () => source.set(s.value));
+    b.addEventListener('click', () => source?.set(s.value));
     keyGrid.append(b);
     return { b, value: s.value };
   });
@@ -382,15 +382,19 @@ export function renderBusCompPanel(d: BusCompFx, mixer: Mixer, deviceId: string,
   keyGrid.append(listenButton);
   const paintKeys = () => {
     for (const { b, value } of sourceButtons) {
-      b.setAttribute('aria-pressed', String(source.value === value));
-      b.classList.toggle('bc-lit', source.value === value);
+      b.setAttribute('aria-pressed', String(source?.value === value));
+      b.classList.toggle('bc-lit', source?.value === value);
     }
     listenButton.setAttribute('aria-pressed', String(listen.value));
     listenButton.classList.toggle('bc-lit', listen.value);
   };
-  source.onChange(paintKeys);
+  source?.onChange(paintKeys);
   listen.onChange(paintKeys);
   paintKeys();
+  if (!source) {
+    keyLabel.textContent = 'Key source is chosen on the mixer';
+    keyGrid.style.gridTemplateColumns = '1fr';
+  }
   keyBlock.append(keyLabel, keyGrid);
   const activity = el('div');
   activity.style.cssText = 'display:flex;align-items:center;gap:8px;margin-top:2px';

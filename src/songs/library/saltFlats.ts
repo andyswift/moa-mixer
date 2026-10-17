@@ -1,5 +1,5 @@
 import { at16, chordAt, DRUM, note, steps } from '../generators';
-import { DRUM_PUNCH, mixerSettings } from '../mixes';
+import { DRUM_PUNCH, mixerSettings, STANDARD_EFFECTS } from '../mixes';
 import type { NoteEvent, Song } from '../types';
 
 /** An original driving trance tune: 138 bpm, F# minor, the loop F#m - D - A - E, a bar a chord. Sixteen bars. */
@@ -84,7 +84,7 @@ export function saltFlats(): Song {
     bars: BARS,
     beatsPerBar: 4,
     sleeve: { art: 'flats', colors: ['#f3e3c1', '#e6c88e', '#3a1d46'] },
-    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe'],
+    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', ...STANDARD_EFFECTS],
     setup: {
       drums: DRUM_PUNCH,
       synth: { synth: { preset: 6 } }, // Rubber Bass
@@ -93,7 +93,7 @@ export function saltFlats(): Song {
       duo: { duo: { preset: 2 } }, // Hard Sync Lead (rising arpeggio)
       df2: { lynch: { preset: 3 }, box: { preset: 3, controls: { 'f1.res': 0.3, 'f2.res': 0.26, 'delay.level': 0.08 } } }, // String Ensemble into Screaming Madman
       pipe: { pipe: { preset: 5 } }, // Glass Bell
-      mixer: mixerSettings({
+      ...mixerSettings({
         drums: { kick: 1.15, snare: 1.0, clap: 1.1, rest: 1.0 },
         duck: 0.3,
         reverb: { ch5: 0.3, ch2: 0.18, line1: 0.2, line2: 0.2, line3: 0.25, line4: 0.35 },

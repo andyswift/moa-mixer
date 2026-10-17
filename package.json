@@ -16,7 +16,13 @@
     "build:synth": "tsc --noEmit && vite build --config vite.synth.config.ts",
     "build:poly": "tsc --noEmit && vite build --config vite.poly.config.ts",
     "build:drums": "tsc --noEmit && vite build --config vite.drums.config.ts",
-    "build:records": "tsc --noEmit && vite build --config vite.records.config.ts"
+    "build:records": "tsc --noEmit && vite build --config vite.records.config.ts",
+    "build:reverb": "tsc --noEmit && vite build --config vite.reverb.config.ts",
+    "build:delay": "tsc --noEmit && vite build --config vite.delay.config.ts",
+    "build:ouroboros": "tsc --noEmit && vite build --config vite.ouroboros.config.ts",
+    "build:buscomp": "tsc --noEmit && vite build --config vite.buscomp.config.ts",
+    "build:granular": "tsc --noEmit && vite build --config vite.granular.config.ts",
+    "build:2600": "tsc --noEmit && vite build --config vite.2600.config.ts"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

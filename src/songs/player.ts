@@ -1,4 +1,4 @@
-import type { ControlMessage, PageId } from './control';
+import { type ControlMessage, EFFECT_PAGES, type PageId } from './control';
 import type { Automation, Song } from './types';
 
 /** What the player needs from the outside, so tests can run it on a fake clock. */
@@ -116,7 +116,8 @@ export class SongPlayer {
     for (const page of pages) {
       if (page === 'mixer') continue;
       const settings = { ...(song.setup[page] ?? {}) };
-      for (const [device, s] of Object.entries(settings)) settings[device] = { channel: 'omni', ...s };
+      const isEffect = (EFFECT_PAGES as readonly PageId[]).includes(page); // effects take no notes, so no channel to open
+      if (!isEffect) for (const [device, s] of Object.entries(settings)) settings[device] = { channel: 'omni', ...s };
       this.host.control(page, { type: 'apply', settings });
     }
     this.host.control('mixer', { type: 'apply', settings: song.setup.mixer, inputs: song.inputs });

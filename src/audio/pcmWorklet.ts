@@ -71,11 +71,14 @@ class PcmSend extends AudioWorkletProcessor {
   constructor() {
     super();
     this.n = ${PCM_CHUNK};
+    this.active = false; // the main thread switches this on while some tab listens to the port
+    this.port.onmessage = (e) => { this.active = !!e.data.active; this.at = 0; };
     this.l = new Float32Array(this.n);
     this.r = new Float32Array(this.n);
     this.at = 0;
   }
   process(inputs) {
+    if (!this.active) return true; // nobody is listening: do no work
     const input = inputs[0];
     if (input && input[0]) {
       const left = input[0];
