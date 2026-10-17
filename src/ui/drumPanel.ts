@@ -59,11 +59,6 @@ function renderVoice(d: DrumMachine, voice: DrumVoice, index: number, engine: Au
     chip.style.marginLeft = 'auto';
     head.append(chip);
   }
-  if (voice === 'ride') {
-    const chip = renderToggleButton(toggle(d, 'ride.classic'), 'Play the older ride sound, for comparison', () => 'Old', color, 'btn drum-choke');
-    chip.style.marginLeft = 'auto';
-    head.append(chip);
-  }
 
   const pad = el('button', 'drum-pad');
   pad.type = 'button';
