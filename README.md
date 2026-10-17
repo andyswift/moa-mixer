@@ -51,7 +51,7 @@ Pages: `/mixer/`, `/synth/` (MOA-1), `/poly/` (MOA-6), `/drums/` (MOA-DR), `/lyn
   - Two ADSR envelopes: one drives the VCA, one sweeps the filter.
   - LFO with triangle, square and sample-and-hold waves.
   - Portamento, with legato or retrigger behaviour for overlapping notes.
-  - **Accent** and **Drive** for acid lines: a note at velocity 110 or more is accented (louder, a deeper and shorter filter sweep, by the Accent amount), and Drive blends in a parallel distortion after the filter (boost, clip, tone). Both default to 0, so other patches sound as before; Acid Squelch uses the accent (drive muddies a bass-register line; it suits higher ones).
+  - **Accent** and **Drive** for acid lines: a note at velocity 110 or more is accented (louder, a deeper and shorter filter sweep, by the Accent amount), and Drive blends in a parallel distortion after the filter (boost, a **tilt EQ** that picks what distorts, clip, tone; tilt it bright and a bass line keeps a clean low end). Both default to 0, so other patches sound as before; Acid Squelch uses the accent (drive muddies a bass-register line; it suits higher ones).
   - **Keyboard bed** fused into the bottom of the panel: 49 keys (C2-C6, the home row plays from middle C), a spring-back **pitch wheel** (+/- 2 semitones), a **mod wheel** that adds LFO vibrato depth on top of the Mod fader, and `<` `>` octave buttons (-2 to +2). Keys light for notes from MIDI too.
   - **18 mono patches plus an Init** (basses, leads, brass, effects) from the patch picker in the panel header. The real SH-101 has no patch memory, so these are recipes for the sounds it is known for, not factory dumps.
 - **MOA-6, a six-voice poly synth with one oscillator per voice**

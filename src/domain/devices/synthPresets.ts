@@ -37,6 +37,7 @@ export const INIT: PresetValues = {
   'perf.notes': 'legato',
   accent: 0,
   drive: 0,
+  'drive.tilt': 0,
   level: 0.5,
 };
 

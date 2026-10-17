@@ -24,6 +24,7 @@ export const ACCENT_VELOCITY = 110;
 const ACCENT_AMP = 0.6; // at full accent, accented notes are this much louder
 const ACCENT_ENV = 0.8; // ... their filter envelope swings this much further
 const ACCENT_DECAY = 0.12; // ... and decays no longer than this (s)
+const DRIVE_TILT_HZ = 700; // the drive's tilt EQ pivots here
 
 /**
  * SH-101 style monophonic synth:
@@ -32,7 +33,8 @@ const ACCENT_DECAY = 0.12; // ... and decays no longer than this (s)
  * are both summed into every oscillator's detune, so the sub tracks the keyboard for free.
  * ampEnv drives the VCA, filterEnv sweeps the filter cutoff (and the keyboard follows it via keyFollow).
  * Accent (for acid lines): a loud note (velocity 110 and up) is louder, with a deeper and shorter filter sweep.
- * Drive: a parallel distortion after the filter, blended in as it rises, so at 0 the dry sound is untouched.
+ * Drive: a parallel distortion after the filter, blended in as it rises, so at 0 the dry sound is untouched. A tilt EQ
+ * before its clipper picks what distorts: tilted bright, the lows stay clean (no mud on a bass line); dark, a fatter fuzz.
  */
 export class Synthesizer extends Device {
   readonly name: string;
@@ -85,9 +87,11 @@ export class Synthesizer extends Device {
       .add('amp', 'gain', { gain: 0 }) // silent until the amp envelope opens it
       .add('accentAmp', 'gain', { gain: 1 })
       .add('level', 'gain', { gain: 0.5 })
-      // drive: a dry path and a boosted, clipped and darkened path, crossfaded
+      // drive: a dry path and a boosted, tilted, clipped and darkened path, blended
       .add('driveDry', 'gain', { gain: 1 })
       .add('drivePre', 'gain', { gain: 1 })
+      .add('driveTiltLo', 'filter', { frequency: DRIVE_TILT_HZ, Q: 0.707, gain: 0, detune: 0 }, { type: 'lowshelf' })
+      .add('driveTiltHi', 'filter', { frequency: DRIVE_TILT_HZ, Q: 0.707, gain: 0, detune: 0 }, { type: 'highshelf' })
       .add('driveShaper', 'waveshaper', {}, { curve: 'soft' })
       .add('driveTone', 'filter', { frequency: 4200, Q: 0.6, detune: 0 }, { type: 'lowpass' })
       .add('driveWet', 'gain', { gain: 0 })
@@ -121,7 +125,9 @@ export class Synthesizer extends Device {
       .connect('filter1', 'filter2')
       .connect('filter2', 'driveDry')
       .connect('filter2', 'drivePre')
-      .connect('drivePre', 'driveShaper')
+      .connect('drivePre', 'driveTiltLo')
+      .connect('driveTiltLo', 'driveTiltHi')
+      .connect('driveTiltHi', 'driveShaper')
       .connect('driveShaper', 'driveTone')
       .connect('driveTone', 'driveWet')
       .connect('driveDry', 'amp')
@@ -210,11 +216,15 @@ export class Synthesizer extends Device {
         this.applyAccent();
       }),
       new NumberControl('drive', 'Drive', 0, 1, 0, '', (v) => {
-        // the wet path comes in over the first third; the boost keeps rising to the top
+        // the wet path comes in over the first third (the dry stays under it at 35 %); the boost keeps rising to the top
         const wet = Math.min(1, v * 3);
-        c.setParam('driveDry', 'gain', 1 - wet);
+        c.setParam('driveDry', 'gain', 1 - wet * 0.65);
         c.setParam('drivePre', 'gain', 1 + v * 24);
         c.setParam('driveWet', 'gain', wet * 0.55);
+      }),
+      new NumberControl('drive.tilt', 'Tilt', -12, 12, 0, 'dB', (v) => {
+        c.setParam('driveTiltLo', 'gain', -v);
+        c.setParam('driveTiltHi', 'gain', v);
       }),
       ...adsr(c, 'ampEnv', { attack: 0.005, decay: 0.2, sustain: 0.7, release: 0.3 }),
     );

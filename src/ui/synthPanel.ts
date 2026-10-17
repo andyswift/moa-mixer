@@ -43,7 +43,7 @@ const ROWS: SectionSpec[][] = [
     },
     { title: 'Filter envelope', color: BLUE, grow: 4, faders: adsr('filterEnv') },
     { title: 'Amp envelope', color: ORANGE, grow: 4, faders: adsr('ampEnv') },
-    { title: 'Master', color: PINK, grow: 2, faders: ['drive', 'level'] },
+    { title: 'Master', color: PINK, grow: 3, faders: ['drive', { id: 'drive.tilt', label: 'Tilt' }, 'level'] },
   ],
 ];
 

@@ -569,12 +569,22 @@ describe('MOA-1 accent and drive', () => {
     expect(param(s, 'accentAmp', 'gain')).toBe(1);
   });
 
+  it('the drive tilt cuts the lows and lifts the highs going into the clipper (and the reverse)', () => {
+    const s = new Synthesizer();
+    expect(param(s, 'driveTiltLo', 'gain')).toBeCloseTo(0);
+    set(s, 'drive.tilt', 9);
+    expect(param(s, 'driveTiltLo', 'gain')).toBe(-9);
+    expect(param(s, 'driveTiltHi', 'gain')).toBe(9);
+    set(s, 'drive.tilt', -6);
+    expect(param(s, 'driveTiltLo', 'gain')).toBe(6);
+  });
+
   it('drive at 0 leaves the dry path alone; turned up it crossfades to the boosted, clipped path', () => {
     const s = new Synthesizer();
     expect(param(s, 'driveDry', 'gain')).toBe(1);
     expect(param(s, 'driveWet', 'gain')).toBe(0);
     set(s, 'drive', 0.5);
-    expect(param(s, 'driveDry', 'gain')).toBe(0);
+    expect(param(s, 'driveDry', 'gain')).toBeCloseTo(0.35);
     expect(param(s, 'driveWet', 'gain')).toBeGreaterThan(0.5);
     expect(param(s, 'drivePre', 'gain')).toBeGreaterThan(10);
   });
