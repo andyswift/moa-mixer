@@ -580,13 +580,19 @@ describe('MOA-1 accent and drive', () => {
     expect(param(s, 'driveTiltLo', 'gain')).toBe(6);
   });
 
-  it('drive at 0 leaves the dry path alone; turned up it crossfades to the boosted, clipped path', () => {
+  it('drive at 0 leaves the dry path alone; turned up it blends in the folder and folds deeper', () => {
     const s = new Synthesizer();
     expect(param(s, 'driveDry', 'gain')).toBe(1);
     expect(param(s, 'driveWet', 'gain')).toBe(0);
     set(s, 'drive', 0.5);
     expect(param(s, 'driveDry', 'gain')).toBeCloseTo(0.35);
     expect(param(s, 'driveWet', 'gain')).toBeGreaterThan(0.5);
-    expect(param(s, 'drivePre', 'gain')).toBeGreaterThan(10);
+    expect(param(s, 'driveFold', 'fold')).toBeGreaterThan(5);
+    set(s, 'drive.even', 0.4);
+    set(s, 'drive.harmonics', 8);
+    expect(param(s, 'driveFold', 'even')).toBe(0.4);
+    expect(param(s, 'driveFold', 'harmonics')).toBe(8);
+    // the folder follows the played pitch: the same pitch CVs as the oscillators
+    for (const cv of ['pitch', 'range', 'bend']) expect(s.circuit.cables).toContainEqual({ from: cv, to: 'driveFold', port: 'pitch' });
   });
 });

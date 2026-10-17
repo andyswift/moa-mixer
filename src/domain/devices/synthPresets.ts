@@ -38,6 +38,8 @@ export const INIT: PresetValues = {
   accent: 0,
   drive: 0,
   'drive.tilt': 0,
+  'drive.even': 0,
+  'drive.harmonics': 48,
   level: 0.5,
 };
 

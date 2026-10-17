@@ -34,10 +34,12 @@
 // state-variable), envelopes, VCA, utilities and a reverb in one worklet, stereo out, no input. It takes `play` like a
 // duo node (n1 the keyboard CV note, n2 the upper voice) and `send` messages; its params are listed in `m2600Params.ts`.
 // Its `cords` option holds the patch cords (JSON) so a worklet built later starts with them.
+// 'fold' is the MOA-1's drive: a wavefolder with antialiasing and a pitch-tracking low-pass, mono in and out. Params
+// fold, even, harmonics and pitch (cents from A4, a CV); see `foldWorklet.ts`.
 // 'df' is the MOA-DF2 filter box: two multimode filters, two envelopes, a sample-and-hold, a delay and a mixer in
 // one worklet; stereo in, stereo out. Its params are listed in `dfWorklet.ts`. `gate(id, target, on)` drives its
 // envelope gates: 'keys' (the held keys) or 'open1' / 'open2' (the OPEN buttons).
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df' | 'duo' | 'm2600';
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df' | 'duo' | 'm2600' | 'fold';
 
 export interface CircuitNode {
   readonly id: string;
