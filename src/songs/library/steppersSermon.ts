@@ -178,6 +178,5 @@ export function steppersSermon(): Song {
     tracks: { drums: parts.drums(), bass: parts.bass(), poly: parts.bubble(), lynch: parts.skank(), pipe: parts.melodica(), m2600: parts.siren() },
     automation: dubMix(),
     humanise: { timing: { drums: 5, bass: 8, poly: 10, lynch: 7, pipe: 12, m2600: 4 }, velocity: 0.08, layback: { drums: { 37: 12 } } },
-    localOnly: true, // a candidate until approved
   };
 }
