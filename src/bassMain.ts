@@ -1,19 +1,19 @@
 import './ui/style.css';
 import './ui/bass.css';
 import { AudioEngine } from './audio/engine';
-import type { BassString } from './domain/devices/bassString';
+import type { BassGuitar } from './domain/devices/bassGuitar';
 import { MidiClock } from './domain/midi/clock';
 import { Patch } from './domain/patch/patch';
 import { renderBassPanel } from './ui/bassPanel';
 import { mountInstrumentPage } from './ui/instrumentPage';
 import { mountKeyboardBed } from './ui/keyboard';
 
-// MOA-BASS: one physically modelled bass string on its own page. Its sound is also published on the audio bus as
+// MOA-BASS: a four-string bass, each string physically modelled, into an amp and cabinet, on its own page. Its sound is also published on the audio bus as
 // "MOA-BASS", where the mixer page can take it into a channel.
 const clock = new MidiClock();
 const patch = Patch.bass();
 const engine = new AudioEngine(patch);
-const bass = patch.device<BassString>('bass');
+const bass = patch.device<BassGuitar>('bass');
 
 const wrap = document.createElement('div');
 wrap.className = 'bass-wrap';

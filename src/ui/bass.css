@@ -8,6 +8,12 @@
 .bass-fact-value { margin-top: 4px; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 15px; color: #f1eee6; white-space: nowrap; }
 .bass-fact-value.bass-off { color: #ffb27a; }
 .bass-board { display: flex; flex-direction: column; gap: 6px; }
-.bass-canvas { width: 100%; height: 190px; border-radius: 6px; background: #16171a; cursor: crosshair; touch-action: none; }
+.bass-canvas { width: 100%; height: 230px; border-radius: 6px; background: #16171a; cursor: crosshair; touch-action: none; }
 .bass-hint { font-family: 'Barlow Condensed', system-ui, sans-serif; font-size: 13px; letter-spacing: 0.12em; color: #7f848b; text-transform: uppercase; }
-.bass-action { flex: none; align-self: flex-end; min-width: 84px; height: 40px; font-size: 14px; letter-spacing: 0.14em; }
+.bass-action { flex: none; align-self: flex-end; min-width: 64px; height: 40px; font-size: 14px; letter-spacing: 0.14em; }
+.bass-table-wrap { overflow-x: auto; }
+.bass-table { width: 100%; border-collapse: collapse; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; color: #f1eee6; }
+.bass-table th { padding: 4px 8px; text-align: left; font-family: 'Barlow Condensed', system-ui, sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #a9adb3; border-bottom: 1px solid #3a3d42; white-space: nowrap; }
+.bass-table td { padding: 4px 8px; border-bottom: 1px solid #26292d; white-space: nowrap; }
+.bass-table td:first-child { font-family: 'Barlow Condensed', system-ui, sans-serif; font-weight: 700; font-size: 16px; color: #ffd25e; }
+.bass-table td.bass-off { color: #ffb27a; }
