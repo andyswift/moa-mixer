@@ -5,7 +5,7 @@ import { GranularFx } from '../devices/granular';
 import { OuroborosFx } from '../devices/ouroboros';
 import { DuoSynth } from '../devices/duoSynth';
 import { M2600Synth } from '../devices/m2600Synth';
-import { BassString } from '../devices/bassString';
+import { BassGuitar } from '../devices/bassGuitar';
 import { FilterBox } from '../devices/filterBox';
 import { LynchSynth } from '../devices/lynchSynth';
 import { PipeSynth } from '../devices/pipeSynth';
@@ -111,9 +111,9 @@ export class Patch {
     return new Patch().add('lynch', new LynchSynth('Lynch', clock)).setOutput('lynch', 'out');
   }
 
-  /** The MOA-BASS page: one modelled string straight to the speakers. */
+  /** The MOA-BASS page: the four-string bass, its amp and cabinet, straight to the speakers. */
   static bass(): Patch {
-    return new Patch().add('bass', new BassString('MOA-BASS')).setOutput('bass', 'out');
+    return new Patch().add('bass', new BassGuitar('MOA-BASS')).setOutput('bass', 'out');
   }
 
   /** The MOA-2600 page: the synth (with the MOA-SQ16 under it) straight to the speakers. */

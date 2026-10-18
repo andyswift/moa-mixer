@@ -345,6 +345,7 @@ export class AudioEngine {
           else if (n.options.curve === 'soft') ws.curve = softCurve();
           else if (n.options.curve === 'limit') ws.curve = limitCurve();
           else if (n.options.curve === 'warm') ws.curve = warmCurve();
+          else if (n.options.curve === 'tube') ws.curve = tubeCurve();
           else if (n.options.curve === 'abs') ws.curve = absCurve();
           else if (n.options.curve === 'crush') ws.curve = crushCurve(n.params.bits ?? 16);
           ws.oversample = '4x';
@@ -594,6 +595,23 @@ export const WARM_RANGE = 3; // the 'warm' curve spans input amplitudes of +/-3 
  * The channel gain stage: transparent up to 0.6, then a smooth tanh knee that settles at 1.0, reached
  * (with a flat slope, so no corner) at the edge of the +/-3 input range. Hot signals round off instead of clipping.
  */
+/**
+ * A valve's transfer curve: asymmetric (it gives way sooner on one side, as a triode biased off centre does), so it
+ * adds even harmonics, warm and round, rather than a clipper's odd ones. tanh(x + bias) - tanh(bias), scaled to +/-1
+ * at the input's ends; small signals pass at a gain of about 1.
+ */
+function tubeCurve(): Float32Array<ArrayBuffer> {
+  const size = 4097;
+  const curve = new Float32Array(new ArrayBuffer(size * 4));
+  const drive = 2.2, bias = 0.35;
+  const slope = drive * (1 - Math.tanh(bias) ** 2); // the gain at zero, divided out so quiet signals stay at their level
+  for (let i = 0; i < size; i++) {
+    const x = (i / (size - 1)) * 2 - 1;
+    curve[i] = (Math.tanh(drive * x + bias) - Math.tanh(bias)) / slope;
+  }
+  return curve;
+}
+
 function warmCurve(): Float32Array<ArrayBuffer> {
   const size = 4097;
   const curve = new Float32Array(new ArrayBuffer(size * 4));
