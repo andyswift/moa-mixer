@@ -5,6 +5,7 @@ import { M2600_SWITCHES } from '../domain/devices/m2600Params';
 import { DUO_NAME, DUO_SOURCE } from './duoWorklet';
 import { FOLD_NAME, FOLD_SOURCE } from './foldWorklet';
 import { LADDER_NAME, LADDER_SOURCE } from './ladderWorklet';
+import { STRING_NAME, STRING_SOURCE } from './stringWorklet';
 import { GRANULAR_NAME, GRANULAR_SOURCE } from './granularWorklet';
 import { M2600_NAME, M2600_SOURCE } from './m2600Worklet';
 import { PIPE_NAME, PIPE_SOURCE, SPRING_NAME } from './pipeWorklet';
@@ -47,6 +48,12 @@ export interface M2600View {
   sq?: { step: number; running: boolean; clk: boolean };
 }
 
+/** What a string node reports for display: its modes' amplitudes (m) and how far tension modulation has raised the pitch. */
+export interface StringView {
+  amps: Float32Array;
+  pitchScale: number;
+}
+
 /** Compiles a Patch into Web Audio nodes and keeps them in sync with domain state. */
 export class AudioEngine {
   private ctx?: AudioContext;
@@ -59,6 +66,7 @@ export class AudioEngine {
   private readonly dfViews = new Map<string, DFView>();
   private readonly duoViews = new Map<string, DuoView>();
   private readonly m2600Views = new Map<string, M2600View>();
+  private readonly stringViews = new Map<string, StringView>();
   private readonly meters = new Map<string, { analyser: AnalyserNode; buffer: Float32Array<ArrayBuffer> }>();
 
   constructor(private readonly patch: Patch) {}
@@ -130,6 +138,11 @@ export class AudioEngine {
   /** The latest envelope and gate state of a filter-box node; undefined until audio has started. */
   readDF(deviceId: string, nodeId: string): DFView | undefined {
     return this.dfViews.get(`${deviceId}/${nodeId}`);
+  }
+
+  /** The latest mode amplitudes of a string node; undefined until audio has started. */
+  readString(deviceId: string, nodeId: string): StringView | undefined {
+    return this.stringViews.get(`${deviceId}/${nodeId}`);
   }
 
   /** The latest lamps and envelope levels of a 2600 node; undefined until audio has started. */
@@ -258,6 +271,15 @@ export class AudioEngine {
             numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], parameterData: n.params,
           });
           node.port.onmessage = (e: MessageEvent<DuoView>) => this.duoViews.set(`${deviceId}/${n.id}`, e.data);
+          nodes.set(n.id, node);
+          break;
+        }
+        case 'string': {
+          const node = new AudioWorkletNode(ctx, STRING_NAME, {
+            numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1], parameterData: n.params,
+            processorOptions: { config: JSON.parse(n.options.config ?? '{}') as unknown },
+          });
+          node.port.onmessage = (e: MessageEvent<StringView>) => this.stringViews.set(`${deviceId}/${n.id}`, e.data);
           nodes.set(n.id, node);
           break;
         }
@@ -687,7 +709,7 @@ registerProcessor('${FOLLOWER_NAME}', MoaFollower);
 `;
 
 /** Every processor, as the one script the audio worklet loads. Top-level names must not clash between them. */
-export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE].join('\n');
+export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE].join('\n');
 
 /** The processors are one worklet module, loaded from an in-memory script. */
 function workletModuleUrl(): string {

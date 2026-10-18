@@ -9,7 +9,7 @@ export const BAND_PAGES = ['mixer', 'synth', 'poly', 'drums', 'lynch', 'duo', 'd
 /** Effects, each a page of its own: a record loads the ones it uses. */
 export const EFFECT_PAGES = ['reverb', 'delay', 'ouroboros', 'buscomp', 'granular'] as const;
 /** Instruments heavy enough that a record loads them only when it uses them, like the effects. */
-export const EXTRA_INSTRUMENTS = ['m2600'] as const;
+export const EXTRA_INSTRUMENTS = ['m2600', 'bass'] as const;
 export const PAGE_IDS = [...BAND_PAGES, ...EFFECT_PAGES, ...EXTRA_INSTRUMENTS] as const;
 export type PageId = (typeof PAGE_IDS)[number];
 /** The pages a record brings into the room only if it lists them in its band. */

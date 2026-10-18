@@ -6,18 +6,18 @@ import { mountKeyboardBed } from './keyboard';
 import { renderTransportBlock } from './transportBlock';
 import { el, renderFader } from './widgets';
 
-const PINK = '#d9628a';
-const GREEN = '#4fb286';
-const ORANGE = '#e8742c';
-const YELLOW = '#dcb43c';
-const BLUE = '#4a9be0';
+export const PINK = '#d9628a';
+export const GREEN = '#4fb286';
+export const ORANGE = '#e8742c';
+export const YELLOW = '#dcb43c';
+export const BLUE = '#4a9be0';
 
-interface FaderSpec {
+export interface FaderSpec {
   id: string;
   label?: string;
 }
 
-interface SectionSpec {
+export interface SectionSpec {
   title: string;
   color: string;
   grow: number;
@@ -113,7 +113,7 @@ function renderToggle(c: ToggleControl, color: string): HTMLElement {
   return wrap;
 }
 
-function renderSection(device: Device, spec: SectionSpec): HTMLElement {
+export function renderSection(device: Device, spec: SectionSpec): HTMLElement {
   const section = el('section', 'synth-section');
   section.style.flex = `${spec.grow} 1 0`;
   const head = el('div', 'synth-section-head');

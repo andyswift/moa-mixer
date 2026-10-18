@@ -1,0 +1,13 @@
+/* ---- MOA-BASS: the live physics, the fretboard and the controls ---- */
+.bass-wrap { margin-bottom: 16px; }
+.bass-wrap .keybed { margin: 0; border-radius: 0 0 8px 8px; }
+.bass-panel { border-top-color: #ffd25e; border-radius: 8px 8px 0 0; }
+.bass-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.bass-fact { padding: 10px 12px; border: 1px solid #3a3d42; border-radius: 6px; background: #1f2124; }
+.bass-fact-label { font-family: 'Barlow Condensed', system-ui, sans-serif; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #a9adb3; }
+.bass-fact-value { margin-top: 4px; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 15px; color: #f1eee6; white-space: nowrap; }
+.bass-fact-value.bass-off { color: #ffb27a; }
+.bass-board { display: flex; flex-direction: column; gap: 6px; }
+.bass-canvas { width: 100%; height: 190px; border-radius: 6px; background: #16171a; cursor: crosshair; touch-action: none; }
+.bass-hint { font-family: 'Barlow Condensed', system-ui, sans-serif; font-size: 13px; letter-spacing: 0.12em; color: #7f848b; text-transform: uppercase; }
+.bass-action { flex: none; align-self: flex-end; min-width: 84px; height: 40px; font-size: 14px; letter-spacing: 0.14em; }
