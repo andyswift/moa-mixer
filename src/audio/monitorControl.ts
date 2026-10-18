@@ -1,3 +1,5 @@
+import { isEmbedded } from '../ui/embed';
+
 export type MonitorMode = 'auto' | 'on' | 'off';
 
 const STORAGE_KEY = 'moa.monitor';
@@ -46,8 +48,10 @@ export class MonitorControl {
   }
 }
 
+/** The browser's storage; none inside the records page, where every page is on 'auto' (only the mixer is heard). */
 function safeStorage(): Storage | undefined {
   try {
+    if (isEmbedded()) return undefined;
     return typeof localStorage === 'undefined' ? undefined : localStorage;
   } catch {
     return undefined;
