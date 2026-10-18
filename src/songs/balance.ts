@@ -11,7 +11,6 @@ import type { Song } from './types';
  * than that (closed hats made of soft ghost notes) stays under its target.
  */
 export const BALANCE: Record<string, Record<string, number>> = {
-  'two-step-sunrise': { ch4: 1.11, ch5: 0.93, ch6: 1.5, ch7: 1.0, ch8: 0.77, ch1: 0.52, ch2: 0.46, line1: 0.62, line2: 0.7, line4: 1.13, line5: 0.72 },
   'glass-garden': { ch4: 1.07, ch5: 0.95, ch6: 1.47, ch7: 1.11, ch8: 0.75, ch1: 0.47, ch2: 0.5, line2: 0.54, line3: 1.11, line4: 1.13, line5: 0.7 },
   // the 2600's drone, 14 under the kick (the rest of this one is balanced in its own file)
   'black-fjord-liturgy': { line5: 0.49 },
