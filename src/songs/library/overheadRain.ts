@@ -136,14 +136,7 @@ export function overheadRain(): Song {
       pipe: { pipe: { preset: 8 } }, // Pan Flute
       delay: { delay: { controls: { 'delay.time': 264.7, 'delay.feedback': 0.4 } } }, // a dotted eighth at 170
       reverb: { reverb: { controls: { 'reverb.size': 'large', 'reverb.lowcut': 250, 'reverb.predelay': 25 } } },
-      mixer: { mixer: { controls: {
-        ...mix.mixer.mixer!.controls,
-        // parallel compression at the desk: the breaks dry on the main bus, and a copy on bus B into the bus
-        // compressor, crushed and brought back on its return; the sub and pad stay off bus B
-        'line2.busA': true, 'line2.busB': true, 'ret4.fader': 1.3, // the crushed copy about 3 dB under the dry breaks 'ch1.busA': true, 'ch1.busB': false, 'ch2.busA': true, 'ch2.busB': false,
-      } } },
-      // the crushed copy: hard, the attack letting each stroke's crack through, the release pumping with the break
-      buscomp: { buscomp: { controls: { 'bc.threshold': -30, 'bc.ratio': 6, 'bc.attack': 8, 'bc.release': 120, 'bc.knee': 4, 'bc.makeup': 14, 'bc.mix': 1, 'bc.duck.depth': 0 } } },
+      ...mix,
     },
     tracks: { mpc: drums(), synth: bass(), poly: pad(), lynch: bells(), pipe: flute() },
     automation: [
