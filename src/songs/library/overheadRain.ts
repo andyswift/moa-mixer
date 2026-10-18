@@ -113,9 +113,9 @@ export function overheadRain(): Song {
     duck: 0,
     reverb: { ch1: 0, ch2: 0.35, line1: 0.45, line2: 0.1, line4: 0.4 },
     delay: { line1: 0.25, line4: 0.2 },
-    // balanced by measured RMS (headless Chrome, a full pass) around the breaks: the sub 2 dB under them, the pad 8,
-    // the flute 9 and the bells 10
-    faders: { ch1: 0.41, ch2: 0.27, line1: 0.82, line2: 1.5, line4: 0.16 },
+    // balanced by measured RMS (headless Chrome, a full pass) around the breaks, which lead: the sub 6 dB under them,
+    // the pad 12, the flute 13 and the bells 13
+    faders: { ch1: 0.26, ch2: 0.17, line1: 0.52, line2: 1.5, line4: 0.1 },
   });
   return {
     id: 'overhead-rain',
@@ -136,7 +136,14 @@ export function overheadRain(): Song {
       pipe: { pipe: { preset: 8 } }, // Pan Flute
       delay: { delay: { controls: { 'delay.time': 264.7, 'delay.feedback': 0.4 } } }, // a dotted eighth at 170
       reverb: { reverb: { controls: { 'reverb.size': 'large', 'reverb.lowcut': 250, 'reverb.predelay': 25 } } },
-      ...mix,
+      mixer: { mixer: { controls: {
+        ...mix.mixer.mixer!.controls,
+        // parallel compression at the desk: the breaks dry on the main bus, and a copy on bus B into the bus
+        // compressor, crushed and brought back on its return; the sub and pad stay off bus B
+        'line2.busA': true, 'line2.busB': true, 'ret4.fader': 1.3, // the crushed copy about 3 dB under the dry breaks 'ch1.busA': true, 'ch1.busB': false, 'ch2.busA': true, 'ch2.busB': false,
+      } } },
+      // the crushed copy: hard, the attack letting each stroke's crack through, the release pumping with the break
+      buscomp: { buscomp: { controls: { 'bc.threshold': -30, 'bc.ratio': 6, 'bc.attack': 8, 'bc.release': 120, 'bc.knee': 4, 'bc.makeup': 14, 'bc.mix': 1, 'bc.duck.depth': 0 } } },
     },
     tracks: { mpc: drums(), synth: bass(), poly: pad(), lynch: bells(), pipe: flute() },
     automation: [

@@ -146,7 +146,7 @@ const BREAKS = [
   { id: 'g.steady', name: 'Gaute 135 steady', url: steadyUrl },
 ] as const;
 const LOOP_BEATS = 8; // every loop is two bars
-const GAUTE_LEVEL = 1.2;
+const GAUTE_LEVEL = 1.5;
 
 const gauteBreaks: FactoryKit = {
   name: 'Gaute Breaks',
