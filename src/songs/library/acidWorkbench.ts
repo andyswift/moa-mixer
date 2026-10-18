@@ -3,7 +3,7 @@ import { DRUM_PUNCH, mixerSettings, STANDARD_EFFECTS } from '../mixes';
 import type { NoteEvent, Song } from '../types';
 
 /**
- * A dev-only loop for tweaking the MOA-1: the Squelch Theory acid line (slides and accents) over a kick and a soft
+ * A dev-only loop for tweaking the MOA-1: an acid line (slides and accents) over a kick and a soft
  * off-beat hat, with no automation, so every fader stays where you put it. Open the MOA-1 from the record's band
  * chips while it plays. Never published (localOnly).
  */

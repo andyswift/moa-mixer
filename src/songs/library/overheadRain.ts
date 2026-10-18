@@ -144,6 +144,5 @@ export function overheadRain(): Song {
       { page: 'mixer', device: 'mixer', control: 'line2.fader', points: [[0, 0.4], [16, 0.4], [32, 1.5]] },
     ],
     humanise: { timing: { synth: 2, poly: 8, lynch: 4, pipe: 6 }, velocity: 0.08 },
-    localOnly: true, // a candidate until it is approved
   };
 }
