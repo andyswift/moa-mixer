@@ -1,3 +1,5 @@
+import { isEmbedded } from '../ui/embed';
+
 export const INTERNAL = '@internal';
 export const NONE = '@none';
 
@@ -150,8 +152,10 @@ export class MixerInputs {
   }
 }
 
+/** The browser's storage; none inside the records page, where a song's routing starts from the defaults every time. */
 function safeStorage(): Storage | undefined {
   try {
+    if (isEmbedded()) return undefined;
     return typeof localStorage === 'undefined' ? undefined : localStorage;
   } catch {
     return undefined;

@@ -1,5 +1,6 @@
 import type { Control } from '../domain/devices/controls';
 import type { PresetValues, SynthPreset } from '../domain/devices/synthPresets';
+import { isEmbedded } from './embed';
 
 /** What a synth or effect needs for saved patches: its controls and a list of patch slots. */
 export interface PatchSlots {
@@ -22,8 +23,9 @@ const isValues = (v: unknown, known: Set<string>): v is PresetValues =>
   typeof v === 'object' && v !== null &&
   Object.entries(v).every(([id, x]) => known.has(id) && (typeof x === 'number' || typeof x === 'string'));
 
-/** Puts the patches the user saved earlier back into the device's slots. */
+/** Puts the patches the user saved earlier back into the device's slots (not inside the records page: songs use the factory ones). */
 export function loadSavedPatches(key: string, device: PatchSlots): void {
+  if (isEmbedded()) return;
   const known = new Set(device.controls.map((c) => c.id));
   for (const [index, preset] of Object.entries(read(key))) {
     const i = Number(index);
