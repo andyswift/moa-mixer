@@ -36,7 +36,7 @@ export interface PagePort {
 
 const PAGES: [href: string, label: string][] = [
   ['/mixer/', 'The mixer'], ['/synth/', 'MOA-1'], ['/poly/', 'MOA-6'], ['/drums/', 'MOA-DR'], ['/lynch/', 'Lynch 106'],
-  ['/duo/', 'MOA-DUO'], ['/2600/', 'MOA-2600'], ['/bass/', 'MOA-BASS'], ['/df2/', 'MOA-DF2'], ['/pipe/', 'MOA-PIPE'], ['/seq/', 'MOA-SEQ'], ['/reverb/', 'Reverb'], ['/delay/', 'Delay'], ['/ouroboros/', 'Ouroboros'], ['/buscomp/', 'Bus Comp'],
+  ['/duo/', 'MOA-DUO'], ['/2600/', 'MOA-2600'], ['/bass/', 'MOA-BASS'], ['/mpc/', 'MOA-60'], ['/df2/', 'MOA-DF2'], ['/pipe/', 'MOA-PIPE'], ['/seq/', 'MOA-SEQ'], ['/reverb/', 'Reverb'], ['/delay/', 'Delay'], ['/ouroboros/', 'Ouroboros'], ['/buscomp/', 'Bus Comp'],
   ['/granular/', 'Granular'], ['/records/', 'Records'], ['/', 'moaswift.no'],
 ];
 
@@ -57,7 +57,7 @@ export function mountInstrumentPage(opts: {
   engine: AudioEngine;
   clock: MidiClock;
   ports: PagePort[];
-  onMidi: (event: MidiEvent) => void;
+  onMidi: (event: MidiEvent, time: number) => void;
   /** What goes under the strip: the panel, or several elements in order. */
   panel: HTMLElement | HTMLElement[];
   /** This page's own link, left out of the navigation row. */
@@ -67,6 +67,11 @@ export function mountInstrumentPage(opts: {
   patch: Patch;
   /** Audio inputs, for an effect page. Instruments have none. */
   inputs?: PageInput[];
+  /**
+   * For a page that schedules on its audio clock: bus messages arrive this many ms early, and `onMidi` gets the
+   * performance.now() time each is due (otherwise they arrive when due, with the time they arrived).
+   */
+  midiLeadMs?: number;
 }): { handleMidiBytes: (data: ArrayLike<number>, time?: number) => void; pcm: PcmBus } {
   const { engine, clock } = opts;
   applyEmbedMode();
@@ -138,18 +143,18 @@ export function mountInstrumentPage(opts: {
     if (!event) return;
     clock.handle(event, time);
     monitor.record(event, time);
-    opts.onMidi(event);
+    opts.onMidi(event, time);
   }
   midi.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
   void midi.connectIfPermitted();
 
   // MIDI from the sequencer page in another tab arrives over the bus, like a MIDI input.
-  const bus = new MidiBus();
+  const bus = new MidiBus(undefined, undefined, undefined, undefined, opts.midiLeadMs);
   bus.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
 
   // The records page conducts this page: it starts the audio, changes settings and plays notes on a channel of its own,
   // so the song's notes reach only this instrument whatever its MIDI channel is set to.
-  const songBus = new MidiBus(songChannelName(opts.id));
+  const songBus = new MidiBus(songChannelName(opts.id), undefined, undefined, undefined, opts.midiLeadMs);
   songBus.enabled = true;
   songBus.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
   listenForControl(opts.id, (m) => {

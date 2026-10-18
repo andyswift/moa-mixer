@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { type BusMessage, MidiBus } from '../bus';
 
 /** Two buses on one fake channel, with a controllable clock and timers. */
-function pair() {
+function pair(lead = 0) {
   const ends: { onmessage: ((e: { data: BusMessage }) => void) | null; peer?: typeof ends[number]; postMessage(m: BusMessage): void; close(): void }[] = [];
   const make = () => {
     const end = {
@@ -21,7 +21,7 @@ function pair() {
   const later = (fn: () => void, ms: number) => { timers.push({ at: time + ms, fn }); };
   const run = (to: number) => { time = to; for (const t of timers.filter((x) => x.at <= to)) { timers.splice(timers.indexOf(t), 1); t.fn(); } };
   const sender = new MidiBus('x', () => time, later, () => a);
-  const receiver = new MidiBus('x', () => time, later, () => b);
+  const receiver = new MidiBus('x', () => time, later, () => b, lead);
   return { sender, receiver, run, now: () => time };
 }
 
@@ -44,6 +44,20 @@ describe('MidiBus', () => {
     expect(got).toEqual([]);
     run(1100);
     expect(got).toEqual([[0x80, 60, 0]]);
+  });
+
+  it('with a lead, hands a message over that much early, stamped with the time it is due', () => {
+    const { sender, receiver, run } = pair(40);
+    const got: { at: number; stamp: number }[] = [];
+    const t0 = performance.now();
+    receiver.onMessage = (_d, stamp) => got.push({ at: Date.now(), stamp: stamp - t0 });
+    sender.send([0x90, 36, 100], 1100);
+    run(1059);
+    expect(got).toHaveLength(0);
+    run(1060);
+    expect(got).toHaveLength(1);
+    expect(got[0]!.stamp).toBeGreaterThan(39); // due 40 ms after it was handed over
+    expect(got[0]!.stamp).toBeLessThan(45);
   });
 
   it('ignores messages while switched off', () => {
