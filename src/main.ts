@@ -107,14 +107,17 @@ start.textContent = 'Start audio';
 start.addEventListener('click', () => void startAudio());
 
 // The records page conducts this page too: it starts the audio, sets the mixer and effects, and chooses the inputs.
-listenForControl('mixer', (m) => {
-  if (m.type === 'start') void startAudio();
-  else {
-    if (m.settings) applySettings(patch, m.settings);
-    for (const [jack, selection] of Object.entries(m.inputs ?? {})) if (inputs.jacks.includes(jack)) inputs.setSelection(jack, selection, false);
-  }
-});
-announceStatus('mixer', 'loaded');
+// Only when it is inside the records page (?embed=1); the mixer open in a tab of its own is left alone.
+if (new URLSearchParams(location.search).has('embed')) {
+  listenForControl('mixer', (m) => {
+    if (m.type === 'start') void startAudio();
+    else {
+      if (m.settings) applySettings(patch, m.settings);
+      for (const [jack, selection] of Object.entries(m.inputs ?? {})) if (inputs.jacks.includes(jack)) inputs.setSelection(jack, selection, false);
+    }
+  });
+  announceStatus('mixer', 'loaded');
+}
 
 /** One entry point for every MIDI message, whether it came from a device or the dev console. */
 function handleMidiBytes(data: ArrayLike<number>, time = performance.now()): void {

@@ -8,13 +8,13 @@ import type { NoteEvent, Song } from '../types';
  * and doubled with the 135 funk break pitched up to 170 for the busier parts, with snare-slice rolls into each section.
  * Under it a rolling sub, a choir pad, glass bells and a pan flute, all deep in the reverb.
  *
- * Bars 1-8: the pad and bells, the sparse break fading in. 9-16: the roller. 17-24: the roller and the funk break.
+ * Bars 1-8: the pad and bells, the sparse break fading in. 9-16: the roller. 17-24: the roller and the busy loop in turn.
  * 25-28: the break-down, a snare build. 29-32: everything, into a last hit.
  */
 const BARS = 32;
 const MPC = 36; // MIDI note of pad A01; pad i is note 36 + i
-const ROLLER = 0, FUNK = 16, WHOLE = 48; // first pads of bank A (roller), B (funk) and D (whole loops)
-const SPARSE_LOOP = WHOLE + 4;
+const ROLLER = 0, WHOLE = 48; // first pads of bank A (the roller in eighths) and D (the loops whole)
+const BUSY_LOOP = WHOLE + 3, SPARSE_LOOP = WHOLE + 4; // both from the same 170 take as the roller
 const section = (bar: number) => (bar < 8 ? 'intro' : bar < 16 ? 'roll' : bar < 24 ? 'roll2' : bar < 28 ? 'break' : 'final');
 
 const ROOTS = [41, 37, 34, 36]; // F2 Db2 Bb1 C2
@@ -38,7 +38,8 @@ const rollerEdit: Phrase = [
   [12, ROLLER + 6, 100], [14, ROLLER + 7, 110], [16, ROLLER + 8, 115], [19, ROLLER + 3, 100], [22, ROLLER + 10, 108],
   [24, ROLLER + 12, 118], [26, ROLLER + 13, 100], [28, ROLLER + 6, 96], [30, ROLLER + 15, 110], [31, ROLLER + 7, 92],
 ];
-const funkAsPlayed: Phrase = Array.from({ length: 16 }, (_, k) => [2 * k, FUNK + k, 88]);
+/** The busy loop from the same take, whole. */
+const busy: Phrase = [[0, BUSY_LOOP, 112]];
 /** The last bar of a section: the roller's first bar, then a snare-slice roll getting louder and faster. */
 const fill: Phrase = [
   ...rollerAsPlayed.filter(([s]) => s < 16),
@@ -63,8 +64,8 @@ function drums(): NoteEvent[] {
         out.push(note(at16(bar + 1, 0), steps(4), MPC + ROLLER, 124)); // the last hit
         continue;
       }
-      play(bar, last ? fill : bar % 4 === 0 ? rollerAsPlayed : rollerEdit);
-      if (!last) play(bar, funkAsPlayed);
+      // one drummer at a time: the roller and the busier loop from the same take, in turn
+      play(bar, last ? fill : bar % 4 === 0 ? busy : rollerEdit);
     } else if (bar === 26) {
       // the build: the roller's snare slice in eighths, then sixteenths
       play(bar, [...Array.from({ length: 8 }, (_, k): [number, number, number] => [2 * k, ROLLER + 4, 70 + 3 * k]),

@@ -154,14 +154,18 @@ export function mountInstrumentPage(opts: {
 
   // The records page conducts this page: it starts the audio, changes settings and plays notes on a channel of its own,
   // so the song's notes reach only this instrument whatever its MIDI channel is set to.
-  const songBus = new MidiBus(songChannelName(opts.id), undefined, undefined, undefined, opts.midiLeadMs);
-  songBus.enabled = true;
-  songBus.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
-  listenForControl(opts.id, (m) => {
-    if (m.type === 'start') void startAudio();
-    else if (m.settings) applySettings(opts.patch, m.settings);
-  });
-  announceStatus(opts.id, 'loaded');
+  // Only a page inside the records page (loaded with ?embed=1) takes its orders: the same page open in a tab of its own
+  // must not pick up the song's notes and settings as well.
+  if (new URLSearchParams(location.search).has('embed')) {
+    const songBus = new MidiBus(songChannelName(opts.id), undefined, undefined, undefined, opts.midiLeadMs);
+    songBus.enabled = true;
+    songBus.onMessage = (data, timeStamp) => handleMidiBytes(data, timeStamp);
+    listenForControl(opts.id, (m) => {
+      if (m.type === 'start') void startAudio();
+      else if (m.settings) applySettings(opts.patch, m.settings);
+    });
+    announceStatus(opts.id, 'loaded');
+  }
   if (import.meta.env.DEV) Object.assign(window, { __capture: () => captureSettings(opts.patch) });
 
   const strip = renderMidiStrip(midi, clock, monitor, start, bus);
