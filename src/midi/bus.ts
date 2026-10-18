@@ -35,6 +35,11 @@ export class MidiBus {
     private readonly now: () => number = epochNow,
     private readonly later: (fn: () => void, ms: number) => unknown = (fn, ms) => setTimeout(fn, ms),
     channelFactory?: (name: string) => ChannelLike,
+    /**
+     * Milliseconds early to hand a message over, stamped with the performance.now() time it is due (for a page that
+     * schedules on its audio clock, free of the timer's jitter). 0: handed over when due, stamped with now.
+     */
+    private readonly lead = 0,
   ) {
     this.enabled = readEnabled();
     const make = channelFactory ?? (typeof BroadcastChannel === 'undefined' ? undefined : (n: string) => new BroadcastChannel(n) as unknown as ChannelLike);
@@ -46,9 +51,9 @@ export class MidiBus {
         if (!Array.isArray(data) || typeof at !== 'number') return;
         this.lastSeen = performance.now();
         const wait = at - this.now();
-        const deliver = () => this.onMessage?.(Uint8Array.from(data), performance.now());
-        if (wait <= 1) deliver();
-        else this.later(deliver, wait);
+        const deliver = () => this.onMessage?.(Uint8Array.from(data), performance.now() + (this.lead > 0 ? Math.max(0, at - this.now()) : 0));
+        if (wait - this.lead <= 1) deliver();
+        else this.later(deliver, wait - this.lead);
       };
     }
   }

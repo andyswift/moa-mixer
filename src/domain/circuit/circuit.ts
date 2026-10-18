@@ -40,10 +40,13 @@
 // detune (cents, an audio-rate CV input), res (0..1) and drive (0..1); see `ladderWorklet.ts`.
 // 'string' is the MOA-BASS string: a bank of modes (`stringWorklet.ts`), no input, mono out. Params level and tone;
 // `send` messages configure it, pluck it and mute it, and its `config` option keeps the latest configuration.
+// 'sampler' is the MOA-60's sample voices (`samplerWorklet.ts`), no input, stereo out. Param level; `send` messages
+// load sounds, set pads and play them. Its worklet reports ready when built (`onReady`), and the device then sends it
+// everything, since sounds are too big for the node's options.
 // 'df' is the MOA-DF2 filter box: two multimode filters, two envelopes, a sample-and-hold, a delay and a mixer in
 // one worklet; stereo in, stereo out. Its params are listed in `dfWorklet.ts`. `gate(id, target, on)` drives its
 // envelope gates: 'keys' (the held keys) or 'open1' / 'open2' (the OPEN buttons).
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df' | 'duo' | 'm2600' | 'fold' | 'ladder' | 'string';
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df' | 'duo' | 'm2600' | 'fold' | 'ladder' | 'string' | 'sampler';
 
 export interface CircuitNode {
   readonly id: string;
@@ -73,6 +76,7 @@ export class Circuit {
   readonly nodes = new Map<string, CircuitNode>();
   readonly cables: Cable[] = [];
   private listeners = new Set<(c: CircuitChange) => void>();
+  private readonly readyListeners = new Set<(nodeId: string) => void>();
 
   add(
     id: string,
@@ -153,9 +157,9 @@ export class Circuit {
     this.emit({ type: 'play', nodeId, n1, n2, gate, retrig });
   }
 
-  /** Sends a message to a 2600 or string node's worklet as it is (the AR's manual button, patch cords, plucks). */
+  /** Sends a message to a 2600, string or sampler node's worklet as it is (the AR's manual button, patch cords, plucks, sounds). */
   send(nodeId: string, data: unknown): void {
-    this.expectKind(nodeId, 'm2600', 'string');
+    this.expectKind(nodeId, 'm2600', 'string', 'sampler');
     this.emit({ type: 'message', nodeId, data });
   }
 
@@ -163,6 +167,16 @@ export class Circuit {
   gate(nodeId: string, target: 'keys' | 'open1' | 'open2', on: boolean): void {
     this.expectKind(nodeId, 'df');
     this.emit({ type: 'gate', nodeId, target, on });
+  }
+
+  /** Called by the engine when a node's worklet has been built and is listening (a node built after its settings). */
+  nodeReady(nodeId: string): void {
+    for (const l of this.readyListeners) l(nodeId);
+  }
+
+  onReady(fn: (nodeId: string) => void): () => void {
+    this.readyListeners.add(fn);
+    return () => this.readyListeners.delete(fn);
   }
 
   onChange(fn: (c: CircuitChange) => void): () => void {

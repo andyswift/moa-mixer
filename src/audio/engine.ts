@@ -5,6 +5,7 @@ import { M2600_SWITCHES } from '../domain/devices/m2600Params';
 import { DUO_NAME, DUO_SOURCE } from './duoWorklet';
 import { FOLD_NAME, FOLD_SOURCE } from './foldWorklet';
 import { LADDER_NAME, LADDER_SOURCE } from './ladderWorklet';
+import { SAMPLER_NAME, SAMPLER_SOURCE } from './samplerWorklet';
 import { STRING_NAME, STRING_SOURCE } from './stringWorklet';
 import { GRANULAR_NAME, GRANULAR_SOURCE } from './granularWorklet';
 import { M2600_NAME, M2600_SOURCE } from './m2600Worklet';
@@ -49,6 +50,11 @@ export interface M2600View {
 }
 
 /** What a string node reports for display: its modes' amplitudes (m) and how far tension modulation has raised the pitch. */
+/** What a sampler node reports for display: [pad, position 0..1 through its sound, envelope] per voice playing. */
+export interface SamplerView {
+  voices: [number, number, number][];
+}
+
 export interface StringView {
   amps: Float32Array;
   pitchScale: number;
@@ -67,6 +73,7 @@ export class AudioEngine {
   private readonly duoViews = new Map<string, DuoView>();
   private readonly m2600Views = new Map<string, M2600View>();
   private readonly stringViews = new Map<string, StringView>();
+  private readonly samplerViews = new Map<string, SamplerView>();
   private readonly meters = new Map<string, { analyser: AnalyserNode; buffer: Float32Array<ArrayBuffer> }>();
 
   constructor(private readonly patch: Patch) {}
@@ -78,6 +85,19 @@ export class AudioEngine {
       this.build(ctx);
     }
     await this.ctx?.resume();
+  }
+
+  /**
+   * Renders a patch without speakers, faster than real time: `perform` plays it (hits placed at audio-clock times
+   * from 0, as a sequencer would), and the first `seconds` of its outputs come back. For making sounds from the band's
+   * own instruments (the MOA-60's factory kit).
+   */
+  static async render(patch: Patch, seconds: number, sampleRate: number, perform: () => void, channels = 2): Promise<AudioBuffer> {
+    const ctx = new OfflineAudioContext(channels, Math.ceil(seconds * sampleRate), sampleRate);
+    await ctx.audioWorklet.addModule(workletModuleUrl());
+    new AudioEngine(patch).build(ctx);
+    perform();
+    return ctx.startRendering();
   }
 
   async stop(): Promise<void> {
@@ -140,6 +160,11 @@ export class AudioEngine {
     return this.dfViews.get(`${deviceId}/${nodeId}`);
   }
 
+  /** The latest voices of a sampler node ([pad, position 0..1, envelope] each); undefined until audio has started. */
+  readSampler(deviceId: string, nodeId: string): SamplerView | undefined {
+    return this.samplerViews.get(`${deviceId}/${nodeId}`);
+  }
+
   /** The latest mode amplitudes of a string node; undefined until audio has started. */
   readString(deviceId: string, nodeId: string): StringView | undefined {
     return this.stringViews.get(`${deviceId}/${nodeId}`);
@@ -160,8 +185,8 @@ export class AudioEngine {
     return this.compressors.get(`${deviceId}/${nodeId}`)?.reduction ?? 0;
   }
 
-  private build(ctx: AudioContext): void {
-    this.ctx = ctx;
+  private build(ctx: BaseAudioContext): void {
+    if (ctx instanceof AudioContext) this.ctx = ctx;
     const compiled = new Map<string, Map<string, AudioNode>>();
     for (const [id, device] of this.patch.devices) {
       compiled.set(id, this.compileCircuit(ctx, id, device.circuit));
@@ -188,7 +213,7 @@ export class AudioEngine {
     }
   }
 
-  private compileCircuit(ctx: AudioContext, deviceId: string, circuit: Circuit): Map<string, AudioNode> {
+  private compileCircuit(ctx: BaseAudioContext, deviceId: string, circuit: Circuit): Map<string, AudioNode> {
     const nodes = new Map<string, AudioNode>();
     for (const n of circuit.nodes.values()) {
       switch (n.kind) {
@@ -280,6 +305,17 @@ export class AudioEngine {
             processorOptions: { config: JSON.parse(n.options.config ?? '{}') as unknown },
           });
           node.port.onmessage = (e: MessageEvent<StringView>) => this.stringViews.set(`${deviceId}/${n.id}`, e.data);
+          nodes.set(n.id, node);
+          break;
+        }
+        case 'sampler': {
+          const node = new AudioWorkletNode(ctx, SAMPLER_NAME, {
+            numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2], parameterData: n.params,
+          });
+          node.port.onmessage = (e: MessageEvent<{ type: 'ready' } | ({ type: 'view' } & SamplerView)>) => {
+            if (e.data.type === 'ready') circuit.nodeReady(n.id);
+            else this.samplerViews.set(`${deviceId}/${n.id}`, e.data);
+          };
           nodes.set(n.id, node);
           break;
         }
@@ -494,7 +530,7 @@ const DF_SWITCHES = /Type$|Src$|Inv$|Vca$|Gate$|Loop$|Exp$|Trig$|Link$|^mono$/;
 
 /** Schedules ADSR on `offset`, starting from wherever it currently is (so retriggers don't click). */
 function applyEnvelope(
-  ctx: AudioContext,
+  ctx: BaseAudioContext,
   offset: AudioParam,
   p: Record<string, number>,
   gateOn: boolean,
@@ -522,7 +558,7 @@ const CHOKE_TAU = 0.005;
  * The `clap` shape stutters through a few short bursts first. `decay` is roughly the time to -40 dB.
  */
 function fireTrigger(
-  ctx: AudioContext,
+  ctx: BaseAudioContext,
   offset: AudioParam,
   p: Record<string, number>,
   shape: string | undefined,
@@ -549,7 +585,7 @@ function fireTrigger(
   }
 }
 
-function chokeTrigger(ctx: AudioContext, offset: AudioParam, when?: number): void {
+function chokeTrigger(ctx: BaseAudioContext, offset: AudioParam, when?: number): void {
   const t = Math.max(when ?? 0, ctx.currentTime);
   offset.cancelScheduledValues(t);
   offset.setValueAtTime(offset.value, t);
@@ -648,7 +684,7 @@ function crushCurve(bits: number): Float32Array<ArrayBuffer> {
 const IR_SECONDS: Record<string, number> = { small: 0.9, medium: 2.4, large: 5 };
 
 /** A stereo impulse response: decorrelated noise with an exponential decay that also darkens as it fades. */
-function reverbImpulse(ctx: AudioContext, seconds: number): AudioBuffer {
+function reverbImpulse(ctx: BaseAudioContext, seconds: number): AudioBuffer {
   const rate = ctx.sampleRate;
   const length = Math.floor(rate * seconds);
   const buffer = ctx.createBuffer(2, length, rate);
@@ -667,7 +703,7 @@ function reverbImpulse(ctx: AudioContext, seconds: number): AudioBuffer {
   return buffer;
 }
 
-function noiseBuffer(ctx: AudioContext): AudioBuffer {
+function noiseBuffer(ctx: BaseAudioContext): AudioBuffer {
   const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
   const data = buffer.getChannelData(0);
   for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
@@ -680,7 +716,7 @@ const STEPS = 64;
 const STEP_SECONDS_INV = 10;
 const STEP_SAMPLE_RATE = 8000;
 
-function stepBuffer(ctx: AudioContext): AudioBuffer {
+function stepBuffer(ctx: BaseAudioContext): AudioBuffer {
   const perStep = STEP_SAMPLE_RATE / STEP_SECONDS_INV;
   const buffer = ctx.createBuffer(1, STEPS * perStep, STEP_SAMPLE_RATE);
   const data = buffer.getChannelData(0);
@@ -727,7 +763,7 @@ registerProcessor('${FOLLOWER_NAME}', MoaFollower);
 `;
 
 /** Every processor, as the one script the audio worklet loads. Top-level names must not clash between them. */
-export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE].join('\n');
+export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE, SAMPLER_SOURCE].join('\n');
 
 /** The processors are one worklet module, loaded from an in-memory script. */
 function workletModuleUrl(): string {

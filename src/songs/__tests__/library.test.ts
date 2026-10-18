@@ -9,7 +9,7 @@ const patches: Record<PageId, () => Patch> = {
   mixer: () => Patch.mixerRack(), synth: () => Patch.synth(), poly: () => Patch.poly(), drums: () => Patch.drums(),
   lynch: () => Patch.lynch(), duo: () => Patch.duo(), df2: () => Patch.df2(), pipe: () => Patch.pipe(),
   reverb: () => Patch.reverb(), delay: () => Patch.delay(), ouroboros: () => Patch.ouroboros(), buscomp: () => Patch.buscomp(), granular: () => Patch.granular(),
-  m2600: () => Patch.m2600(), bass: () => Patch.bass(),
+  m2600: () => Patch.m2600(), bass: () => Patch.bass(), mpc: () => Patch.mpc(),
 };
 
 describe.each(library().map((s) => [s.title, s] as const))('song: %s', (_title, song) => {

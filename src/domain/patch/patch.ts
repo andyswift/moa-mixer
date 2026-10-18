@@ -6,6 +6,7 @@ import { OuroborosFx } from '../devices/ouroboros';
 import { DuoSynth } from '../devices/duoSynth';
 import { M2600Synth } from '../devices/m2600Synth';
 import { BassGuitar } from '../devices/bassGuitar';
+import { Mpc60 } from '../devices/mpc60';
 import { FilterBox } from '../devices/filterBox';
 import { LynchSynth } from '../devices/lynchSynth';
 import { PipeSynth } from '../devices/pipeSynth';
@@ -109,6 +110,11 @@ export class Patch {
   /** The Lynch 106 page: just the synth, straight to the speakers. */
   static lynch(clock = new MidiClock()): Patch {
     return new Patch().add('lynch', new LynchSynth('Lynch', clock)).setOutput('lynch', 'out');
+  }
+
+  /** The MOA-60 page: the sampler, straight to the speakers. */
+  static mpc(clock = new MidiClock()): Patch {
+    return new Patch().add('mpc', new Mpc60(clock)).setOutput('mpc', 'out');
   }
 
   /** The MOA-BASS page: the four-string bass, its amp and cabinet, straight to the speakers. */
