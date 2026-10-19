@@ -132,6 +132,20 @@ export function renderUnicornPanel(u: UnicornSynth, hooks: UnicornHooks): Unicor
     if (i >= 0 && down.delete(k)) hooks.keyUp(FIRST + i);
   });
 
+  // iPhones zoom on a quick second tap whatever the page asks: the second tap's default is cancelled and the tap is
+  // given to what was tapped as a click instead, so a child tapping fast just presses the button again
+  let lastTap = 0;
+  root.addEventListener('touchend', (e) => {
+    const now = e.timeStamp;
+    if (now - lastTap < 350 && !(e.target as Element).closest('.uni-keys')) {
+      e.preventDefault();
+      (e.target as Element).closest<HTMLElement>('button, input, a')?.click();
+    }
+    lastTap = now;
+  }, { passive: false });
+  root.addEventListener('dblclick', (e) => e.preventDefault());
+  document.addEventListener('gesturestart', (e) => e.preventDefault()); // Safari's pinch
+
   const stage = el('div', 'uni-stage');
   stage.append(scene, keyboard);
 
