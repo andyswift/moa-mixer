@@ -34,7 +34,7 @@ body:has(.uni-page) #app { margin: 0; padding: 0; max-width: none; }
 .uni-cloud.c3 { top: 46px; left: -200px; animation-duration: 70s; animation-delay: -45s; transform: scale(1.2); }
 .uni-zzz { position: absolute; left: calc(50% + 120px); top: 40px; font-size: 30px; font-weight: 700; color: #8a7bb0; animation: uni-zzz 2.6s ease-in-out infinite; }
 .uni-page.on .uni-zzz { display: none; }
-.uni-jumper { position: absolute; left: 50%; bottom: -10px; width: min(540px, 92%); transform: translateX(-50%) translateY(26px) rotate(6deg); transition: filter 400ms, transform 400ms; filter: saturate(0.35); }
+.uni-jumper { position: absolute; left: 50%; bottom: -10px; width: min(430px, 88%); transform: translateX(-50%) translateY(26px) rotate(6deg); transition: filter 400ms, transform 400ms; filter: saturate(0.35); }
 .uni-svg { display: block; width: 100%; height: auto; overflow: visible; }
 .uni-eye-open { display: none; }
 .uni-page.on .uni-eye-open { display: inline; }
@@ -106,7 +106,7 @@ body:has(.uni-page) #app { margin: 0; padding: 0; max-width: none; }
   .uni-stage { display: flex; flex-direction: column; min-height: 0; }
   .uni-scene { flex: 1; min-height: 0; height: auto; }
   .uni-rainbow { width: auto; height: 230%; aspect-ratio: 1; bottom: -70%; }
-  .uni-jumper { height: 100%; width: auto; max-width: 92%; }
+  .uni-jumper { height: 88%; width: auto; max-width: 92%; } /* headroom for the horn and the hops */
   .uni-svg { height: 100%; width: auto; max-width: 100%; }
   .uni-keys { flex: none; height: clamp(110px, 21vh, 190px); margin: 0 12px 12px; }
   .uni-controls { grid-template-columns: 1.25fr 1.1fr 1.1fr 1.2fr; gap: 10px; margin-top: 10px; }
