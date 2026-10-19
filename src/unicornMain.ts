@@ -71,6 +71,9 @@ const view = renderUnicornPanel(u, {
     view.keyLit(key, false);
     u.keyUp(key);
   },
+  connectMidi() {
+    void page.midi.connect();
+  },
   listen() {
     if (listening.length) { stopListening(); return; }
     const tune = new OneKeyPlay(SONGS[u.song.value === 'off' ? 'twinkle' : u.song.value]!);
@@ -92,6 +95,21 @@ const page = mountInstrumentPage({
   ports: [{ device: 'uni', jack: 'out', name: 'MOA-UNICORN' }],
   onMidi: (event) => u.handleMidi(event),
 });
+
+// MIDI: the first keyboard found plays it (a child's setup has one), and the note for grown-ups says which
+const midi = page.midi;
+const paintMidi = () => {
+  if (midi.status === 'ready' && !midi.selectedId && midi.inputs.length) midi.select(midi.inputs[0]!.id);
+  const name = midi.inputs.find((i) => i.id === midi.selectedId)?.name;
+  view.setMidi(
+    midi.status === 'unsupported' ? 'No MIDI in this browser (Safari and iPhones do not have it)'
+      : midi.status === 'denied' ? 'MIDI was not allowed (the site settings in the address bar can allow it)'
+      : midi.status === 'ready' ? (name ? `🎹 ${name} is connected` : '🎹 No MIDI keyboard found: plug one in')
+      : undefined,
+  );
+};
+midi.onChange(paintMidi);
+paintMidi();
 
 // Dev-only handle for poking at the engine from the browser console.
 if (import.meta.env.DEV) Object.assign(window, { __unicorn: { engine, patch, u, box, midi: page.handleMidiBytes } });
