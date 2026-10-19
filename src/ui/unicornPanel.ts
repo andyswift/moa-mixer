@@ -20,6 +20,8 @@ export interface UnicornHooks {
   keyUp(note: number): void;
   /** Plays the chosen song to the listener, or stops it. */
   listen(): void;
+  /** Asks the browser for MIDI (a keyboard plugged in). */
+  connectMidi(): void;
 }
 
 export interface UnicornView {
@@ -34,6 +36,8 @@ export interface UnicornView {
   hooray(): void;
   setListening(on: boolean): void;
   keyLit(note: number, on: boolean): void;
+  /** What the MIDI link says: undefined offers to connect, a text says what is connected (or why not). */
+  setMidi(text: string | undefined): void;
 }
 
 /**
@@ -216,8 +220,15 @@ export function renderUnicornPanel(u: UnicornSynth, hooks: UnicornHooks): Unicor
   );
   u.onChange(() => { sounds.paint(); octave.paint(); rhythms.paint(); songs.paint(); paintGlow(); });
 
+  // for grown-ups: a MIDI keyboard, the audio bus, the way home
   const footer = el('div', 'uni-footer');
-  footer.innerHTML = 'For grown-ups: a MIDI keyboard plays it too, and its sound is on the audio bus as “MOA-UNICORN” for the mixer. <a href="/">moaswift.no</a>';
+  const midiButton = el('button', 'uni-midi', '🎹 Connect a MIDI keyboard');
+  midiButton.type = 'button';
+  midiButton.addEventListener('click', () => hooks.connectMidi());
+  const midiState = el('span', 'uni-midi-state');
+  const note = el('div');
+  note.innerHTML = 'For grown-ups: its sound is on the audio bus as “MOA-UNICORN” for the mixer. <a href="/">moaswift.no</a>';
+  footer.append(midiButton, midiState, note);
   top.append(footer); // a small note for grown-ups, out of the way at the top
   root.append(top, stage, controls);
 
@@ -287,6 +298,10 @@ export function renderUnicornPanel(u: UnicornSynth, hooks: UnicornHooks): Unicor
     },
     keyLit(note, lit) {
       keyEls.get(note)?.classList.toggle('down', lit);
+    },
+    setMidi(text) {
+      midiButton.hidden = text !== undefined;
+      midiState.textContent = text ?? '';
     },
   };
 }

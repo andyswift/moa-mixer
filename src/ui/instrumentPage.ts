@@ -77,7 +77,7 @@ export function mountInstrumentPage(opts: {
    * audio on and off itself with the `power` it gets back. MIDI devices and the buses still play it.
    */
   bare?: boolean;
-}): { handleMidiBytes: (data: ArrayLike<number>, time?: number) => void; pcm: PcmBus; power: (on: boolean) => Promise<void> } {
+}): { handleMidiBytes: (data: ArrayLike<number>, time?: number) => void; pcm: PcmBus; power: (on: boolean) => Promise<void>; midi: WebMidi } {
   const { engine, clock } = opts;
   applyEmbedMode();
   const monitor = new MidiMonitor();
@@ -190,5 +190,5 @@ export function mountInstrumentPage(opts: {
     else if (!started) await startAudio();
     else await engine.start();
   };
-  return { handleMidiBytes, pcm, power };
+  return { handleMidiBytes, pcm, power, midi };
 }
