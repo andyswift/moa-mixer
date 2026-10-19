@@ -1,5 +1,6 @@
 /* ---- MOA-UNICORN: a sky, a rainbow, a jumping unicorn, rainbow keys and candy buttons ---- */
-body:has(.uni-page) { background: linear-gradient(#fdf1ff, #e8f6ff 60%, #fff6e6); color: #4a3560; }
+body:has(.uni-page) { margin: 0; padding: 0; background: linear-gradient(#fdf1ff, #e8f6ff 60%, #fff6e6); color: #4a3560; }
+body:has(.uni-page) #app { margin: 0; padding: 0; max-width: none; }
 .uni-page { max-width: 1100px; margin: 0 auto; padding: 14px 16px 28px; font-family: 'Fredoka', 'Baloo 2', system-ui, sans-serif; }
 .uni-page button { font-family: inherit; }
 
@@ -72,7 +73,7 @@ body:has(.uni-page) { background: linear-gradient(#fdf1ff, #e8f6ff 60%, #fff6e6)
 .uni-slider input::-webkit-slider-thumb { -webkit-appearance: none; width: 36px; height: 36px; border-radius: 50%; background: #fff; border: 4px solid #c9a8ef; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); cursor: pointer; }
 .uni-slider input::-moz-range-thumb { width: 30px; height: 30px; border-radius: 50%; background: #fff; border: 4px solid #c9a8ef; cursor: pointer; }
 .uni-small { font-size: 15px; color: #8a7a9a; }
-.uni-footer { margin-top: 18px; font-size: 14px; color: #8a7a9a; text-align: center; }
+.uni-footer { margin-left: auto; max-width: 340px; font-size: 13px; line-height: 1.3; color: #8a7a9a; text-align: right; }
 .uni-footer a { color: #8a5bb5; }
 
 @keyframes uni-float { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-10px); } }
@@ -85,6 +86,41 @@ body:has(.uni-page) { background: linear-gradient(#fdf1ff, #e8f6ff 60%, #fff6e6)
 @keyframes uni-pulse { 0%, 100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.35); } }
 @keyframes uni-wave { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-8px); } }
 @keyframes uni-nudge { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-8deg) scale(1.08); } 40% { transform: rotate(8deg) scale(1.08); } 60% { transform: rotate(-5deg); } 80% { transform: rotate(4deg); } }
+
+/* a screen wide and tall enough (a tablet or a computer): everything fits on it, no scrolling. The stage takes the
+   height that is left over; the unicorn scales with it; the controls are one row of four compact cards. */
+@media (min-width: 900px) and (min-height: 600px) {
+  .uni-page { box-sizing: border-box; height: 100dvh; padding: 10px 16px 12px; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+  .uni-top { margin-bottom: 8px; gap: 12px; }
+  .uni-title { font-size: clamp(28px, 4.5vh, 44px); }
+  .uni-power { width: 112px; height: 50px; }
+  .uni-power-knob { width: 34px; height: 34px; font-size: 19px; }
+  .uni-page.on .uni-power-knob { left: 70px; }
+  .uni-stage { display: flex; flex-direction: column; min-height: 0; }
+  .uni-scene { flex: 1; min-height: 0; height: auto; }
+  .uni-rainbow { width: auto; height: 230%; aspect-ratio: 1; bottom: -70%; }
+  .uni-jumper { height: 100%; width: auto; max-width: 92%; }
+  .uni-svg { height: 100%; width: auto; max-width: 100%; }
+  .uni-keys { flex: none; height: clamp(110px, 21vh, 190px); margin: 0 12px 12px; }
+  .uni-controls { grid-template-columns: 1.25fr 1.1fr 1.1fr 1.2fr; gap: 10px; margin-top: 10px; }
+  .uni-group { padding: 8px 10px 10px; gap: 6px; border-radius: 20px; border-width: 3px; }
+  .uni-group-label { font-size: 17px; }
+  .uni-buttons { gap: 5px; }
+  .uni-sounds { display: grid; grid-template-columns: repeat(5, 1fr); }
+  .uni-btn { min-width: 52px; padding: 4px 4px 3px; border-radius: 14px; border-width: 2px; }
+  .uni-btn-icon { font-size: clamp(18px, 2.6vh, 24px); }
+  .uni-btn-label { font-size: 11px; white-space: nowrap; }
+  .uni-btn[aria-pressed='true'] { transform: none; }
+  .uni-slider { grid-template-columns: 28px 1fr; }
+  .uni-slider-icon { font-size: 20px; }
+  .uni-slider-label { font-size: 12px; }
+  .uni-slider input { height: 14px; margin: 3px 0; }
+  .uni-slider input::-webkit-slider-thumb { width: 26px; height: 26px; border-width: 3px; }
+  .uni-small { display: none; }
+  .uni-notes { flex-wrap: nowrap; }
+  .uni-notes .uni-btn { flex: 1; min-width: 0; }
+  .uni-notes .uni-btn-label { font-size: 10px; }
+}
 
 @media (max-width: 640px) {
   .uni-scene { height: 230px; }

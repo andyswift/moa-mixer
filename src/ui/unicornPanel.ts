@@ -190,12 +190,13 @@ export function renderUnicornPanel(u: UnicornSynth, hooks: UnicornHooks): Unicor
   listen.addEventListener('click', () => { if (on) hooks.listen(); else nudge(); });
   const songHint = el('div', 'uni-small', 'Pick a song, then press any key, again and again: the unicorn knows the tune!');
 
-  const toggles = el('div', 'uni-buttons');
-  toggles.append(toggle(u.sustain, '🎈', 'Long notes'), toggle(u.vibrato, '〰️', 'Wobbly'));
+  // the note buttons share a row: long notes, wobbly, and the octave
+  const notes = el('div', 'uni-buttons uni-notes');
+  notes.append(toggle(u.sustain, '🎈', 'Long notes'), toggle(u.vibrato, '〰️', 'Wobbly'), ...octave.row.children);
+  sounds.row.classList.add('uni-sounds');
   controls.append(
     group('Sounds', sounds.row),
-    group('Magic', slider(u.magic, '✨', 'Magic', true), slider(u.sparkle, '🌟', 'Sparkle'), slider(u.volume, '🔊', 'Loud')),
-    group('Notes', toggles, octave.row),
+    group('Magic', slider(u.magic, '✨', 'Magic', true), slider(u.sparkle, '🌟', 'Sparkle'), slider(u.volume, '🔊', 'Loud'), notes),
     group('Drums', rhythms.row, slider(u.tempo, '🐢', 'Fast 🐇'), slider(u.beatLevel, '🥁', 'Drums loud')),
     group('Songs', songs.row, listen, songHint),
   );
@@ -203,7 +204,8 @@ export function renderUnicornPanel(u: UnicornSynth, hooks: UnicornHooks): Unicor
 
   const footer = el('div', 'uni-footer');
   footer.innerHTML = 'For grown-ups: a MIDI keyboard plays it too, and its sound is on the audio bus as “MOA-UNICORN” for the mixer. <a href="/">moaswift.no</a>';
-  root.append(top, stage, controls, footer);
+  top.append(footer); // a small note for grown-ups, out of the way at the top
+  root.append(top, stage, controls);
 
   // ---- the switch
   const nudge = () => {
