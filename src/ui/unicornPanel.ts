@@ -55,7 +55,7 @@ export function renderUnicornPanel(u: UnicornSynth, hooks: UnicornHooks): Unicor
   power.innerHTML = '<span class="uni-power-off">OFF</span><span class="uni-power-knob">★</span><span class="uni-power-on">ON</span>';
   const title = el('h1', 'uni-title');
   title.innerHTML = [...'Unicorn Tone'].map((c, i) => (c === ' ' ? ' ' : `<span style="color:${NOTE_COLORS[(i * 2) % 12]}">${c}</span>`)).join('');
-  const hint = el('div', 'uni-hint', 'Turn me on!');
+  const hint = el('div', 'uni-hint', 'Wake me up!');
   top.append(power, title, hint);
 
   // ---- the scene: rainbow, clouds, the unicorn
