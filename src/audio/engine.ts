@@ -7,6 +7,7 @@ import { FOLD_NAME, FOLD_SOURCE } from './foldWorklet';
 import { LADDER_NAME, LADDER_SOURCE } from './ladderWorklet';
 import { SAMPLER_NAME, SAMPLER_SOURCE } from './samplerWorklet';
 import { STRING_NAME, STRING_SOURCE } from './stringWorklet';
+import { TONE_NAME, TONE_SOURCE } from './toneWorklet';
 import { GRANULAR_NAME, GRANULAR_SOURCE } from './granularWorklet';
 import { M2600_NAME, M2600_SOURCE } from './m2600Worklet';
 import { PIPE_NAME, PIPE_SOURCE, SPRING_NAME } from './pipeWorklet';
@@ -306,6 +307,13 @@ export class AudioEngine {
           });
           node.port.onmessage = (e: MessageEvent<StringView>) => this.stringViews.set(`${deviceId}/${n.id}`, e.data);
           nodes.set(n.id, node);
+          break;
+        }
+        case 'tone': {
+          nodes.set(n.id, new AudioWorkletNode(ctx, TONE_NAME, {
+            numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1], parameterData: n.params,
+            processorOptions: { role: n.options.role, preset: JSON.parse(n.options.preset ?? '{}') as unknown },
+          }));
           break;
         }
         case 'sampler': {
@@ -763,7 +771,7 @@ registerProcessor('${FOLLOWER_NAME}', MoaFollower);
 `;
 
 /** Every processor, as the one script the audio worklet loads. Top-level names must not clash between them. */
-export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE, SAMPLER_SOURCE].join('\n');
+export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE, SAMPLER_SOURCE, TONE_SOURCE].join('\n');
 
 /** The processors are one worklet module, loaded from an in-memory script. */
 function workletModuleUrl(): string {

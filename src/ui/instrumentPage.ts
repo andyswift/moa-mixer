@@ -36,7 +36,7 @@ export interface PagePort {
 
 const PAGES: [href: string, label: string][] = [
   ['/mixer/', 'The mixer'], ['/synth/', 'MOA-1'], ['/poly/', 'MOA-6'], ['/drums/', 'MOA-DR'], ['/lynch/', 'Lynch 106'],
-  ['/duo/', 'MOA-DUO'], ['/2600/', 'MOA-2600'], ['/bass/', 'MOA-BASS'], ['/mpc/', 'MOA-60'], ['/df2/', 'MOA-DF2'], ['/pipe/', 'MOA-PIPE'], ['/seq/', 'MOA-SEQ'], ['/reverb/', 'Reverb'], ['/delay/', 'Delay'], ['/ouroboros/', 'Ouroboros'], ['/buscomp/', 'Bus Comp'],
+  ['/duo/', 'MOA-DUO'], ['/2600/', 'MOA-2600'], ['/bass/', 'MOA-BASS'], ['/mpc/', 'MOA-60'], ['/unicorn/', 'MOA-UNICORN'], ['/df2/', 'MOA-DF2'], ['/pipe/', 'MOA-PIPE'], ['/seq/', 'MOA-SEQ'], ['/reverb/', 'Reverb'], ['/delay/', 'Delay'], ['/ouroboros/', 'Ouroboros'], ['/buscomp/', 'Bus Comp'],
   ['/granular/', 'Granular'], ['/records/', 'Records'], ['/', 'moaswift.no'],
 ];
 
@@ -72,7 +72,12 @@ export function mountInstrumentPage(opts: {
    * performance.now() time each is due (otherwise they arrive when due, with the time they arrived).
    */
   midiLeadMs?: number;
-}): { handleMidiBytes: (data: ArrayLike<number>, time?: number) => void; pcm: PcmBus } {
+  /**
+   * A page with no navigation row and no audio and MIDI strip (a toy for children): only the panel. It turns the
+   * audio on and off itself with the `power` it gets back. MIDI devices and the buses still play it.
+   */
+  bare?: boolean;
+}): { handleMidiBytes: (data: ArrayLike<number>, time?: number) => void; pcm: PcmBus; power: (on: boolean) => Promise<void> } {
   const { engine, clock } = opts;
   applyEmbedMode();
   const monitor = new MidiMonitor();
@@ -176,6 +181,14 @@ export function mountInstrumentPage(opts: {
     strip.append(block);
   }
   strip.append(renderAudioBusBlock(pcm, speakers));
-  app.append(renderPageNav(opts.self), strip, ...(Array.isArray(opts.panel) ? opts.panel : [opts.panel]));
-  return { handleMidiBytes, pcm };
+  const panels = Array.isArray(opts.panel) ? opts.panel : [opts.panel];
+  if (opts.bare) app.append(...panels);
+  else app.append(renderPageNav(opts.self), strip, ...panels);
+  /** The page's own on/off: the first time it starts the audio; after that it pauses and resumes it. */
+  const power = async (on: boolean) => {
+    if (!on) await engine.stop();
+    else if (!started) await startAudio();
+    else await engine.start();
+  };
+  return { handleMidiBytes, pcm, power };
 }

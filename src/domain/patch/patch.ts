@@ -7,6 +7,7 @@ import { DuoSynth } from '../devices/duoSynth';
 import { M2600Synth } from '../devices/m2600Synth';
 import { BassGuitar } from '../devices/bassGuitar';
 import { Mpc60 } from '../devices/mpc60';
+import { UnicornSynth } from '../devices/unicornSynth';
 import { FilterBox } from '../devices/filterBox';
 import { LynchSynth } from '../devices/lynchSynth';
 import { PipeSynth } from '../devices/pipeSynth';
@@ -110,6 +111,11 @@ export class Patch {
   /** The Lynch 106 page: just the synth, straight to the speakers. */
   static lynch(clock = new MidiClock()): Patch {
     return new Patch().add('lynch', new LynchSynth('Lynch', clock)).setOutput('lynch', 'out');
+  }
+
+  /** The MOA-UNICORN page: the children's keyboard, straight to the speakers. */
+  static unicorn(clock = new MidiClock()): Patch {
+    return new Patch().add('uni', new UnicornSynth(clock)).setOutput('uni', 'out');
   }
 
   /** The MOA-60 page: the sampler, straight to the speakers. */
