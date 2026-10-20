@@ -24,6 +24,8 @@ export interface ToneSound {
 
 export interface UnicornPreset {
   name: string;
+  /** What the button says (in Norwegian: the page is for Norwegian children). */
+  label: string;
   /** A picture for the button. */
   icon: string;
   sound: ToneSound;
@@ -38,16 +40,16 @@ const tone = (s: Partial<ToneSound>): ToneSound => ({
 
 /** Simple sounds, as a small keyboard's: a few waves, an envelope and vibrato. */
 export const UNICORN_PRESETS: readonly UnicornPreset[] = [
-  { name: 'Piano', icon: '🎹', magic: 4500, sparkle: 0.1, sound: tone({ w1: 'pulse25', w2: 'square', i2: 12, mix2: 0.3, a: 0.002, d: 0.9, s: 0, r: 0.25 }) },
-  { name: 'Organ', icon: '🎶', magic: 6000, sparkle: 0.05, sound: tone({ w1: 'square', w2: 'square', i2: 12, mix2: 0.5, a: 0.005, d: 0.1, s: 1, r: 0.08, gain: 0.8 }) },
-  { name: 'Flute', icon: '🌬️', magic: 3000, sparkle: 0.1, sound: tone({ w1: 'sine', w2: 'triangle', i2: 12, mix2: 0.15, a: 0.06, d: 0.3, s: 0.9, r: 0.15, vib: 12, vibDelay: 0.35, gain: 1.3 }) },
-  { name: 'Trumpet', icon: '🎺', magic: 2500, sparkle: 0.3, sound: tone({ w1: 'saw', w2: 'pulse25', i2: 0, mix2: 0.3, a: 0.04, d: 0.2, s: 0.8, r: 0.1, vib: 10, gain: 0.8 }) },
-  { name: 'Violin', icon: '🎻', magic: 3500, sparkle: 0.15, sound: tone({ w1: 'saw', w2: 'saw', i2: 0.08, mix2: 0.5, a: 0.12, d: 0.3, s: 1, r: 0.3, vib: 18, vibDelay: 0.4, gain: 0.8 }) },
-  { name: 'Bells', icon: '🔔', magic: 8000, sparkle: 0.1, sound: tone({ w1: 'sine', w2: 'sine', i2: 19, mix2: 0.4, a: 0.001, d: 1.5, s: 0, r: 1.2, gain: 1.3 }) },
-  { name: 'Robot', icon: '🤖', magic: 1200, sparkle: 0.85, sound: tone({ w1: 'pulse12', w2: 'square', i2: -12, mix2: 0.5, a: 0.001, d: 0.2, s: 0.7, r: 0.05, vib: 60, vibRate: 9, vibDelay: 0 }) },
-  { name: 'Kitty', icon: '🐱', magic: 2000, sparkle: 0.7, sound: tone({ w1: 'triangle', w2: 'pulse25', i2: 12, mix2: 0.25, a: 0.02, d: 0.4, s: 0.3, r: 0.3, vib: 40, vibRate: 7, vibDelay: 0.1, gain: 1.2 }) },
-  { name: 'Space', icon: '🚀', magic: 1500, sparkle: 0.6, sound: tone({ w1: 'saw', w2: 'square', i2: 7, mix2: 0.5, a: 0.3, d: 1, s: 0.7, r: 1.5, vib: 8, gain: 0.8 }) },
-  { name: 'Elephant', icon: '🐘', magic: 900, sparkle: 0.3, sound: tone({ w1: 'square', w2: 'saw', i2: -12, mix2: 0.6, a: 0.005, d: 0.3, s: 0.6, r: 0.1 }) },
+  { name: 'Piano', label: 'Piano', icon: '🎹', magic: 4500, sparkle: 0.1, sound: tone({ w1: 'pulse25', w2: 'square', i2: 12, mix2: 0.3, a: 0.002, d: 0.9, s: 0, r: 0.25 }) },
+  { name: 'Organ', label: 'Orgel', icon: '🎶', magic: 6000, sparkle: 0.05, sound: tone({ w1: 'square', w2: 'square', i2: 12, mix2: 0.5, a: 0.005, d: 0.1, s: 1, r: 0.08, gain: 0.8 }) },
+  { name: 'Flute', label: 'Fløyte', icon: '🌬️', magic: 3000, sparkle: 0.1, sound: tone({ w1: 'sine', w2: 'triangle', i2: 12, mix2: 0.15, a: 0.06, d: 0.3, s: 0.9, r: 0.15, vib: 12, vibDelay: 0.35, gain: 1.3 }) },
+  { name: 'Trumpet', label: 'Trompet', icon: '🎺', magic: 2500, sparkle: 0.3, sound: tone({ w1: 'saw', w2: 'pulse25', i2: 0, mix2: 0.3, a: 0.04, d: 0.2, s: 0.8, r: 0.1, vib: 10, gain: 0.8 }) },
+  { name: 'Violin', label: 'Fiolin', icon: '🎻', magic: 3500, sparkle: 0.15, sound: tone({ w1: 'saw', w2: 'saw', i2: 0.08, mix2: 0.5, a: 0.12, d: 0.3, s: 1, r: 0.3, vib: 18, vibDelay: 0.4, gain: 0.8 }) },
+  { name: 'Bells', label: 'Bjeller', icon: '🔔', magic: 8000, sparkle: 0.1, sound: tone({ w1: 'sine', w2: 'sine', i2: 19, mix2: 0.4, a: 0.001, d: 1.5, s: 0, r: 1.2, gain: 1.3 }) },
+  { name: 'Robot', label: 'Robot', icon: '🤖', magic: 1200, sparkle: 0.85, sound: tone({ w1: 'pulse12', w2: 'square', i2: -12, mix2: 0.5, a: 0.001, d: 0.2, s: 0.7, r: 0.05, vib: 60, vibRate: 9, vibDelay: 0 }) },
+  { name: 'Kitty', label: 'Pusekatt', icon: '🐱', magic: 2000, sparkle: 0.7, sound: tone({ w1: 'triangle', w2: 'pulse25', i2: 12, mix2: 0.25, a: 0.02, d: 0.4, s: 0.3, r: 0.3, vib: 40, vibRate: 7, vibDelay: 0.1, gain: 1.2 }) },
+  { name: 'Space', label: 'Romskip', icon: '🚀', magic: 1500, sparkle: 0.6, sound: tone({ w1: 'saw', w2: 'square', i2: 7, mix2: 0.5, a: 0.3, d: 1, s: 0.7, r: 1.5, vib: 8, gain: 0.8 }) },
+  { name: 'Elephant', label: 'Elefant', icon: '🐘', magic: 900, sparkle: 0.3, sound: tone({ w1: 'square', w2: 'saw', i2: -12, mix2: 0.6, a: 0.005, d: 0.3, s: 0.6, r: 0.1 }) },
 ];
 
 /** Sustain lets go slowly: the release this many times longer (and at least this long). */

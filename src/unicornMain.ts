@@ -102,9 +102,9 @@ const paintMidi = () => {
   if (midi.status === 'ready' && !midi.selectedId && midi.inputs.length) midi.select(midi.inputs[0]!.id);
   const name = midi.inputs.find((i) => i.id === midi.selectedId)?.name;
   view.setMidi(
-    midi.status === 'unsupported' ? 'No MIDI in this browser (Safari and iPhones do not have it)'
-      : midi.status === 'denied' ? 'MIDI was not allowed (the site settings in the address bar can allow it)'
-      : midi.status === 'ready' ? (name ? `🎹 ${name} is connected` : '🎹 No MIDI keyboard found: plug one in')
+    midi.status === 'unsupported' ? 'Ingen MIDI i denne nettleseren (Safari og iPhone har det ikke)'
+      : midi.status === 'denied' ? 'MIDI ble ikke tillatt (nettstedsinnstillingene i adressefeltet kan tillate det)'
+      : midi.status === 'ready' ? (name ? `🎹 ${name} er koblet til` : '🎹 Fant ikke noe MIDI-keyboard: koble til ett')
       : undefined,
   );
 };
