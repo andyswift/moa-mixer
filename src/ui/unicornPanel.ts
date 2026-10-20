@@ -217,7 +217,7 @@ export function renderUnicornPanel(u: UnicornSynth, hooks: UnicornHooks): Unicor
   const songs = choiceButtons([{ value: 'off', icon: '🎹', label: 'Spill fritt' }, ...Object.entries(SONGS).map(([value, s]) => ({ value, icon: SONG_ICONS[value] ?? '🎵', label: SONG_LABELS[value] ?? s.name }))], () => u.song.value, (v) => u.song.set(v));
   const listen = el('button', 'uni-btn uni-listen');
   listen.type = 'button';
-  listen.innerHTML = '<span class="uni-btn-icon">👂</span><span class="uni-btn-label">Hør</span>';
+  listen.innerHTML = '<span class="uni-btn-icon">▶️</span><span class="uni-btn-label">Hør sangen</span>';
   listen.addEventListener('click', () => void turnOn().then(() => hooks.listen()));
   const songHint = el('div', 'uni-small', 'Velg en sang og trykk på hvilken som helst tangent, igjen og igjen: enhjørningen kan melodien!');
 
@@ -226,11 +226,14 @@ export function renderUnicornPanel(u: UnicornSynth, hooks: UnicornHooks): Unicor
   notes.append(toggle(u.sustain, '🎈', 'Lange toner'), toggle(u.vibrato, '〰️', 'Bølgete'), ...octave.row.children);
   sounds.row.classList.add('uni-sounds');
   songs.row.classList.add('uni-songs');
+  // the play button sits up in the heading, apart from the songs it plays
+  const songsGroup = group('Sanger', songs.row, songHint);
+  songsGroup.querySelector('.uni-group-label')!.append(listen);
   controls.append(
     group('Lyder', sounds.row),
     group('Magi', slider(u.magic, '✨', 'Magi', true), slider(u.sparkle, '🌟', 'Glitter'), slider(u.volume, '🔊', 'Volum'), notes),
     group('Trommer', rhythms.row, slider(u.tempo, '🐢', 'Fort 🐇'), slider(u.beatLevel, '🥁', 'Trommevolum')),
-    group('Sanger', songs.row, listen, songHint),
+    songsGroup,
   );
   u.onChange(() => { sounds.paint(); octave.paint(); rhythms.paint(); songs.paint(); paintGlow(); });
 
