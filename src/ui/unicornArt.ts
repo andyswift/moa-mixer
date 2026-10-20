@@ -15,7 +15,7 @@ export function unicornSvg(): string {
     const x = 328 + (372 - 328) * t, y = 46 + (2 - 46) * t, w = 10 * (1 - t) + 2;
     return `<line x1="${x - w}" y1="${y - w * 0.3}" x2="${x + w * 0.6}" y2="${y + w * 0.9}" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity="0.85"/>`;
   }).join('');
-  return `<svg class="uni-svg" viewBox="0 0 420 300" role="img" aria-label="A unicorn jumping over the keyboard">
+  return `<svg class="uni-svg" viewBox="0 0 420 300" role="img" aria-label="En enhjørning som hopper over tangentene">
   <defs>
     <linearGradient id="uniHorn" x1="0" y1="1" x2="1" y2="0">
       ${RAINBOW.map((c, i) => `<stop offset="${(i / 5).toFixed(2)}" stop-color="${c}"/>`).join('')}

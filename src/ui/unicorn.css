@@ -21,7 +21,13 @@ body:has(.uni-page) #app { margin: 0; padding: 0; max-width: none; }
 .uni-page.on .uni-power-knob { left: 80px; color: #ffc93d; }
 .uni-page.on .uni-power-on { opacity: 1; }
 .uni-page.on .uni-power-off { opacity: 0; }
-.uni-power.nudge { animation: uni-nudge 500ms ease; }
+.uni-page:not(.on) .uni-power { animation: uni-glow 1.4s ease-in-out infinite; }
+/* the big wake-up button over the sleeping unicorn */
+.uni-wake { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; display: flex; align-items: center; gap: 12px; padding: 16px 28px 16px 20px; border-radius: 999px; border: 5px solid #fff; background: linear-gradient(90deg, #ff5f8f, #ff9a3d, #ffd23d, #5fd17a, #4ab8ff, #9a7bff); color: #fff; font-size: clamp(22px, 4vw, 34px); font-weight: 700; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.2); box-shadow: 0 8px 24px rgba(120, 80, 160, 0.4); cursor: pointer; animation: uni-breathe 1.6s ease-in-out infinite; }
+.uni-wake-face { font-size: 1.4em; }
+.uni-wake-hand { position: absolute; right: -18px; bottom: -34px; font-size: 1.5em; animation: uni-tap 1.2s ease-in-out infinite; text-shadow: none; }
+.uni-page.on .uni-wake { display: none; }
+.uni-page:not(.on) .uni-keys { filter: saturate(0.5) brightness(0.97); }
 .uni-power:focus-visible, .uni-btn:focus-visible { outline: 4px solid #4ab8ff; outline-offset: 3px; }
 
 /* the stage: sky, rainbow, clouds, the unicorn, and the keyboard under its hooves */
@@ -68,7 +74,10 @@ body:has(.uni-page) #app { margin: 0; padding: 0; max-width: none; }
 .uni-btn-icon { font-size: 30px; line-height: 1.1; }
 .uni-btn-label { font-size: 14px; font-weight: 600; }
 .uni-btn[aria-pressed='true'] { background: linear-gradient(135deg, #ff8fc4, #b38bff); border-color: #fff; color: #fff; transform: scale(1.06); box-shadow: 0 4px 10px rgba(180, 100, 220, 0.4); }
-.uni-listen { align-self: flex-start; }
+.uni-group-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.uni-listen { flex-direction: row; gap: 6px; min-width: 0; padding: 4px 14px 4px 10px; border-radius: 999px; }
+.uni-listen .uni-btn-icon { font-size: 20px; }
+.uni-listen .uni-btn-label { font-size: 14px; }
 .uni-slider { display: grid; grid-template-columns: 40px 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; }
 .uni-slider-icon { grid-row: 1 / 3; font-size: 30px; text-align: center; }
 .uni-slider-label { font-size: 15px; font-weight: 600; color: #8a5bb5; }
@@ -92,6 +101,9 @@ body:has(.uni-page) #app { margin: 0; padding: 0; max-width: none; }
 @keyframes uni-zzz { 0%, 100% { transform: translateY(0); opacity: 0.6; } 50% { transform: translateY(-10px); opacity: 1; } }
 @keyframes uni-pulse { 0%, 100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.35); } }
 @keyframes uni-wave { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-8px); } }
+@keyframes uni-glow { 0%, 100% { box-shadow: 0 4px 0 #d9b7d0, 0 0 0 0 rgba(255, 120, 190, 0.6); } 50% { box-shadow: 0 4px 0 #d9b7d0, 0 0 0 14px rgba(255, 120, 190, 0); } }
+@keyframes uni-breathe { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.08); } }
+@keyframes uni-tap { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(-10px, -12px); } }
 @keyframes uni-nudge { 0%, 100% { transform: rotate(0); } 20% { transform: rotate(-8deg) scale(1.08); } 40% { transform: rotate(8deg) scale(1.08); } 60% { transform: rotate(-5deg); } 80% { transform: rotate(4deg); } }
 
 /* a screen wide and tall enough (a tablet or a computer): everything fits on it, no scrolling. The stage takes the
@@ -126,7 +138,10 @@ body:has(.uni-page) #app { margin: 0; padding: 0; max-width: none; }
   .uni-small { display: none; }
   .uni-notes { flex-wrap: nowrap; }
   .uni-notes .uni-btn { flex: 1; min-width: 0; }
-  .uni-notes .uni-btn-label { font-size: 10px; }
+  .uni-notes .uni-btn-label { font-size: 10px; white-space: normal; line-height: 1.05; text-align: center; }
+  .uni-songs { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .uni-songs .uni-btn { min-width: 0; }
+  .uni-songs .uni-btn-label { white-space: normal; line-height: 1.05; text-align: center; font-size: 10.5px; }
 }
 
 @media (max-width: 640px) {
@@ -137,5 +152,5 @@ body:has(.uni-page) #app { margin: 0; padding: 0; max-width: none; }
   .uni-btn { min-width: 68px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .uni-cloud, .uni-hint, .uni-zzz, .uni-page.on .uni-jumper { animation: none; }
+  .uni-cloud, .uni-hint, .uni-zzz, .uni-page.on .uni-jumper, .uni-wake, .uni-wake-hand, .uni-power { animation: none !important; }
 }

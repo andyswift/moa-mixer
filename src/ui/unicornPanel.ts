@@ -4,13 +4,20 @@ import { RHYTHMS, SONGS } from '../domain/sequencer/unicornRhythm';
 import { NOTE_COLORS, unicornSvg } from './unicornArt';
 import { el } from './widgets';
 
-const NOTE_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+// Norwegian note names: B is H
+const NOTE_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'H'];
 const BLACK = new Set([1, 3, 6, 8, 10]);
 /** Computer keys, laid out like a piano from C4: the a row is white, the row above black. */
 const COMPUTER_KEYS = ['a', 'w', 's', 'e', 'd', 'f', 't', 'g', 'y', 'h', 'u', 'j', 'k', 'o', 'l', 'p', ';'];
 const FIRST = 60; // C4
 const RHYTHM_ICONS: Record<string, string> = { rock: '🥁', pop: '🎉', waltz: '💃', march: '🥾', disco: '🪩' };
-const SONG_ICONS: Record<string, string> = { twinkle: '⭐', lamb: '🐑', joy: '🎵', farm: '🐄', bells: '🛷' };
+const SONG_ICONS: Record<string, string> = { mikkel: '🦊', twinkle: '🐑', lamb: '🎒', joy: '🎵', farm: '🐄', bells: '🛷' };
+// the page speaks Norwegian
+const RHYTHM_LABELS: Record<string, string> = { rock: 'Rock', pop: 'Pop', waltz: 'Vals', march: 'Marsj', disco: 'Disko' };
+// the tunes Norwegian children know them by: Twinkle Twinkle is Bæ, bæ, lille lam; Mary's lamb is Lisa gikk til skolen
+const SONG_LABELS: Record<string, string> = {
+  mikkel: 'Mikkel Rev', twinkle: 'Bæ, bæ, lille lam', lamb: 'Lisa gikk til skolen', joy: 'Ode til gleden', farm: 'Old MacDonald hadde en gård', bells: 'Bjelleklang',
+};
 
 export interface UnicornHooks {
   /** The on/off switch. Resolves once the sound is on (or off). */
@@ -55,11 +62,11 @@ export function renderUnicornPanel(u: UnicornSynth, hooks: UnicornHooks): Unicor
   power.type = 'button';
   power.setAttribute('role', 'switch');
   power.setAttribute('aria-checked', 'false');
-  power.setAttribute('aria-label', 'On and off');
-  power.innerHTML = '<span class="uni-power-off">OFF</span><span class="uni-power-knob">★</span><span class="uni-power-on">ON</span>';
+  power.setAttribute('aria-label', 'Av og på');
+  power.innerHTML = '<span class="uni-power-off">AV</span><span class="uni-power-knob">★</span><span class="uni-power-on">PÅ</span>';
   const title = el('h1', 'uni-title');
-  title.innerHTML = [...'Unicorn Tone'].map((c, i) => (c === ' ' ? ' ' : `<span style="color:${NOTE_COLORS[(i * 2) % 12]}">${c}</span>`)).join('');
-  const hint = el('div', 'uni-hint', 'Wake me up!');
+  title.innerHTML = [...'Enhjørningklang'].map((c, i) => (c === ' ' ? ' ' : `<span style="color:${NOTE_COLORS[(i * 2) % 12]}">${c}</span>`)).join('');
+  const hint = el('div', 'uni-hint', 'Vekk meg!');
   top.append(power, title, hint);
 
   // ---- the scene: rainbow, clouds, the unicorn
@@ -70,10 +77,17 @@ export function renderUnicornPanel(u: UnicornSynth, hooks: UnicornHooks): Unicor
   scene.append(jumper);
   const sparkles = el('div', 'uni-sparkles');
   scene.append(sparkles);
+  // while it sleeps: a big button over the scene (children who cannot read yet just press the glowing button)
+  const wake = el('button', 'uni-wake');
+  wake.type = 'button';
+  wake.setAttribute('aria-label', 'Vekk enhjørningen');
+  wake.innerHTML = '<span class="uni-wake-face">😴</span><span class="uni-wake-text">Vekk meg!</span><span class="uni-wake-hand">👆</span>';
+  wake.addEventListener('click', () => void turnOn());
+  scene.append(wake);
 
   // ---- the keyboard
   const keyboard = el('div', 'uni-keys');
-  keyboard.setAttribute('aria-label', 'Keyboard');
+  keyboard.setAttribute('aria-label', 'Tangenter');
   const keyEls = new Map<number, HTMLElement>();
   const layout = () => {
     const keys = window.innerWidth < 640 ? 13 : 25; // one octave on a phone, two on anything bigger
@@ -112,12 +126,12 @@ export function renderUnicornPanel(u: UnicornSynth, hooks: UnicornHooks): Unicor
     if (was === note) return;
     if (was !== undefined) { fingers.delete(id); hooks.keyUp(was); }
     if (note !== undefined) {
-      if (!on) { nudge(); return; }
       fingers.set(id, note);
-      hooks.keyDown(note);
+      if (!on) void turnOn().then(() => { if (fingers.get(id) === note) hooks.keyDown(note); }); // a key wakes it, then plays
+      else hooks.keyDown(note);
     }
   };
-  keyboard.addEventListener('pointerdown', (e) => { e.preventDefault(); keyboard.setPointerCapture(e.pointerId); press(e.pointerId, noteAt(e.clientX, e.clientY)); });
+  keyboard.addEventListener('pointerdown', (e) => { e.preventDefault(); try { keyboard.setPointerCapture(e.pointerId); } catch { /* a pointer that cannot be captured still plays */ } press(e.pointerId, noteAt(e.clientX, e.clientY)); });
   keyboard.addEventListener('pointermove', (e) => { if (fingers.has(e.pointerId)) press(e.pointerId, noteAt(e.clientX, e.clientY)); });
   const lift = (e: PointerEvent) => press(e.pointerId, undefined);
   keyboard.addEventListener('pointerup', lift);
@@ -127,9 +141,9 @@ export function renderUnicornPanel(u: UnicornSynth, hooks: UnicornHooks): Unicor
     if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
     const i = COMPUTER_KEYS.indexOf(e.key.toLowerCase());
     if (i < 0 || down.has(e.key.toLowerCase())) return;
-    if (!on) { nudge(); return; }
     down.add(e.key.toLowerCase());
-    hooks.keyDown(FIRST + i);
+    if (!on) void turnOn().then(() => hooks.keyDown(FIRST + i));
+    else hooks.keyDown(FIRST + i);
   });
   window.addEventListener('keyup', (e) => {
     const k = e.key.toLowerCase(), i = COMPUTER_KEYS.indexOf(k);
@@ -175,7 +189,7 @@ export function renderUnicornPanel(u: UnicornSynth, hooks: UnicornHooks): Unicor
     paint();
     return { row, paint };
   };
-  const sounds = choiceButtons(UNICORN_PRESETS.map((p) => ({ value: p.name, icon: p.icon, label: p.name })), () => u.preset.value, (v) => u.preset.set(v));
+  const sounds = choiceButtons(UNICORN_PRESETS.map((p) => ({ value: p.name, icon: p.icon, label: p.label })), () => u.preset.value, (v) => u.preset.set(v));
   const slider = (c: NumberControl, icon: string, label: string, log = false) => {
     const wrap = el('label', 'uni-slider');
     const input = el('input');
@@ -199,54 +213,60 @@ export function renderUnicornPanel(u: UnicornSynth, hooks: UnicornHooks): Unicor
     paint();
     return b;
   };
-  const octave = choiceButtons([{ value: '-1', icon: '⬇️', label: 'Low' }, { value: '0', icon: '🎯', label: 'Middle' }, { value: '+1', icon: '⬆️', label: 'High' }], () => u.octave.value, (v) => u.octave.set(v));
-  const rhythms = choiceButtons([{ value: 'off', icon: '🔇', label: 'No drums' }, ...Object.entries(RHYTHMS).map(([value, r]) => ({ value, icon: RHYTHM_ICONS[value] ?? '🥁', label: r.name }))], () => u.rhythm.value, (v) => u.rhythm.set(v));
-  const songs = choiceButtons([{ value: 'off', icon: '🎹', label: 'Free play' }, ...Object.entries(SONGS).map(([value, s]) => ({ value, icon: SONG_ICONS[value] ?? '🎵', label: s.name }))], () => u.song.value, (v) => u.song.set(v));
+  const octave = choiceButtons([{ value: '-1', icon: '⬇️', label: 'Lav' }, { value: '0', icon: '🎯', label: 'Midt' }, { value: '+1', icon: '⬆️', label: 'Høy' }], () => u.octave.value, (v) => u.octave.set(v));
+  const rhythms = choiceButtons([{ value: 'off', icon: '🔇', label: 'Ingen trommer' }, ...Object.entries(RHYTHMS).map(([value, r]) => ({ value, icon: RHYTHM_ICONS[value] ?? '🥁', label: RHYTHM_LABELS[value] ?? r.name }))], () => u.rhythm.value, (v) => u.rhythm.set(v));
+  const songs = choiceButtons([{ value: 'off', icon: '🎹', label: 'Spill fritt' }, ...Object.entries(SONGS).map(([value, s]) => ({ value, icon: SONG_ICONS[value] ?? '🎵', label: SONG_LABELS[value] ?? s.name }))], () => u.song.value, (v) => u.song.set(v));
   const listen = el('button', 'uni-btn uni-listen');
   listen.type = 'button';
-  listen.innerHTML = '<span class="uni-btn-icon">👂</span><span class="uni-btn-label">Listen</span>';
-  listen.addEventListener('click', () => { if (on) hooks.listen(); else nudge(); });
-  const songHint = el('div', 'uni-small', 'Pick a song, then press any key, again and again: the unicorn knows the tune!');
+  listen.innerHTML = '<span class="uni-btn-icon">▶️</span><span class="uni-btn-label">Hør sangen</span>';
+  listen.addEventListener('click', () => void turnOn().then(() => hooks.listen()));
+  const songHint = el('div', 'uni-small', 'Velg en sang og trykk på hvilken som helst tangent, igjen og igjen: enhjørningen kan melodien!');
 
   // the note buttons share a row: long notes, wobbly, and the octave
   const notes = el('div', 'uni-buttons uni-notes');
-  notes.append(toggle(u.sustain, '🎈', 'Long notes'), toggle(u.vibrato, '〰️', 'Wobbly'), ...octave.row.children);
+  notes.append(toggle(u.sustain, '🎈', 'Lange toner'), toggle(u.vibrato, '〰️', 'Bølgete'), ...octave.row.children);
   sounds.row.classList.add('uni-sounds');
+  songs.row.classList.add('uni-songs');
+  // the play button sits up in the heading, apart from the songs it plays
+  const songsGroup = group('Sanger', songs.row, songHint);
+  songsGroup.querySelector('.uni-group-label')!.append(listen);
   controls.append(
-    group('Sounds', sounds.row),
-    group('Magic', slider(u.magic, '✨', 'Magic', true), slider(u.sparkle, '🌟', 'Sparkle'), slider(u.volume, '🔊', 'Loud'), notes),
-    group('Drums', rhythms.row, slider(u.tempo, '🐢', 'Fast 🐇'), slider(u.beatLevel, '🥁', 'Drums loud')),
-    group('Songs', songs.row, listen, songHint),
+    group('Lyder', sounds.row),
+    group('Magi', slider(u.magic, '✨', 'Magi', true), slider(u.sparkle, '🌟', 'Glitter'), slider(u.volume, '🔊', 'Volum'), notes),
+    group('Trommer', rhythms.row, slider(u.tempo, '🐢', 'Fort 🐇'), slider(u.beatLevel, '🥁', 'Trommevolum')),
+    songsGroup,
   );
   u.onChange(() => { sounds.paint(); octave.paint(); rhythms.paint(); songs.paint(); paintGlow(); });
 
   // for grown-ups: a MIDI keyboard, the audio bus, the way home
   const footer = el('div', 'uni-footer');
-  const midiButton = el('button', 'uni-midi', '🎹 Connect a MIDI keyboard');
+  const midiButton = el('button', 'uni-midi', '🎹 Koble til et MIDI-keyboard');
   midiButton.type = 'button';
   midiButton.addEventListener('click', () => hooks.connectMidi());
   const midiState = el('span', 'uni-midi-state');
   const note = el('div');
-  note.innerHTML = 'For grown-ups: its sound is on the audio bus as “MOA-UNICORN” for the mixer. <a href="/">moaswift.no</a>';
+  note.innerHTML = 'For voksne: lyden ligger på lydbussen som «MOA-UNICORN», til mikseren. <a href="/">moaswift.no</a>';
   footer.append(midiButton, midiState, note);
   top.append(footer); // a small note for grown-ups, out of the way at the top
   root.append(top, stage, controls);
 
   // ---- the switch
-  const nudge = () => {
-    power.classList.remove('nudge');
-    void power.offsetWidth;
-    power.classList.add('nudge');
-  };
   const paintPower = () => {
     power.setAttribute('aria-checked', String(on));
     root.classList.toggle('on', on);
   };
-  power.addEventListener('click', async () => {
-    on = !on;
+  let powering: Promise<void> = Promise.resolve();
+  const setPower = (v: boolean) => {
+    on = v;
     paintPower();
-    await hooks.power(on);
-  });
+    powering = hooks.power(on);
+    return powering;
+  };
+  /** Wakes it if it sleeps (a key, a button or the big wake-up button); resolves once it can play. */
+  const turnOn = () => (on ? powering : setPower(true));
+  power.addEventListener('click', () => void setPower(!on));
+  // any of the big buttons wakes it too, so nobody is ever stuck with a silent toy
+  controls.addEventListener('click', () => void turnOn(), true);
   paintPower();
 
   // ---- the horn glows with Magic
