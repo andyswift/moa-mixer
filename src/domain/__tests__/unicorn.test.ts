@@ -78,6 +78,17 @@ describe('One Key Play', () => {
     expect(play.next).toBe(60);
   });
 
+  it('Mikkel Rev as written: eight bars of four beats, D major, from F sharp to the D an octave up', () => {
+    const notes = SONGS.mikkel!.notes;
+    let beat = 0;
+    const bars: number[] = [];
+    for (const [, len] of notes) { beat += len; if (beat % 4 === 0) bars.push(beat / 4); }
+    expect(bars).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(notes.map(([n]) => n % 12).every((pc) => [2, 4, 6, 7, 9, 11, 1].includes(pc))).toBe(true); // only the notes of D major
+    expect(notes[0]![0]).toBe(66);
+    expect(notes.at(-1)![0]).toBe(62);
+  });
+
   it('a song in time, to listen to', () => {
     const t = new OneKeyPlay(SONGS.joy!).timed(120);
     expect(t[1]!.at).toBeCloseTo(0.5, 9);

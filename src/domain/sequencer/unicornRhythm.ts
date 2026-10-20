@@ -100,6 +100,12 @@ export interface Song {
 
 const C = 60, D = 62, E = 64, F = 65, G = 67, A = 69, B = 71;
 export const SONGS: Record<string, Song> = {
+  // Norwegian, traditional; in D major as it is usually sung (F sharp and C sharp)
+  mikkel: {
+    name: 'Mikkel Rev',
+    notes: [[66, 1], [69, 1], [62, 2], [66, 1], [69, 1], [62, 2], [67, 1], [71, 1], [74, 1], [71, 1], [71, 2], [69, 2],
+      [66, 1], [69, 1], [62, 2], [66, 1], [69, 1], [62, 2], [64, 1], [66, 1], [67, 1], [61, 1], [64, 2], [62, 2]],
+  },
   twinkle: {
     name: 'Twinkle Twinkle',
     notes: [[C, 1], [C, 1], [G, 1], [G, 1], [A, 1], [A, 1], [G, 2], [F, 1], [F, 1], [E, 1], [E, 1], [D, 1], [D, 1], [C, 2],

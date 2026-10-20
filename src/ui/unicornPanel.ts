@@ -11,11 +11,11 @@ const BLACK = new Set([1, 3, 6, 8, 10]);
 const COMPUTER_KEYS = ['a', 'w', 's', 'e', 'd', 'f', 't', 'g', 'y', 'h', 'u', 'j', 'k', 'o', 'l', 'p', ';'];
 const FIRST = 60; // C4
 const RHYTHM_ICONS: Record<string, string> = { rock: '🥁', pop: '🎉', waltz: '💃', march: '🥾', disco: '🪩' };
-const SONG_ICONS: Record<string, string> = { twinkle: '⭐', lamb: '🐑', joy: '🎵', farm: '🐄', bells: '🛷' };
+const SONG_ICONS: Record<string, string> = { mikkel: '🦊', twinkle: '⭐', lamb: '🐑', joy: '🎵', farm: '🐄', bells: '🛷' };
 // the page speaks Norwegian
 const RHYTHM_LABELS: Record<string, string> = { rock: 'Rock', pop: 'Pop', waltz: 'Vals', march: 'Marsj', disco: 'Disko' };
 const SONG_LABELS: Record<string, string> = {
-  twinkle: 'Blinke, blinke, lille stjerne', lamb: 'Mary hadde et lite lam', joy: 'Ode til gleden', farm: 'Old MacDonald hadde en gård', bells: 'Bjelleklang',
+  mikkel: 'Mikkel Rev', twinkle: 'Blinke, blinke, lille stjerne', lamb: 'Mary hadde et lite lam', joy: 'Ode til gleden', farm: 'Old MacDonald hadde en gård', bells: 'Bjelleklang',
 };
 
 export interface UnicornHooks {
