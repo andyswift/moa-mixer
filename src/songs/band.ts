@@ -1,13 +1,16 @@
 import { BAND_PAGES, ON_DEMAND_PAGES, type PageId, type PageState, sendControl, watchStatus } from './control';
 
 /** Page ids whose files and folders are named differently (an id can't start with a digit). */
-const PATHS: Partial<Record<PageId, string>> = { m2600: '2600' };
+const PATHS: Partial<Record<PageId, string>> = { m2600: '2600', bass2: 'bass' };
+/** Page ids played by another page standing in as a second player (`?as=`): a second bassist on the bass page. */
+const AS: Partial<Record<PageId, string>> = { bass2: 'bass2' };
 
 /** Where each page lives: separate pages on the site, separate files in the dev server. */
 export function pageUrl(id: PageId): string {
   const path = PATHS[id] ?? id;
-  if (import.meta.env.DEV) return id === 'mixer' ? '/index.html' : `/${path}.html`;
-  return `/${path}/`;
+  const as = AS[id] ? `?as=${AS[id]}` : '';
+  if (import.meta.env.DEV) return id === 'mixer' ? '/index.html' : `/${path}.html${as}`;
+  return `/${path}/${as}`;
 }
 
 /**
@@ -68,7 +71,8 @@ export class Band {
 
   private load(p: PageId): void {
     const f = document.createElement('iframe');
-    f.src = `${pageUrl(p)}?embed=1`;
+    const url = pageUrl(p);
+    f.src = `${url}${url.includes('?') ? '&' : '?'}embed=1`;
     f.title = `${p} (running in the background)`;
     f.setAttribute('aria-hidden', 'true');
     f.setAttribute('allow', 'autoplay');

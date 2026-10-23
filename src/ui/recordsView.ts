@@ -1,14 +1,14 @@
 import type { Band } from '../songs/band';
 import type { PageId } from '../songs/control';
 import type { SongPlayer } from '../songs/player';
-import type { Song } from '../songs/types';
+import { barAt, songBeats, type Song } from '../songs/types';
 import { CLOSE_PANEL } from './embed';
 import { labelColor, sleeveSvg } from './sleeveArt';
 import { el } from './widgets';
 
 const CHIP_NAMES: Record<PageId, string> = {
   mixer: 'MIXER', synth: 'MOA-1', poly: 'MOA-6', drums: 'MOA-DR', lynch: 'LYNCH', duo: 'DUO', df2: 'DF2', pipe: 'PIPE',
-  reverb: 'REVERB', delay: 'DELAY', ouroboros: 'OURO', buscomp: 'COMP', granular: 'GRAIN', m2600: '2600', bass: 'BASS', guitar: 'GUITAR', mpc: 'MOA-60', unicorn: 'UNICORN',
+  reverb: 'REVERB', delay: 'DELAY', ouroboros: 'OURO', buscomp: 'COMP', granular: 'GRAIN', m2600: '2600', bass: 'BASS', bass2: 'BASS 2', guitar: 'GUITAR', kit: 'KIT', mpc: 'MOA-60', unicorn: 'UNICORN',
 };
 
 type View = 'crate' | 'deck';
@@ -281,9 +281,9 @@ export function renderRecords(root: HTMLElement, songs: Song[], band: Band, play
 
   player.onTick = (beat) => {
     const s = song();
-    const loopBeats = s.bars * s.beatsPerBar;
+    const loopBeats = songBeats(s);
     const within = beat < 0 ? 0 : player.loop ? beat % loopBeats : beat; // the counter and the groove start over on each pass
-    const bar = Math.min(s.bars, Math.max(1, Math.floor(within / s.beatsPerBar) + 1));
+    const bar = Math.min(s.bars, Math.max(1, barAt(s, within)));
     readBar.innerHTML = `${String(bar).padStart(2, '0')}<small> / ${s.bars} bars</small>`;
     grooveFill.style.width = `${Math.max(0, Math.min(100, (within / loopBeats) * 100))}%`;
   };

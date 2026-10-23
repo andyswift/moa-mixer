@@ -25,6 +25,8 @@
     "build:2600": "tsc --noEmit && vite build --config vite.2600.config.ts",
     "build:bass": "tsc --noEmit && vite build --config vite.bass.config.ts",
     "build:guitar": "tsc --noEmit && vite build --config vite.guitar.config.ts",
+    "build:kit": "tsc --noEmit && vite build --config vite.kit.config.ts",
+    "build:band": "tsc --noEmit && vite build --config vite.band.config.ts",
     "build:mpc": "tsc --noEmit && vite build --config vite.mpc.config.ts",
     "build:unicorn": "tsc --noEmit && vite build --config vite.unicorn.config.ts"
   },

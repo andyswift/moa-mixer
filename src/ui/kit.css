@@ -1,0 +1,5 @@
+/* ---- MOA-KIT: the bass page's layout (bass.css), the kit from above ---- */
+.kit-panel { border-top-color: #ffd25e; border-radius: 8px; }
+.kit-panel .kit-canvas { height: 440px; cursor: pointer; }
+.kit-panel .bass-table td:first-child { font-size: 15px; }
+.kit-panel .kit-groove { margin-left: auto; align-self: center; padding: 0 16px; }

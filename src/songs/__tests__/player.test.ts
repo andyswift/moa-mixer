@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ControlMessage, PageId } from '../control';
 import { automationValue, expandSong, type PlayerHost, SongPlayer } from '../player';
-import type { Song } from '../types';
+import { note } from '../generators';
+import { swingDelay, type Song } from '../types';
 
 const song = (over: Partial<Song> = {}): Song => ({
   id: 't', title: 'T', artist: 'A', bpm: 120, key: 'C', bars: 2, beatsPerBar: 4,
@@ -252,5 +253,24 @@ describe('MIDI clock for sequencers', () => {
     const stop = f.notes.slice(before).find((n) => n.data[0] === 0xfc);
     expect(stop?.page).toBe('m2600');
     expect(stop!.at).toBeGreaterThan(lastPulse);
+  });
+});
+
+describe('swung passages', () => {
+  const base: Song = {
+    id: 's', title: 'S', artist: 'A', bpm: 120, key: 'C', bars: 3, beatsPerBar: 4, barBeats: [3.5, 3.5, 4],
+    sleeve: { art: 'flats', colors: [] }, band: ['bass', 'kit'], setup: {}, automation: [], humanise: { timing: {}, velocity: 0 },
+    tracks: {}, swung: [{ from: 3.5, to: 7, amount: 62, grid: 16 }, { from: 7, to: 11, amount: 66, grid: 8 }],
+  };
+  it('move every page\'s off-beat notes by the same amount, counted from the bar (a 7/8 bar starts half a beat in)', () => {
+    // bar 2 starts at 3.5 beats: its second 16th is at 3.75, swung by (2 * 0.62 - 1) of a 16th
+    expect(swingDelay(base, 3.75)).toBeCloseTo(0.24 * 0.25, 9);
+    expect(swingDelay(base, 4)).toBe(0); // its third 16th is on the grid
+    expect(swingDelay(base, 1.25)).toBe(0); // the first bar is straight
+    expect(swingDelay(base, 7.5)).toBeCloseTo((2 * 0.66 - 1) * 0.5, 9); // eighths, a triplet shuffle
+    const song = { ...base, tracks: { bass: [note(3.75, 0.2, 40, 100)], kit: [note(3.75, 0.2, 42, 100)] } };
+    const ons = expandSong(song, 1).filter((m) => (m.data[0]! & 0xf0) === 0x90).map((m) => m.ms);
+    expect(ons[0]).toBeCloseTo(ons[1]!, 9); // the band together
+    expect(ons[0]).toBeCloseTo((3.75 + 0.06) * 500, 6);
   });
 });

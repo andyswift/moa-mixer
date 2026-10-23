@@ -75,8 +75,11 @@ export interface PickupView {
 }
 
 /**
- * A guitar or bass: physically modelled strings (`bassPhysics.ts`, `stringWorklet.ts`) into an amp (gain into a valve
- * curve, a three-band tone stack) and a miked speaker cabinet, blended with the DI as a studio would record it. A note
+ * A guitar or bass: physically modelled strings (`bassPhysics.ts`, `stringWorklet.ts`) through an overdrive pedal into
+ * an amp (gain into a valve curve, a three-band tone stack) and a miked speaker cabinet, blended with the DI as a
+ * studio would record it. The pedal is a green-box overdrive: only the mids and highs are pushed into a soft clipper
+ * (above about 700 Hz), the lows go round it clean, so the bottom stays tight and the mids hump; then its tone (a
+ * low-pass) and level. Its blend crossfades it with the bypass, so a song can stamp on it. A note
  * goes to the string a player would use: the one that needs the least hand movement from where the hand is, avoiding
  * a string that is already holding a note; letting go of a key mutes its string.
  *
@@ -109,6 +112,24 @@ export abstract class StringedInstrument extends Device implements Playable {
     this.voices = design.strings.map((s, i) => ({ name: s.name, node: `s${i + 1}`, fret: 0, length: design.scales[design.scale]! }));
     c.add('strings', 'gain', { gain: 1 });
     for (const v of this.voices) c.add(v.node, 'string', { level: 0.5, tone: 3500 }, { config: '{}' }).connect(v.node, 'strings');
+    // the overdrive pedal: the highs into the clipper, the lows round it, blended with the bypass
+    c.add('pedalDry', 'gain', { gain: 1 })
+      .add('odHp', 'filter', { frequency: 700, Q: 0.5 }, { type: 'highpass' })
+      .add('odGain', 'gain', { gain: 1 })
+      .add('odClip', 'waveshaper', {}, { curve: 'soft' })
+      .add('odTone', 'filter', { frequency: 3000, Q: 0.707 }, { type: 'lowpass' })
+      .add('odLow', 'filter', { frequency: 700, Q: 0.5 }, { type: 'lowpass' })
+      .add('odLevel', 'gain', { gain: 0.4 })
+      .add('odWet', 'gain', { gain: 0 })
+      .connect('strings', 'pedalDry')
+      .connect('strings', 'odHp')
+      .connect('odHp', 'odGain')
+      .connect('odGain', 'odClip')
+      .connect('odClip', 'odTone')
+      .connect('odTone', 'odLevel')
+      .connect('strings', 'odLow')
+      .connect('odLow', 'odLevel')
+      .connect('odLevel', 'odWet');
     // the amp: gain into a valve curve, make-up, then bass, mid and treble
     const stack = design.toneStack;
     c.add('ampIn', 'gain', { gain: 1 })
@@ -128,7 +149,8 @@ export abstract class StringedInstrument extends Device implements Playable {
       // the DI: the pickups straight to the desk
       .add('diOut', 'gain', { gain: 0.6 })
       .add('master', 'gain', { gain: 0.8 })
-      .connect('strings', 'ampIn')
+      .connect('pedalDry', 'ampIn')
+      .connect('odWet', 'ampIn')
       .connect('ampIn', 'ampDrive')
       .connect('ampDrive', 'ampPost')
       .connect('ampPost', 'ampBass')
@@ -158,6 +180,14 @@ export abstract class StringedInstrument extends Device implements Playable {
     this.choice('pluck.style', 'Pluck with', ['finger', 'pick'], design.pluck.style, () => undefined);
     this.num('pluck.position', 'Pluck at', 0.02, 0.4, design.pluck.position, 'm', () => undefined);
     this.num('pluck.strength', 'Strength', 0, 1, 0.5, '', () => undefined);
+    // the pedal
+    this.num('drive.mix', 'Drive', 0, 1, 0, '', (v) => {
+      c.setParam('pedalDry', 'gain', Math.cos((v * Math.PI) / 2));
+      c.setParam('odWet', 'gain', Math.sin((v * Math.PI) / 2));
+    });
+    this.num('drive.gain', 'Gain', 0, 1, 0.4, '', (v) => c.setParam('odGain', 'gain', 2 * Math.pow(30, v))); // 2 to 60 into the clipper
+    this.num('drive.tone', 'Tone', 800, 8000, 3000, 'Hz', (v) => c.setParam('odTone', 'frequency', v), 'log');
+    this.num('drive.level', 'Level', 0, 1.5, 0.4, '', (v) => c.setParam('odLevel', 'gain', v));
     // the amp and the cabinet
     this.num('amp.gain', 'Gain', 0, 1, design.gain, '', (v) => {
       const { pre, post } = design.drive(v);

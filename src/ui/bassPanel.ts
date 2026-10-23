@@ -31,6 +31,10 @@ export function renderBassPanel(b: BassGuitar, engine: AudioEngine): HTMLElement
   const hands = renderSection(b, { title: 'Hands', color: ORANGE, grow: 2, faders: [{ id: 'palm', label: 'Palm' }] });
   hands.querySelector('.synth-section-body')!.append(actionButton('Mute', 'Rest a hand on all the strings', () => b.voices.forEach((_, i) => b.release(i))));
   const pickup = renderSection(b, { title: 'Pickup', color: YELLOW, grow: 2, faders: [{ id: 'pickup.position', label: 'At (m)' }, 'tone'] });
+  const drive = renderSection(b, {
+    title: 'Overdrive', color: GREEN, grow: 3,
+    faders: [{ id: 'drive.mix', label: 'On' }, { id: 'drive.gain', label: 'Drive' }, { id: 'drive.tone', label: 'Tone' }, { id: 'drive.level', label: 'Level' }],
+  });
   const amp = renderSection(b, {
     title: 'Amp', color: PINK, grow: 4,
     faders: [{ id: 'amp.gain', label: 'Gain' }, { id: 'amp.bass', label: 'Bass' }, { id: 'amp.mid', label: 'Mid' }, { id: 'amp.treble', label: 'Treble' }],
@@ -42,7 +46,7 @@ export function renderBassPanel(b: BassGuitar, engine: AudioEngine): HTMLElement
   const row1 = el('div', 'synth-row');
   row1.append(strings, pluck, hands, pickup);
   const row2 = el('div', 'synth-row');
-  row2.append(amp, cab);
+  row2.append(drive, amp, cab);
   panel.append(row1, row2);
   return panel;
 }
