@@ -1,12 +1,15 @@
 import { at16, DRUM, note, steps } from '../generators';
 import { mixerSettings } from '../mixes';
 import { drone2600 } from '../m2600Sounds';
-import type { NoteEvent, Song } from '../types';
+import type { Automation, NoteEvent, Song } from '../types';
 
 /**
  * An original instrumental in a raw, cold, noisy black-metal style: 176 bpm, E phrygian, tremolo-picked riffs made of
- * a repeated note and its chromatic neighbours, blast beats, a slow dirge, choir and organ drones, wind and noise.
- * The "guitars" are two saw leads pushed through the Ouroboros bit-crusher and clipper. Twenty-four bars.
+ * a repeated note and its chromatic neighbours, blast beats, a slow dirge, a pipe organ, a choir and a drone, and noise.
+ * Two guitars (MOA-GUITAR and a second guitarist on it, panned wide: an octave apart in the A riff, for weight, a
+ * fourth apart elsewhere) through their overdrives into
+ * scooped, fizzy amps, and MOA-BASS on a pick; the synths are kept to the cold edges: a choir in the
+ * intro and the end, MOA-PIPE's pipe organ under the dirge and the end, the 2600's drone. Twenty-four bars.
  */
 const BARS = 24;
 const section = (bar: number) => (bar < 2 ? 'intro' : bar < 8 ? 'riffA' : bar < 12 ? 'dirge' : bar < 18 ? 'riffB' : 'outro');
@@ -28,21 +31,36 @@ function riffFor(bar: number): number[] | undefined {
   return undefined;
 }
 
+/** The slow section's arpeggio, from the bar's note: the root an octave down, the fifth, the root, the flat ninth's rub, back down. */
+const DIRGE_ARPEGGIO = [-12, -5, 0, 1, 0, -5];
+
 const fade = (bar: number) => (bar === 18 ? 0.7 : bar === 19 ? 0.5 : 1);
 
-function guitar(offset: number, velocity: number): NoteEvent[] {
+/**
+ * How hard each tremolo pick is: hardest on the beat, hard where the riff moves to a new note, the picks between
+ * light. Never as soft as a dead note (`DEAD_NOTE_VELOCITY`), or the fades would turn into chks.
+ */
+const pick = (velocity: number, riff: number[], s: number) => (s % 4 === 0 ? 1 : riff[s] !== riff[s - 1] ? 0.85 : 0.5) * velocity;
+
+/** A guitar's part, `offset` semitones from the first guitar's (`offsetA` in the A riff, wherever it is played). */
+function guitar(offset: number, velocity: number, offsetA = offset): NoteEvent[] {
   const out: NoteEvent[] = [];
   for (let bar = 0; bar < BARS; bar++) {
     const riff = riffFor(bar);
-    if (riff) for (let s = 0; s < 16; s++) out.push(note(at16(bar, s), steps(0.9), riff[s]! + offset, Math.round(velocity * fade(bar) * (s % 4 === 0 ? 1 : 0.82))));
+    const by = riff === A1 || riff === A2 ? offsetA : offset;
+    // each pick cut short (the next one stops the string): picked, not legato
+    if (riff) for (let s = 0; s < 16; s++) out.push(note(at16(bar, s), steps(0.55), riff[s]! + by, Math.max(44, Math.round(pick(velocity, riff, s) * fade(bar)))));
     else if (section(bar) === 'dirge') {
-      // slow, heavy: a whole-bar chord note, then a burst of tremolo on the last beat
+      // slow and heavy, the palm off so it rings (see `palmOff`): the first guitar picks the chord out in eighths, each
+      // note left ringing; the second strums it as a power chord; then both burst into tremolo on the last beat
       const held = [64, 65, 64, 58][bar - 8]!;
-      out.push(note(at16(bar, 0), steps(11.5), held + offset, velocity));
-      for (let s = 12; s < 16; s++) out.push(note(at16(bar, s), steps(0.9), held + offset, Math.round(velocity * 0.9)));
+      if (offset === 0) DIRGE_ARPEGGIO.forEach((by, i) => out.push(note(at16(bar, i * 2), steps(11.5 - i * 2), held + by, Math.round(velocity * (i % 2 === 0 ? 0.95 : 0.75)))));
+      else for (const by of [-12, -5, 0]) out.push(note(at16(bar, 0), steps(11.5), held + by, velocity));
+      for (let s = 12; s < 16; s++) out.push(note(at16(bar, s), steps(0.55), held + offset, Math.round(velocity * (s === 12 ? 1 : 0.6))));
     }
   }
-  if (offset === 0) out.push(note(at16(20, 0), steps(16 * 4 - 1), 52, 70)); // the last riff note rings out as a drone
+  // the end: an E power chord strummed and left to ring out
+  if (offset === 0) for (const n of [40, 47, 52]) out.push(note(at16(20, 0), steps(16 * 4 - 1), n, 84));
   return out;
 }
 
@@ -96,10 +114,10 @@ function choir(): NoteEvent[] {
   const out: NoteEvent[] = [];
   const chord = (bar: number, notes: number[], len: number, vel: number) => { for (const n of notes) out.push(note(at16(bar, 0), steps(len), n, vel)); };
   chord(0, [52, 59, 65], 31, 44); // an E-F cluster: a minor second held cold
-  for (const bar of [2, 4, 6]) chord(bar, [52, 59, 64, 65], 31, 48);
-  for (const bar of [8, 10]) chord(bar, [52, 58, 64], 31, 54); // E and B-flat: the tritone
-  for (const bar of [12, 14, 16]) chord(bar, [52, 59, 65], 31, 46);
-  chord(18, [52, 59, 65, 70], 16 * 6 - 1, 40);
+  // the riffs are the guitars' alone
+  chord(18, [52, 59, 65, 70], 31, 40); // the end: three chords, thinning out
+  chord(20, [52, 59, 64, 71], 31, 36);
+  chord(22, [52, 59], 31, 32);
   return out;
 }
 
@@ -111,30 +129,43 @@ function organ(): NoteEvent[] {
   return out;
 }
 
-function wind(): NoteEvent[] {
-  return [note(at16(0, 0), steps(31), 64, 70), note(at16(8, 0), steps(63), 64, 66), note(at16(18, 0), steps(16 * 6 - 1), 64, 64)];
-}
-
 /** The MOA-2600: a cold drone on E (noise and a ring-modulated tone, a slowly sweeping filter) under the dirge and the outro. */
 function drone(): NoteEvent[] {
   return [note(at16(8, 0), 4 * 4 - 0.25, 40, 100), note(at16(18, 0), 6 * 4 - 0.5, 40, 100)];
+}
+
+/** The picking hand: resting on the strings for the riffs (so the tremolo is picked, not smeared), lifted in the dirge and the end to let chords ring. */
+function palmOff(page: 'guitar' | 'guitar2'): Automation {
+  const on = 0.3;
+  return { page, device: 'guitar', control: 'palm', points: [[0, on], [at16(8, 0) - 0.05, on], [at16(8, 0), 0], [at16(12, 0) - 0.05, 0], [at16(12, 0), on], [at16(20, 0) - 0.05, on], [at16(20, 0), 0]] };
 }
 
 export function blackFjordLiturgy(): Song {
   const base = mixerSettings({
     drums: { kick: 1.0, snare: 1.5, clap: 1.5, rest: 1.5 }, // balanced by RMS: the snare, clap and cymbals lifted so the kit snaps
     duck: 0, // no pumping: this one is meant to be relentless
-    reverb: { ch5: 0.3, ch2: 0.5, line1: 0.1, line2: 0.5, line3: 0.1, line4: 0.4, line5: 0.45 },
+    reverb: { ch5: 0.3, ch2: 0.5, line1: 0.1, line3: 0.1, line4: 0.4, line5: 0.45 },
     delay: {},
-    faders: { line1: 0.55, line3: 0.5, line2: 0.7, line4: 0.8, line5: 0.4 }, // guitars tucked back so the kit cuts through
+    faders: { ch1: 0.75, ch2: 0.4, line1: 0.36, line3: 0.32, line4: 0.35, line5: 0.4 }, // guitars tucked back so the kit cuts through; the choir under them
   });
   const mixerControls = base.mixer.mixer!.controls!;
   Object.assign(mixerControls, {
-    // both guitars go to bus C, which feeds Ouroboros as the distortion; aux 3 sends noise to the granular effect
-    'line1.busA': false, 'line1.busC': true, 'line3.busA': false, 'line3.busC': true,
-    'line4.aux3': 0.7, 'ch7.aux3': 0.5, 'ch8.aux3': 0.5, 'ch6.aux3': 0.25,
-    'ret3.fader': 0.5, 'ret5.fader': 0.8, // the guitars come back from the distortion here: about 6 dB down so they sit just under the drums
+    'line1.pan': -0.7, 'line3.pan': 0.7, // the two guitars wide, left and right
+    // aux 3 sends noise to the granular effect
+    'line4.aux3': 0.3, 'ch7.aux3': 0.5, 'ch8.aux3': 0.5, 'ch6.aux3': 0.25,
+    'ret5.fader': 0.8,
   });
+  /**
+   * A black-metal guitar: the bridge humbucker, picked hard by the bridge, the overdrive into a pushed amp, the mids
+   * scooped. The overdrive short of flat out, so the accents in the picking still come through, and the picking hand
+   * resting lightly on the strings, so each pick dies before the next (a lifted finger alone leaves a tail the drive
+   * brings back up, and the tremolo smears).
+   */
+  const guitarTone = (driveTone: number) => ({ guitar: { controls: {
+    'pickup.select': 'bridge', 'pickup.type': 'humbucker', tone: 8, 'pluck.style': 'pick', 'pluck.position': 0.05, 'pluck.strength': 0.7, palm: 0.3, // the palm lifts and rests with the song (`palmOff`)
+    strum: 'down', 'strum.time': 12, 'drive.mix': 1, 'drive.gain': 0.7, 'drive.tone': driveTone, 'drive.level': 0.5,
+    'amp.gain': 0.8, 'amp.bass': 4, 'amp.mid': -3, 'amp.treble': 6, 'cab.type': '4x12', 'cab.blend': 0.9, level: 0.6,
+  } } });
   return {
     id: 'black-fjord-liturgy',
     title: 'Black Fjord Liturgy',
@@ -144,29 +175,22 @@ export function blackFjordLiturgy(): Song {
     bars: BARS,
     beatsPerBar: 4,
     sleeve: { art: 'frost', colors: ['#08080d', '#e8eef7', '#8aa0b8'] },
-    band: ['drums', 'synth', 'poly', 'lynch', 'duo', 'df2', 'pipe', 'm2600', 'reverb', 'buscomp', 'ouroboros', 'granular'],
+    band: ['drums', 'bass', 'guitar', 'guitar2', 'poly', 'pipe', 'm2600', 'reverb', 'buscomp', 'granular'],
+    inputs: { ch1: 'MOA-BASS', line1: 'MOA-GUITAR', line3: 'MOA-GUITAR 2' },
     setup: {
       drums: { drums: { controls: { 'snare.level': 1, 'clap.level': 1, 'closedHat.level': 1, 'openHat.level': 1, 'ride.level': 1 } } },
-      synth: { synth: { preset: 3 } }, // Fat Pulse Bass
+      // the bass: roundwounds, a pick, half its overdrive in, so it growls under the guitars
+      bass: { bass: { controls: {
+        'pluck.style': 'pick', 'pluck.position': 0.08, 'pluck.strength': 0.65, 'drive.mix': 0.5, 'drive.gain': 0.4, 'drive.tone': 2000,
+        'amp.gain': 0.4, 'amp.mid': 2, 'cab.type': '8x10', level: 0.9,
+      } } },
+      guitar: guitarTone(5000),
+      guitar2: guitarTone(4200), // a little darker, so the two stay apart
       poly: { poly: { preset: 10 } }, // Choir Air
-      lynch: { lynch: { preset: 11 } }, // Lead Saw: the rhythm guitar
-      duo: { duo: { preset: 11 } }, // Infinite Cathedral
       m2600: drone2600(),
-      df2: { lynch: { preset: 11 }, box: { preset: 3, controls: { 'f1.res': 0.6, 'f2.res': 0.55, 'delay.level': 0 } } }, // the second guitar, through Screaming Madman
-      pipe: { pipe: { preset: 14 } }, // Steam Drone: wind
+      pipe: { pipe: { preset: 11 } }, // Pipe Organ
       mixer: base.mixer,
       buscomp: base.buscomp,
-      ouroboros: { ouroboros: {
-        controls: {
-          // used as a distortion: fully wet, bit-crushed and clipped, no echo and no wobble
-          'ouro.routing': 'parallel', 'ouro.mix': 1, 'ouro.input': 1.6, 'ouro.output': 0.6,
-          'ouro.a.delay': 10, 'ouro.b.delay': 14, 'ouro.a.grit': 0.9, 'ouro.b.grit': 0.85, 'ouro.a.clip': 0.9, 'ouro.b.clip': 0.85,
-          'ouro.a.cutoff': 6500, 'ouro.b.cutoff': 5200, 'ouro.a.resonance': 1, 'ouro.b.resonance': 1,
-          'ouro.fb.aa': 0, 'ouro.fb.bb': 0, 'ouro.fb.ab': 0, 'ouro.fb.ba': 0,
-          'ouro.mod.depth': 0, 'ouro.mod.dlyA': 0, 'ouro.mod.dlyB': 0,
-        },
-        },
-      },
       granular: { granular: {
         controls: {
           // a dusty, driven grain cloud for the noise
@@ -176,12 +200,12 @@ export function blackFjordLiturgy(): Song {
         },
       },
     },
-    tracks: { drums: drums(), synth: bass(), poly: choir(), lynch: guitar(0, 112), df2: guitar(-5, 100), duo: organ(), pipe: wind(), m2600: drone() },
+    tracks: { drums: drums(), bass: bass(), poly: choir(), guitar: guitar(0, 112), guitar2: guitar(-5, 100, -12), pipe: organ(), m2600: drone() },
     automation: [
-      // the filter box on the second guitar: slow rise through the dirge, bright through the second riff, closing in the outro
-      { page: 'df2', device: 'box', control: 'f1.cutoff', curve: 'exp', points: [[0, 3000], [32, 700], [48, 2600], [49, 3600], [72, 3600], [96, 300]] },
-      { page: 'df2', device: 'box', control: 'f2.cutoff', curve: 'exp', points: [[0, 3500], [32, 900], [48, 3000], [49, 4200], [72, 4200], [96, 400]] },
+      // the second guitar's tone knob: dark into the dirge, opening through it, bright through the second riff, closing in the outro
+      palmOff('guitar'), palmOff('guitar2'),
+      { page: 'guitar2', device: 'guitar', control: 'tone', points: [[0, 8], [32, 3], [48, 7], [49, 9], [72, 9], [96, 1]] },
     ],
-    humanise: { timing: { drums: 3, synth: 4, poly: 8, lynch: 3, duo: 6, pipe: 8, df2: 3, m2600: 4 }, velocity: 0.07 },
+    humanise: { timing: { drums: 3, bass: 4, poly: 8, guitar: 3, pipe: 6, guitar2: 3, m2600: 4 }, velocity: 0.07 },
   };
 }
