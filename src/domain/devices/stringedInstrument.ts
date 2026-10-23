@@ -13,6 +13,8 @@ const BEND_SEMITONES = 2;
 const SAMPLE_RATE = 48000; // for working out how many modes fit
 /** A note on a string already holding one costs this many frets of hand movement (so double-stops find another string). */
 const BUSY_STRING = 6;
+/** A note this soft or softer is a dead note: struck with the hand already damping the string (a pitchless chk). */
+export const DEAD_NOTE_VELOCITY = 40;
 
 /** A speaker cabinet, modelled by what makes it sound as it does: the box's low resonance and roll-off, the cones' peak and top end. */
 export interface Cabinet {
@@ -404,7 +406,12 @@ export abstract class StringedInstrument extends Device implements Playable {
     this.held.push(note);
     this.latched.delete(note);
     this.setFret(i, note - this.openNote(i));
-    this.pluck(i, undefined, Math.min(1, Math.max(0.05, (this.value<number>('pluck.strength') * velocity) / 96)), this.pluckDelay(i));
+    const strength = Math.min(1, Math.max(0.05, (this.value<number>('pluck.strength') * velocity) / 96));
+    if (velocity <= DEAD_NOTE_VELOCITY) {
+      // a dead note: struck now (never strummed late) with the string already damped
+      this.pluck(i, undefined, strength);
+      this.circuit.send(v.node, { type: 'mute', on: true, hard: true });
+    } else this.pluck(i, undefined, strength, this.pluckDelay(i));
     this.notifyNotes();
   }
 

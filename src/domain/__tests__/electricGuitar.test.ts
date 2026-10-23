@@ -121,3 +121,22 @@ describe('MOA-GUITAR, six strings', () => {
     expect(into('odLevel').sort()).toEqual(['odLow', 'odTone']); // the lows round the clipper, clean
   });
 });
+
+describe('dead notes', () => {
+  it('a very soft note is struck with the string already damped (a hard mute straight after its pluck, never strummed late)', () => {
+    const g = new ElectricGuitar();
+    let t = 0;
+    g.now = () => t;
+    const sent = watch(g) as (Sent & { hard?: boolean })[];
+    g.keyDown(40, 100); // a chord's first note starts a strum
+    sent.length = 0;
+    g.keyDown(52, 36); // within the strum, but dead
+    const [pluck, mute] = sent.filter((m) => m.type === 'pluck' || (m.type === 'mute' && m.on));
+    expect(pluck!.type).toBe('pluck');
+    expect(pluck!.delay).toBeUndefined();
+    expect(mute).toMatchObject({ type: 'mute', on: true, hard: true });
+    sent.length = 0;
+    g.keyDown(55, 41); // just above: an ordinary note
+    expect(sent.some((m) => m.type === 'mute' && m.on)).toBe(false);
+  });
+});

@@ -6,7 +6,7 @@ import { STRING_SOURCE } from '../stringWorklet';
 
 interface Core {
   re: Float64Array; im: Float64Array; pitchScale: number;
-  configure(m: unknown): void; pluck(amps: number[], grab?: number[]): void; setMuted(on: boolean): void;
+  configure(m: unknown): void; pluck(amps: number[], grab?: number[]): void; setMuted(on: boolean, hard?: boolean): void;
   process(out: Float32Array, n: number, p: { level: number; tone: number }): void;
 }
 const { StringCore } = new Function(`${STRING_SOURCE}; return { StringCore };`)() as { StringCore: new (sr: number) => Core };
@@ -119,5 +119,18 @@ describe('the string engine', () => {
     const { out } = play({}, { position: 0.02, height: 0.012, finger: false }, 1);
     expect(out.every(Number.isFinite)).toBe(true);
     expect(Math.max(...Array.from(out, Math.abs))).toBeLessThanOrEqual(1);
+  });
+
+  it('a hard mute (a dead note) kills the string far faster than letting go of a note does', () => {
+    const level = (hard: boolean) => {
+      const { core } = play({}, {}, 0);
+      core.setMuted(true, hard);
+      const out = new Float32Array(SR * 0.08);
+      for (let at = 0; at < out.length; at += 128) core.process(out.subarray(at, at + 128), Math.min(128, out.length - at), { level: 0.5, tone: 12000 });
+      let s = 0;
+      for (let i = out.length - 960; i < out.length; i++) s += out[i]! ** 2; // the last 20 ms
+      return Math.sqrt(s / 960);
+    };
+    expect(level(true)).toBeLessThan(level(false) / 10);
   });
 });

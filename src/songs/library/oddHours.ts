@@ -132,8 +132,11 @@ const LEAD_D_TURN: [number, number, number][] = [[0, 59, 1.5], [1.5, 57, 0.5], [
 
 /** Whether a bar is one of the swung breaks: the A riff's turn bars and B's fill bars (every fourth). */
 const swungBar = (bar: Bar) => (bar.section === 'A' || bar.section === 'A2' || bar.section === 'B' || bar.section === 'B2') && bar.i % 4 === 3;
-/** A muted note: the string touched, not let ring (a scratch on the guitar, a dead note on a bass). */
-const ghost = (out: NoteEvent[], bar: Bar, at: number, n: number, vel = 38) => play(out, bar, at, n, 0.12, vel);
+/**
+ * A muted note: the string touched, not let ring (a scratch on the guitar, a dead note on a bass). Soft enough to be
+ * played dead (velocity 40 or less: the string damped as it is struck, a pitchless chk, not a pitched blip).
+ */
+const ghost = (out: NoteEvent[], bar: Bar, at: number, n: number) => play(out, bar, at, n, 0.12, 36);
 
 function guitar(): NoteEvent[] {
   const out: NoteEvent[] = [];
@@ -179,12 +182,12 @@ function dubBass(): NoteEvent[] {
       const part = DUB_A[i % 2]!;
       for (const [e, n, len] of part) play(out, bar, e, n, len, e === 0 ? 108 : 90);
       // dead notes in the gaps, and the next root pushed a sixteenth early at the end of the even bars
-      ghost(out, bar, 2.5, part[0]![1], 50);
+      ghost(out, bar, 2.5, part[0]![1]);
       if (i % 4 === 3) play(out, bar, 6, 44, 0.9, 92); // G#, leading back to A
       else if (i % 2 === 0) play(out, bar, 6.5, 30, 0.5, 96);
     } else if (section === 'B' || section === 'B2') {
       for (const [e, n, len] of DUB_B[i % 2]!) play(out, bar, e, n, len, e === 0 || e === 3 ? 108 : 90);
-      for (const at of [2.5, 7.5]) ghost(out, bar, at, i % 2 ? 38 : 30, 52);
+      for (const at of [2.5, 7.5]) ghost(out, bar, at, i % 2 ? 38 : 30);
       play(out, bar, 9.5, i % 2 ? 42 : 45, 0.5, 94); // a pop into the next bar
     } else if (section === 'C') {
       if (i < 6) for (const [e, n, len] of unisonC(i)) play(out, bar, e, n, len, 104);

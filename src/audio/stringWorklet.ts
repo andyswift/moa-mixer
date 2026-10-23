@@ -13,7 +13,8 @@ export const STRING_NAME = 'moa-string';
  * - Tension modulation: a large vibration stretches the string, which raises its tension (by E A times the strain)
  *   and every frequency with it: the slight sharpness at the start of a hard pluck that settles as it decays.
  *   Strain = sum over modes of (n pi / L)^2 |z|^2 / 8 (over a cycle); frequencies scale by sqrt(1 + (E A / T) strain).
- * - Damping beyond the string's own: a palm mute (always on while set) and the mute of a released note.
+ * - Damping beyond the string's own: a palm mute (always on while set) and the mute of a released note; a hard mute
+ *   (`hard`, eight times as strong) is a dead note, the hand damping the string as it is struck: a pitchless chk.
  * - The pickup hears each mode's velocity at its position (weights from the physics), then its own resonance:
  *   a resonant low-pass at `tone`.
  * - Only what moves is computed: each block runs the modes up to the highest one still moving (the high ones die in
@@ -31,6 +32,7 @@ class StringCore {
     this.re = new Float64Array(0); this.im = new Float64Array(0);
     this.stretch = 0;
     this.muted = false;
+    this.muteScale = 1;
     this.pitchScale = 1;
     this.lp = [0, 0, 0, 0]; // pickup resonance biquad state
   }
@@ -59,7 +61,7 @@ class StringCore {
     }
   }
 
-  setMuted(on) { this.muted = !!on; }
+  setMuted(on, hard) { this.muted = !!on; this.muteScale = on && hard ? 8 : 1; }
 
   process(out, len, p) {
     const re = this.re, im = this.im, sr = this.sr;
@@ -85,7 +87,7 @@ class StringCore {
     if (!this.cr || this.cr.length < this.n) { const m = this.n; this.cr = new Float64Array(m); this.ci = new Float64Array(m); this.vw = new Float64Array(m); } // sized once: no allocation per block
     const cr = this.cr, ci = this.ci, vw = this.vw;
     for (let k = 0; k < n; k++) {
-      const loss = this.sigma[k] + this.palm[k] + (this.muted ? this.mute[k] : 0);
+      const loss = this.sigma[k] + this.palm[k] + (this.muted ? this.mute[k] * this.muteScale : 0);
       const r = Math.exp(-loss / sr);
       const w = this.omega[k] * s;
       cr[k] = r * Math.cos(w / sr);
@@ -139,7 +141,7 @@ if (typeof registerProcessor === 'function') {
         else if (m.type === 'pluck' && m.delay > 0) this.waiting.push({ due: currentFrame + Math.round(m.delay * sampleRate), m });
         else if (m.type === 'pluck') this.core.pluck(m.amps, m.grab);
         else if (m.type === 'mute') {
-          this.core.setMuted(m.on);
+          this.core.setMuted(m.on, m.hard);
           if (m.on) this.waiting = [];
         }
       };
