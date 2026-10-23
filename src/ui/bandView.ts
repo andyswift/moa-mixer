@@ -179,7 +179,10 @@ export function renderBandPage(root: HTMLElement, song: Song, band: Band, player
       band.setEffects(song.band);
       await band.start();
       player.setup(song);
-      await new Promise((r) => setTimeout(r, 1200)); // the settings land before the first note
+      // a moment to settle before the first note: the pages have just woken (their engines compiling, the kit decoding
+      // its cymbals, the mixer's links filling their buffers), and notes sent into that stutter
+      caption.textContent = 'Tuning up…';
+      await new Promise((r) => setTimeout(r, 3000));
       player.play(song);
       play.innerHTML = icon(true);
       play.setAttribute('aria-label', 'Stop');

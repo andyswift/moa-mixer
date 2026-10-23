@@ -1,7 +1,7 @@
 import type { AudioEngine } from '../audio/engine';
 import { MixerInputs } from '../audio/mixerInputs';
 import { MonitorControl } from '../audio/monitorControl';
-import { FX_JITTER_MS, PcmBus } from '../audio/pcmBus';
+import { EMBEDDED_FX_JITTER_MS, FX_JITTER_MS, PcmBus } from '../audio/pcmBus';
 import type { MidiClock } from '../domain/midi/clock';
 import { type MidiEvent, parseMidi } from '../domain/midi/events';
 import { MidiMonitor } from '../domain/midi/monitor';
@@ -11,7 +11,7 @@ import { announceStatus, applySettings, captureSettings, listenForControl, type 
 import { WebMidi } from '../midi/webMidi';
 import { renderAudioBusBlock } from './audioBusBlock';
 import { renderAudioInputSelect } from './audioInputSelect';
-import { applyEmbedMode } from './embed';
+import { applyEmbedMode, isEmbedded } from './embed';
 import { renderMidiStrip } from './midiStrip';
 import { el } from './widgets';
 
@@ -99,7 +99,7 @@ export function mountInstrumentPage(opts: {
             const spec = opts.inputs!.find((i) => i.jack === jack)!;
             const target = engine.jackNode(spec.device, 'in', spec.jack);
             if (!ctx || !target) throw new Error('Audio is not running');
-            const received = await pcm.subscribe(ctx, portId, FX_JITTER_MS);
+            const received = await pcm.subscribe(ctx, portId, isEmbedded() ? EMBEDDED_FX_JITTER_MS : FX_JITTER_MS);
             if (spec.mono) {
               const mono = ctx.createGain();
               mono.channelCount = 1;

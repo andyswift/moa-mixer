@@ -32,3 +32,14 @@ describe('Odd Hours', () => {
     expect(automationValue(strength, heavy.from + 1)).toBeGreaterThan(automationValue(strength, calm.from + 1) + 0.2);
   });
 });
+
+describe('Odd Hours: the free bass leading in D', () => {
+  it('stays in tune: no harder pick and no hard accents (a bass picked hard by the bridge goes 30 cents and more sharp)', () => {
+    const song = oddHours();
+    expect(song.automation.find((a) => a.page === 'bass2' && a.control === 'pluck.strength')).toBeUndefined();
+    const d = song.sections!.filter((s) => s.name === 'D');
+    const lead = song.tracks.bass2!.filter((n) => d.some((s) => n.t >= s.from && n.t < s.to));
+    expect(lead.length).toBeGreaterThan(50);
+    for (const n of lead) expect(n.vel).toBeLessThanOrEqual(100);
+  });
+});

@@ -1,7 +1,7 @@
 import './ui/style.css';
 import { AudioEngine } from './audio/engine';
 import { type InputHost, MixerInputs } from './audio/mixerInputs';
-import { FX_JITTER_MS, PcmBus } from './audio/pcmBus';
+import { EMBEDDED_FX_JITTER_MS, EMBEDDED_JITTER_MS, FX_JITTER_MS, fxRoundTripMs, PcmBus } from './audio/pcmBus';
 import type { NumberControl } from './domain/devices/controls';
 import type { Mixer } from './domain/devices/mixer';
 import { MidiClock } from './domain/midi/clock';
@@ -11,7 +11,7 @@ import { Patch } from './domain/patch/patch';
 import { MidiBus } from './midi/bus';
 import { WebMidi } from './midi/webMidi';
 import { announceStatus, applySettings, captureSettings, listenForControl } from './songs/control';
-import { applyEmbedMode } from './ui/embed';
+import { applyEmbedMode, isEmbedded } from './ui/embed';
 import { renderPageNav } from './ui/instrumentPage';
 import { renderMidiStrip } from './ui/midiStrip';
 import { renderMixerPanel } from './ui/mixerPanel';
@@ -50,7 +50,8 @@ const host: InputHost = {
     const ctx = engine.context;
     const target = engine.jackNode('mixer', 'in', jack);
     if (!ctx || !target) throw new Error('Audio is not running');
-    const received = await pcm.subscribe(ctx, portId, jack.startsWith('ret') ? FX_JITTER_MS : undefined);
+    const embedded = isEmbedded(); // deeper buffers when conducted (see EMBEDDED_JITTER_MS)
+    const received = await pcm.subscribe(ctx, portId, jack.startsWith('ret') ? (embedded ? EMBEDDED_FX_JITTER_MS : FX_JITTER_MS) : (embedded ? EMBEDDED_JITTER_MS : undefined));
     if (jack.startsWith('line') || jack.startsWith('ret')) {
       received.node.connect(target); // stereo strips take the pair as it is
       return () => received.close();
@@ -76,9 +77,9 @@ const inputs = new MixerInputs(
   ]),
 );
 pcm.onChange(() => inputs.reconcile());
-// While an effect page feeds a return, the dry channels wait for it (the round trip is about 40 ms), so insert effects
-// on the buses line up with the dry signal.
-const FX_ROUND_TRIP_MS = 40;
+// While an effect page feeds a return, the dry channels wait for it (the round trip is about 40 ms, more when conducted
+// with deeper buffers), so insert effects on the buses line up with the dry signal.
+const FX_ROUND_TRIP_MS = fxRoundTripMs(isEmbedded() ? EMBEDDED_FX_JITTER_MS : FX_JITTER_MS);
 inputs.onChange(() => {
   const live = RETURN_JACKS.some((j) => inputs.status(j) === 'live');
   (patch.device<Mixer>('mixer').control('comp.ms') as NumberControl).set(live ? FX_ROUND_TRIP_MS : 0);
