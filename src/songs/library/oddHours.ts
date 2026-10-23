@@ -16,7 +16,7 @@ import type { Automation, NoteEvent, Song } from '../types';
  * with the backbeat moved. A' (7/8): the first riff back, its echo pushed, the free bass doubling the guitar an octave
  * down. C (4/4): the guitar into crunch with an angular line, both basses in unison, the kit on the toms coming apart,
  * a snare build and three hits. D (4/4): straight rock, F#m D A E: the guitar on power chords, the dub bass pumping
- * roots, the free bass leading through its overdrive (with fifths the second time). B' (5/4): the 5/4 riff doubled by
+ * roots, the free bass leading low through its overdrive. B' (5/4): the 5/4 riff doubled by
  * both basses. The last chord is left to ring.
  */
 type Section = 'intro' | 'A' | 'B' | 'A2' | 'C' | 'D' | 'B2' | 'end';
@@ -203,30 +203,38 @@ function dubBass(): NoteEvent[] {
 }
 
 function freeBass(): NoteEvent[] {
+  // mostly in the bass register, a line above the dub bass's roots; the high answers kept for the turn bars
+  const down = (ns: readonly number[], by: number) => ns.map((n) => n - by);
   const out: NoteEvent[] = [];
   for (const bar of BARS) {
     const { section, i, n: time } = bar;
+    const turn = i % 4 === 3;
     if (section === 'A' && (time > 0 || i >= 4)) {
-      for (const [e, ns, len] of FREE_A[i % 2]!) play(out, bar, e, ns, len, 86);
+      for (const [e, ns, len] of FREE_A[i % 2]!) play(out, bar, e, turn ? ns : down(ns, 12), len, 86); // an octave down, but the turn answers high
     } else if (section === 'A2') {
-      if (time === 0 && i < 4) for (const [e, ns, len] of FREE_A[i % 2]!) play(out, bar, e, ns, len, 86);
-      else riffA(i).forEach((n, e) => play(out, bar, e, n - 12, 0.9, e === 0 ? 92 : 78)); // the guitar's riff an octave down
+      if (time === 0 && i < 4) for (const [e, ns, len] of FREE_A[i % 2]!) play(out, bar, e, turn ? ns : down(ns, 12), len, 86);
+      else riffA(i).forEach((n, e) => play(out, bar, e, n - 24, 0.9, e === 0 ? 92 : 78)); // the guitar's riff two octaves down
     } else if (section === 'B') {
-      for (const [e, ns, len] of FREE_B[i % 2]!) play(out, bar, e, time > 0 ? ns.map((n) => n + 2) : ns, len, 88); // higher the second time
+      // the climb, from an octave lower (a tone higher the second time)
+      for (const [e, ns, len] of FREE_B[i % 2]!) play(out, bar, e, down(ns, time > 0 ? 10 : 12), len, 88);
       // stabs off the beat, a double-stop cut short
-      for (const at of [2.5, 7.5]) play(out, bar, at, i % 2 ? [57, 62] : [54, 59], 0.3, 96);
+      for (const at of [2.5, 7.5]) play(out, bar, at, i % 2 ? [45, 50] : [42, 47], 0.3, 96);
     } else if (section === 'B2') {
-      for (const [e, n, len] of DUB_B[i % 2]!) play(out, bar, e, n + 12, len, e === 0 || e === 3 ? 104 : 88); // doubling the riff an octave up
-      play(out, bar, 9.5, i % 2 ? 54 : 57, 0.5, 96);
+      // doubling the riff: an octave up for the first half, then with the dub bass, together
+      const up = i < 4 ? 12 : 0;
+      for (const [e, n, len] of DUB_B[i % 2]!) play(out, bar, e, n + up, len, e === 0 || e === 3 ? 104 : 88);
+      play(out, bar, 9.5, (i % 2 ? 42 : 45) + up, 0.5, 96);
     } else if (section === 'C') {
-      if (i < 6) for (const [e, n, len] of unisonC(i)) play(out, bar, e, n + 12, len, 100);
+      if (i < 6) for (const [e, n, len] of unisonC(i)) play(out, bar, e, n, len, 100); // in unison with the dub bass
       else if (i === 7) for (const e of [0, 3, 6]) play(out, bar, e, 40, 1.5, 118);
     } else if (section === 'D') {
-      // the lead, through its overdrive; the second time round its accents become fifths
+      // the lead, an octave down: a driving line in the bass register through its overdrive (single notes: double-
+      // stops through a driven bass go muddy). Accents are leant on only a little: a bass string picked hard by the
+      // bridge goes sharp (measured: 30 cents and more)
       const riff = Math.floor(i / 2) % 4 === 3 && i % 2 === 1 ? LEAD_D_TURN : LEAD_D[i % 2]!;
-      for (const [e, n, len] of riff) play(out, bar, e, bar.n > 0 && (e === 0 || e === 3) ? [n, n + 7] : n, len, e === 0 || e === 3 ? 108 : 94);
+      for (const [e, n, len] of riff) play(out, bar, e, n - 12, len, e === 0 || e === 3 ? 100 : 90);
     } else if (section === 'end') {
-      play(out, bar, 0, [52, 57], 7.5, 96); // E and A, a double-stop high on the neck
+      play(out, bar, 0, [40, 45], 7.5, 96); // E and A, low
     }
   }
   return out;
@@ -362,9 +370,9 @@ function automation(): Automation[] {
     per('guitar', 'guitar', 'drive.gain', { C: 0.85, D: 0.6, rest: 0.35 }),
     // its echo: a touch in A, more in B, most in A' (the riff answering itself), dry in C and D
     per('mixer', 'mixer', 'ch3.aux2', { intro: 0.18, A: 0.22, B: 0.32, A2: 0.45, C: 0.08, D: 0.08, B2: 0.3, rest: 0.18 }),
-    // D is the free bass's: its overdrive on, its fader up (4 dB) to lead, and he digs in
+    // D is the free bass's: its overdrive on and its fader up (4 dB) to lead
     per('bass2', 'bass', 'drive.mix', { D: 1, rest: 0 }),
-    per('bass2', 'bass', 'pluck.strength', { D: 0.75, rest: 0.5 }),
+
     per('mixer', 'mixer', 'ch2.fader', { D: 0.57, rest: 0.36 }),
     ...freakOut(),
   ];
@@ -400,9 +408,9 @@ export function oddHours(): Song {
       } } },
       // the free bass: roundwounds, a pick near the bridge, the pickup by the bridge, the amp pushed a little
       bass2: { bass: { controls: {
-        'drive.gain': 0.5, 'drive.tone': 2600, 'drive.level': 0.5, // stamped on for D
+        'drive.gain': 0.25, 'drive.tone': 2400, 'drive.level': 0.55, // stamped on for D: growl, not fuzz
         'pluck.style': 'pick', 'pluck.position': 0.07, 'pluck.strength': 0.5, 'pickup.position': 0.08, tone: 5000,
-        'amp.gain': 0.55, 'amp.mid': 3, 'amp.treble': 2, 'cab.type': '4x10', 'cab.blend': 0.5, level: 0.8,
+        'amp.gain': 0.4, 'amp.mid': 3, 'amp.treble': 2, 'cab.type': '4x10', 'cab.blend': 0.5, level: 0.8,
       } } },
       kit: { kit: { controls: { 'snare.wires': 0.35 } } },
       // a dotted eighth at 138 bpm (326 ms), bright enough to hear the guitar's notes come back
@@ -418,7 +426,7 @@ export function oddHours(): Song {
         'ret1.fader': 0.8, 'ret2.fader': 0.7,
       } } },
     },
-    tracks: { guitar: harder(guitar(), 0.15, heatAt), kit: kit(), bass: dubBass(), bass2: harder(freeBass(), 0.12, (t) => (heatAt(t) === HEAT.D ? 1 : 0)) },
+    tracks: { guitar: harder(guitar(), 0.15, heatAt), kit: kit(), bass: dubBass(), bass2: freeBass() },
     automation: automation(),
     sections: BLOCKS.map((block) => ({
       name: NAMES[block.section], from: block.start, to: block.start + blockBeats(block),

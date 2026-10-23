@@ -52,6 +52,15 @@ export interface Outlet {
 
 /** Jitter buffer for send/return links to effect pages: the round trip is then about 40 ms (30 ms gives about 68). */
 export const FX_JITTER_MS = 14;
+/**
+ * Inside the records or band page (`?embed=1`) nobody plays live: the notes are sent ahead, so a deeper buffer costs
+ * nothing but a fixed delay, the same for everyone, and it rides out the main thread's hiccups (every link travels
+ * through it; a hiccup longer than the buffer is a dropout). Instruments into the mixer, and each leg to an effect.
+ */
+export const EMBEDDED_JITTER_MS = 90;
+export const EMBEDDED_FX_JITTER_MS = 80;
+/** A send and return's round trip: two legs plus the chunks in flight (about 12 ms, measured at 14 ms legs: 40). */
+export const fxRoundTripMs = (legMs: number): number => 2 * legMs + 12;
 
 const loaded = new WeakSet<BaseAudioContext>();
 
@@ -75,6 +84,8 @@ export class PcmBus {
   private readonly outlets = new Map<string, { name: string; audience: Set<string>; stop?: () => void; listening?: (on: boolean) => void }>();
   /** Ports this tab listens to, and where to put their chunks. */
   private readonly sinks = new Map<string, (m: Extract<Msg, { type: 'pcm' }>) => void>();
+  /** What every subscription made here reports now, by port name (to see where the audio drops out). */
+  private readonly receiving = new Map<PcmReceived, string>();
 
   constructor(name = 'moa-audio-pcm', channelFactory?: (name: string) => ChannelLike) {
     const make = channelFactory ?? (typeof BroadcastChannel === 'undefined' ? undefined : (n: string) => new BroadcastChannel(n) as unknown as ChannelLike);
@@ -164,15 +175,23 @@ export class PcmBus {
     let stats: PcmStats = { fill: 0, underruns: 0, drops: 0 };
     node.port.onmessage = (e: MessageEvent<PcmStats>) => { stats = e.data; };
     const stop = this.listen(portId, (rate, l, r) => node.port.postMessage({ rate, l, r }, [l.buffer, r.buffer]));
-    return {
+    const received: PcmReceived = {
       node,
       stats: () => stats,
       close: () => {
         stop();
         node.disconnect();
         node.port.onmessage = null;
+        this.receiving.delete(received);
       },
     };
+    this.receiving.set(received, this.remote.get(portId)?.name ?? portId);
+    return received;
+  }
+
+  /** Each subscription's buffer and its underruns and overflows so far, by the port's name. */
+  receiveStats(): { name: string; stats: PcmStats }[] {
+    return [...this.receiving].map(([r, name]) => ({ name, stats: r.stats() }));
   }
 
   onChange(fn: () => void): () => void {

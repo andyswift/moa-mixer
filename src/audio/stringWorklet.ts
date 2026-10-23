@@ -16,6 +16,8 @@ export const STRING_NAME = 'moa-string';
  * - Damping beyond the string's own: a palm mute (always on while set) and the mute of a released note.
  * - The pickup hears each mode's velocity at its position (weights from the physics), then its own resonance:
  *   a resonant low-pass at `tone`.
+ * - Only what moves is computed: each block runs the modes up to the highest one still moving (the high ones die in
+ *   tens of milliseconds, the low ones ring on), and a string that has fallen silent outputs silence without the work.
  */
 export const STRING_SOURCE = `
 const STRING_PARAMS = [['level', 0.5, 0, 2], ['tone', 3500, 300, 12000]];
@@ -60,13 +62,27 @@ class StringCore {
   setMuted(on) { this.muted = !!on; }
 
   process(out, len, p) {
-    const n = this.n, re = this.re, im = this.im, sr = this.sr;
+    const re = this.re, im = this.im, sr = this.sr;
+    // the modes still moving: up to the highest whose velocity is above 1e-7 m/s (far below hearing)
+    let n = 0;
+    for (let k = this.n - 1; k >= 0; k--) {
+      const v2 = (re[k] * re[k] + im[k] * im[k]) * this.omega[k] * this.omega[k];
+      if (v2 > 1e-14) { n = k + 1; break; }
+      re[k] = 0; im[k] = 0;
+    }
+    const z0 = this.lp;
+    if (n === 0 && Math.abs(z0[0]) + Math.abs(z0[1]) + Math.abs(z0[2]) + Math.abs(z0[3]) < 1e-9) {
+      out.fill(0); // silent: nothing to compute
+      z0[0] = z0[1] = z0[2] = z0[3] = 0;
+      this.pitchScale = 1;
+      return;
+    }
     // tension modulation from the present motion
     let strain = 0;
     for (let k = 0; k < n; k++) strain += this.strainK[k] * (re[k] * re[k] + im[k] * im[k]);
     const s = Math.sqrt(1 + Math.min(0.5, this.stretch * strain));
     this.pitchScale = s;
-    if (!this.cr || this.cr.length !== n) { this.cr = new Float64Array(n); this.ci = new Float64Array(n); this.vw = new Float64Array(n); }
+    if (!this.cr || this.cr.length < this.n) { const m = this.n; this.cr = new Float64Array(m); this.ci = new Float64Array(m); this.vw = new Float64Array(m); } // sized once: no allocation per block
     const cr = this.cr, ci = this.ci, vw = this.vw;
     for (let k = 0; k < n; k++) {
       const loss = this.sigma[k] + this.palm[k] + (this.muted ? this.mute[k] : 0);
@@ -93,7 +109,6 @@ class StringCore {
       const o = y * 1.2 * p.level;
       out[i] = o > 3 ? 1 : o < -3 ? -1 : o * (27 + o * o) / (27 + 9 * o * o);
     }
-    for (let k = 0; k < n; k++) if (Math.abs(re[k]) < 1e-12 && Math.abs(im[k]) < 1e-12) { re[k] = 0; im[k] = 0; }
   }
 
   /** The modes' present amplitudes (m), for drawing the string. */
