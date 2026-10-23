@@ -120,12 +120,33 @@ export function barStartAt(song: Song, beat: number): number {
   return start;
 }
 
-/** How late a note at `beat` lands in the song's swung passages, in beats (0 when straight or on the beat). */
+/**
+ * How late a note at `beat` lands in the song's swung passages, in beats (0 when straight). Swing stretches time inside
+ * each pair of grid notes, counted from the bar: the first of the pair takes `amount` of the pair, the second the rest,
+ * and every note in between moves in proportion (so a hi-hat's sixteenths between swung eighths move with them, and
+ * never bunch up). A pair the bar cuts short (the last eighth of a 7/8 bar) stays straight.
+ */
 export function swingDelay(song: Song, beat: number): number {
   const s = song.swung?.find((x) => beat >= x.from && beat < x.to);
   if (!s) return 0;
   const unit = s.grid === 16 ? 0.25 : 0.5;
-  const k = (beat - barStartAt(song, beat)) / unit;
-  const odd = Math.abs(k - Math.round(k)) < 1e-6 && Math.round(k) % 2 === 1;
-  return odd ? (2 * s.amount / 100 - 1) * unit : 0;
+  const start = barStartAt(song, beat);
+  const k = (beat - start) / unit;
+  const pair = Math.floor(k / 2 + 1e-9);
+  const barUnits = barLengthAt(song, beat) / unit;
+  if ((pair + 1) * 2 > barUnits + 1e-9) return 0; // the bar ends inside this pair
+  const phase = k - pair * 2, a = s.amount / 100; // 0..2 through the pair
+  const warped = phase < 1 ? phase * 2 * a : 2 * a + (phase - 1) * (2 - 2 * a);
+  return (warped - phase) * unit;
+}
+
+/** How long the bar holding a beat is, in beats. */
+export function barLengthAt(song: Song, beat: number): number {
+  if (!song.barBeats) return song.beatsPerBar;
+  let start = 0;
+  for (const len of song.barBeats) {
+    if (beat < start + len) return len;
+    start += len;
+  }
+  return song.barBeats.at(-1) ?? song.beatsPerBar;
 }

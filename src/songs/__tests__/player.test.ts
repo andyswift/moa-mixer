@@ -262,12 +262,22 @@ describe('swung passages', () => {
     sleeve: { art: 'flats', colors: [] }, band: ['bass', 'kit'], setup: {}, automation: [], humanise: { timing: {}, velocity: 0 },
     tracks: {}, swung: [{ from: 3.5, to: 7, amount: 62, grid: 16 }, { from: 7, to: 11, amount: 66, grid: 8 }],
   };
+  it('leave a pair that a bar cuts short straight (the last eighth of 7/8)', () => {
+    const seven: Song = { ...base, swung: [{ from: 0, to: 3.5, amount: 66, grid: 8 }] };
+    expect(swingDelay(seven, 3)).toBe(0); // the 7th eighth: no partner in the bar
+    expect(swingDelay(seven, 3.25)).toBe(0);
+    expect(swingDelay(seven, 2.5)).toBeGreaterThan(0); // the 6th is the second of a whole pair
+  });
+
   it('move every page\'s off-beat notes by the same amount, counted from the bar (a 7/8 bar starts half a beat in)', () => {
     // bar 2 starts at 3.5 beats: its second 16th is at 3.75, swung by (2 * 0.62 - 1) of a 16th
     expect(swingDelay(base, 3.75)).toBeCloseTo(0.24 * 0.25, 9);
     expect(swingDelay(base, 4)).toBe(0); // its third 16th is on the grid
     expect(swingDelay(base, 1.25)).toBe(0); // the first bar is straight
     expect(swingDelay(base, 7.5)).toBeCloseTo((2 * 0.66 - 1) * 0.5, 9); // eighths, a triplet shuffle
+    // between swung eighths, a sixteenth moves in proportion (a quarter of the way through the pair: half its first note)
+    expect(swingDelay(base, 7.25)).toBeCloseTo((0.5 * 2 * 0.66 - 0.5) * 0.5, 9);
+    expect(swingDelay(base, 7.75)).toBeCloseTo((2 * 0.66 + 0.5 * (2 - 2 * 0.66) - 1.5) * 0.5, 9);
     const song = { ...base, tracks: { bass: [note(3.75, 0.2, 40, 100)], kit: [note(3.75, 0.2, 42, 100)] } };
     const ons = expandSong(song, 1).filter((m) => (m.data[0]! & 0xf0) === 0x90).map((m) => m.ms);
     expect(ons[0]).toBeCloseTo(ons[1]!, 9); // the band together

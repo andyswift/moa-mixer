@@ -435,9 +435,10 @@ export function oddHours(): Song {
       name: NAMES[block.section], from: block.start, to: block.start + blockBeats(block),
       meter: `${block.eighths % 2 === 0 ? block.eighths / 2 : block.eighths}/${block.eighths % 2 === 0 ? 4 : 8}`, heat: HEAT[block.section],
     })),
-    // straight, except the breaks, which the whole band swings: the A riff's turn bars in eighths, B's fills in sixteenths
+    // straight, except the breaks, which the whole band swings in sixteenths: the A riff's turn bars a little (in 7/8
+    // the eighths group 2+2+3, which swung eighths would pull out of shape), B's fills more
     swung: BARS.filter(swungBar).map((bar) => ({
-      from: bar.start, to: bar.start + bar.eighths / 2, amount: bar.section === 'B' || bar.section === 'B2' ? 62 : 60, grid: bar.section === 'B' || bar.section === 'B2' ? 16 : 8,
+      from: bar.start, to: bar.start + bar.eighths / 2, amount: bar.section === 'B' || bar.section === 'B2' ? 62 : 58, grid: 16,
     })),
     humanise: { timing: { kit: 4, bass: 9, bass2: 8, guitar: 5 }, velocity: 0.07, layback: { kit: { 38: 5 } } },
   };
