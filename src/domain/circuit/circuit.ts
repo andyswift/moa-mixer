@@ -38,7 +38,7 @@
 // fold, even, harmonics and pitch (cents from A4, a CV); see `foldWorklet.ts`.
 // 'ladder' is the MOA-1's ladder filter (saturation inside the resonance loop), mono in and out. Params cutoff (Hz),
 // detune (cents, an audio-rate CV input), res (0..1) and drive (0..1); see `ladderWorklet.ts`.
-// 'string' is the MOA-BASS string: a bank of modes (`stringWorklet.ts`), no input, mono out. Params level and tone;
+// 'string' is a MOA-BASS or MOA-GUITAR string: a bank of modes (`stringWorklet.ts`), no input, mono out. Params level and tone;
 // `send` messages configure it, pluck it and mute it, and its `config` option keeps the latest configuration.
 // 'sampler' is the MOA-60's sample voices (`samplerWorklet.ts`), no input, stereo out. Param level; `send` messages
 // load sounds, set pads and play them. Its worklet reports ready when built (`onReady`), and the device then sends it

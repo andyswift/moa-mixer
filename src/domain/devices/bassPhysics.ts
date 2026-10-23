@@ -1,5 +1,5 @@
 /**
- * The physics of one bass guitar string: a stiff, damped string under tension, fixed at the bridge and at the fret
+ * The physics of one guitar or bass string: a stiff, damped string under tension, fixed at the bridge and at the fret
  * (or nut). Everything here is plain arithmetic in SI units (metres, kilograms, newtons, seconds), so it can be tested
  * against the textbook formulas and against real strings. The sound itself is made from these numbers in
  * `stringWorklet.ts` (modal synthesis: one damped oscillator per mode of vibration).
@@ -14,6 +14,8 @@
  *   gradually it lets go: soft flesh releases over a fraction of a millisecond (a first-order low-pass on the
  *   excitation, 1 / sqrt(1 + (2 pi f tau)^2)), a pick snaps off at once.
  * - A magnetic pickup at xu senses the string's velocity there: mode n contributes in proportion to sin(n pi xu / L).
+ *   A humbucker is two coils side by side, and a switch between pickups adds them: the weights add, so modes with a
+ *   node near one coil and not the other partly cancel (the hollow "in between" sound).
  */
 
 export interface Material {
@@ -36,8 +38,12 @@ export const WINDINGS = {
   round: { name: 'Roundwound', fill: 0.78, b2: 2.0e-5 },
   half: { name: 'Half-round', fill: 0.85, b2: 4.0e-5 },
   flat: { name: 'Flatwound', fill: 0.92, b2: 9.0e-5 },
+  /** A plain steel string: no wrap at all (the core is the whole string), and the slowest to lose its highs. */
+  plain: { name: 'Plain steel', fill: 0, b2: 4.0e-6 },
 } as const;
 export type WindingId = keyof typeof WINDINGS;
+/** The windings a wound string can have (a plain string has none). */
+export const WOUND = ['round', 'half', 'flat'] as const;
 
 export interface StringSpec {
   /** Outside diameter, m. */
@@ -46,6 +52,11 @@ export interface StringSpec {
   core: number;
   wrap: MaterialId;
   winding: WindingId;
+  /**
+   * How much of the winding's fill this string's wrap reaches (default 1). A guitar string's wrap is one layer of fine
+   * wire on a hex core, which packs less metal than a bass string's layers: 0.88 matches the published weights.
+   */
+  packing?: number;
 }
 
 const INCH = 0.0254;
@@ -58,13 +69,28 @@ export const GAUGES: Record<'E' | 'A' | 'D' | 'G', StringSpec & { note: number }
 };
 export const SCALES = { short: 30 * INCH, medium: 32 * INCH, long: 34 * INCH, extra: 35 * INCH } as const;
 
+/**
+ * A standard electric guitar set (gauges .010 .013 .017 .026 .036 .046, D'Addario EXL110), low to high: the top three
+ * plain steel, the bottom three a nickel wrap on a steel core.
+ */
+export const GUITAR_GAUGES: Record<'E' | 'A' | 'D' | 'G' | 'B' | 'e', StringSpec & { note: number }> = {
+  E: { outer: 0.046 * INCH, core: 0.018 * INCH, wrap: 'nickel', winding: 'round', packing: 0.88, note: 40 }, // E2
+  A: { outer: 0.036 * INCH, core: 0.016 * INCH, wrap: 'nickel', winding: 'round', packing: 0.88, note: 45 }, // A2
+  D: { outer: 0.026 * INCH, core: 0.012 * INCH, wrap: 'nickel', winding: 'round', packing: 0.88, note: 50 }, // D3
+  G: { outer: 0.017 * INCH, core: 0.017 * INCH, wrap: 'steel', winding: 'plain', note: 55 }, // G3
+  B: { outer: 0.013 * INCH, core: 0.013 * INCH, wrap: 'steel', winding: 'plain', note: 59 }, // B3
+  e: { outer: 0.010 * INCH, core: 0.010 * INCH, wrap: 'steel', winding: 'plain', note: 64 }, // E4
+};
+/** The two common electric guitar scales: 25.5" and 24.75". */
+export const GUITAR_SCALES = { '25.5"': 25.5 * INCH, '24.75"': 24.75 * INCH } as const;
+
 export const midiToHz = (note: number): number => 440 * Math.pow(2, (note - 69) / 12);
 export const NEWTONS_PER_POUND = 4.448222;
 
 /** Mass per metre: the steel core plus the wrap's annulus (only `fill` of it is metal: round wire leaves gaps). */
 export function linearDensity(s: StringSpec): number {
   const core = MATERIALS.steel.rho * (Math.PI / 4) * s.core ** 2;
-  const wrap = MATERIALS[s.wrap].rho * (Math.PI / 4) * (s.outer ** 2 - s.core ** 2) * WINDINGS[s.winding].fill;
+  const wrap = MATERIALS[s.wrap].rho * (Math.PI / 4) * (s.outer ** 2 - s.core ** 2) * WINDINGS[s.winding].fill * (s.packing ?? 1);
   return core + wrap;
 }
 
@@ -156,6 +182,19 @@ export function pickupWeights(length: number, count: number, position: number, a
   return out;
 }
 
+/** One coil of a pickup: where it sits (from the bridge, m) and how much it adds to the output. */
+export interface Coil {
+  position: number;
+  gain: number;
+}
+
+/** How strongly a set of coils, added together, hears each mode's motion. */
+export function coilWeights(length: number, count: number, coils: readonly Coil[]): number[] {
+  const out = new Array<number>(count).fill(0);
+  for (const c of coils) pickupWeights(length, count, c.position).forEach((w, n) => { out[n]! += c.gain * w; });
+  return out;
+}
+
 /**
  * Extra damping from something touching the string at `position` (a palm mute near the bridge, the fretting finger
  * lifting): a mode loses energy there in proportion to how much it moves there, sin^2(n pi x / L).
@@ -181,8 +220,8 @@ export interface VoiceSetup {
   /** Tension, N. */
   tension: number;
   fret: number;
-  /** Pickup distance from the bridge, m. */
-  pickup: number;
+  /** Pickup distance from the bridge, m, or the coils that are switched on. */
+  pickup: number | readonly Coil[];
   /** Palm mute: where the palm touches (from the bridge, m) and how hard (0..1). */
   palm: { position: number; amount: number };
   sampleRate: number;
@@ -199,7 +238,7 @@ export function voiceConfig(v: VoiceSetup) {
     length,
     hz: m.map((x) => x.hz),
     sigma: m.map((x) => x.sigma),
-    pickup: pickupWeights(length, count, v.pickup),
+    pickup: typeof v.pickup === 'number' ? pickupWeights(length, count, v.pickup) : coilWeights(length, count, v.pickup),
     // the stretch averaged over a cycle: mode n adds (n pi / L)^2 a_n^2 / 8 to the strain (a_n its amplitude)
     strainK: m.map((_, i) => ((((i + 1) * Math.PI) / length) ** 2) / 8),
     stretch: axialStiffness(v.spec) / v.tension,

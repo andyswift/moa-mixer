@@ -36,7 +36,7 @@ export interface PagePort {
 
 const PAGES: [href: string, label: string][] = [
   ['/mixer/', 'The mixer'], ['/synth/', 'MOA-1'], ['/poly/', 'MOA-6'], ['/drums/', 'MOA-DR'], ['/lynch/', 'Lynch 106'],
-  ['/duo/', 'MOA-DUO'], ['/2600/', 'MOA-2600'], ['/bass/', 'MOA-BASS'], ['/mpc/', 'MOA-60'], ['/unicorn/', 'MOA-UNICORN'], ['/df2/', 'MOA-DF2'], ['/pipe/', 'MOA-PIPE'], ['/seq/', 'MOA-SEQ'], ['/reverb/', 'Reverb'], ['/delay/', 'Delay'], ['/ouroboros/', 'Ouroboros'], ['/buscomp/', 'Bus Comp'],
+  ['/duo/', 'MOA-DUO'], ['/2600/', 'MOA-2600'], ['/bass/', 'MOA-BASS'], ['/guitar/', 'MOA-GUITAR'], ['/mpc/', 'MOA-60'], ['/unicorn/', 'MOA-UNICORN'], ['/df2/', 'MOA-DF2'], ['/pipe/', 'MOA-PIPE'], ['/seq/', 'MOA-SEQ'], ['/reverb/', 'Reverb'], ['/delay/', 'Delay'], ['/ouroboros/', 'Ouroboros'], ['/buscomp/', 'Bus Comp'],
   ['/granular/', 'Granular'], ['/records/', 'Records'], ['/', 'moaswift.no'],
 ];
 

@@ -8,7 +8,8 @@ export const STRING_NAME = 'moa-string';
  * - Each mode is a damped phasor z (its complex displacement, in metres): every sample z *= r e^(i w / sr). Turning
  *   the phasor rather than running a two-pole filter keeps the motion continuous when the fret or tension changes.
  * - A pluck adds each mode's starting displacement; the hand that plucks first grabs the string, taking out the
- *   modes that move where it touches (`grab`).
+ *   modes that move where it touches (`grab`). A pluck can wait `delay` seconds (a strum reaches the strings one after
+ *   another), to the start of the block it falls in; a mute drops plucks still waiting.
  * - Tension modulation: a large vibration stretches the string, which raises its tension (by E A times the strain)
  *   and every frequency with it: the slight sharpness at the start of a hard pluck that settles as it decays.
  *   Strain = sum over modes of (n pi / L)^2 |z|^2 / 8 (over a cycle); frequencies scale by sqrt(1 + (E A / T) strain).
@@ -115,16 +116,26 @@ if (typeof registerProcessor === 'function') {
       if (cfg && cfg.hz) this.core.configure(cfg); // the string as it was set up before audio started
       this.p = {};
       this.since = 0;
+      this.waiting = [];
       this.port.onmessage = (e) => {
         const m = e.data;
         if (!m) return;
         if (m.type === 'configure') this.core.configure(m);
+        else if (m.type === 'pluck' && m.delay > 0) this.waiting.push({ due: currentFrame + Math.round(m.delay * sampleRate), m });
         else if (m.type === 'pluck') this.core.pluck(m.amps, m.grab);
-        else if (m.type === 'mute') this.core.setMuted(m.on);
+        else if (m.type === 'mute') {
+          this.core.setMuted(m.on);
+          if (m.on) this.waiting = [];
+        }
       };
     }
     process(inputs, outputs, params) {
       const out = outputs[0][0];
+      if (this.waiting.length) {
+        const end = currentFrame + out.length;
+        for (const w of this.waiting) if (w.due < end) { this.core.setMuted(false); this.core.pluck(w.m.amps, w.m.grab); }
+        this.waiting = this.waiting.filter((w) => w.due >= end);
+      }
       this.p.level = params.level[0];
       this.p.tone = params.tone[0];
       this.core.process(out, out.length, this.p);
