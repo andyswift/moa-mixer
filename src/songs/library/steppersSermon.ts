@@ -6,8 +6,8 @@ import type { Automation, NoteEvent, Song } from '../types';
 /**
  * An original dub tune in the spirit of a UK sound system meeting a deep, melodic dub bassist: 74 bpm, E minor, Em
  * for two bars and D for two. A steppers rhythm (the kick on every beat, the rimshot on three, swung hats), the
- * MOA-BASS on flatwounds through an 8x10 (the bass line carries the tune), an organ bubble, a skank, a melodica and a
- * 2600 siren, mixed as dub is: drop-outs, echo throws, and the delay fed back through the desk until it howls.
+ * MOA-BASS on flatwounds through an 8x10 (the bass line carries the tune), an organ bubble, the skank on MOA-GUITAR, a
+ * melodica and a 2600 siren, mixed as dub is: drop-outs, echo throws, and the delay fed back through the desk until it howls.
  *
  * Bars 1-4: drums and the siren, the bass coming in. 5-12: the riddim. 13-16: dub (bass and drums, throws, a
  * feedback swell, the siren). 17-20: the riddim with the melodica. 21-24: dub again into the loop.
@@ -17,6 +17,8 @@ const section = (bar: number) => (bar < 4 ? 'intro' : bar < 12 ? 'riddim' : bar 
 const isDub = (bar: number) => section(bar) === 'dub' || section(bar) === 'dub2';
 const CHORDS = { Em: [64, 67, 71], D: [62, 66, 69] } as const;
 const chordFor = (bar: number) => chordAt([CHORDS.Em, CHORDS.D], bar, 2);
+/** The skank's chords, up the neck on the top three strings: Em barred at the 12th fret (G B E), D at the 10th (F# A D). */
+const SKANK = { Em: [67, 71, 76], D: [66, 69, 74] } as const;
 /** Swung eighths: the off-beat eighth lands two thirds of the way through the beat. */
 const SWUNG = [0, 2.67, 4, 6.67, 8, 10.67, 12, 14.67];
 
@@ -74,9 +76,10 @@ const parts = {
     return out;
   },
   skank(): NoteEvent[] {
-    // it plays through the dub too: its fader drops, but its echo send is pre-fader, for throws
+    // it plays through the dub too: its fader drops, but its echo send is pre-fader, for throws. Each chop is a short
+    // down strum, and letting go of the chord mutes it: the chk
     const out: NoteEvent[] = [];
-    for (let bar = 4; bar < BARS; bar++) for (const s of [4, 12]) for (const n of chordFor(bar)) out.push(note(at16(bar, s), steps(1.1), n + 12, 88));
+    for (let bar = 4; bar < BARS; bar++) for (const s of [4, 12]) for (const n of chordAt([SKANK.Em, SKANK.D], bar, 2)) out.push(note(at16(bar, s), steps(0.35), n, 88));
     return out;
   },
   melodica(): NoteEvent[] {
@@ -115,9 +118,9 @@ function dubMix(): Automation[] {
     points: [[0, 1.5], [beat(2), 6], [beat(2, 1), 1.5], [beat(14), 1.5], [beat(16), 7], [beat(16, 1), 1.5], [beat(22), 1.5], [beat(24) - 0.1, 6], [beat(24), 1.5]],
   };
   return [
-    // the levels here are the strips' balanced levels (measured): organ 10 under the kick, skank 10, hats 12
-    dropOut('ch2.fader', 0.3), dropOut('line1.fader', 0.8), dropOut('ch6.fader', 1.48), dropOut('ch7.fader', 1.17),
-    throws('line1.aux2', [[13, 12], [15, 4], [20, 12], [22, 4], [23, 12]], 0.15, 0.85),
+    // the levels here are the strips' balanced levels (measured): organ 10 under the kick, skank 10 (the guitar's, 13 down by ear), hats 12
+    dropOut('ch2.fader', 0.3), dropOut('line1.fader', 0.18), dropOut('ch6.fader', 1.48), dropOut('ch7.fader', 1.17),
+    throws('line1.aux2', [[13, 12], [15, 4], [20, 12], [22, 4], [23, 12]], 0.1, 0.55),
     throws('ch9.aux2', [[12, 8], [14, 8], [21, 8], [23, 8]], 0.1, 0.8),
     throws('line4.aux2', [[21, 0], [21, 8]], 0.25, 0.9),
     feedback,
@@ -130,10 +133,10 @@ export function steppersSermon(): Song {
     drums: { kick: 1.15, snare: 1.0, clap: 1.0, rest: 0.8 },
     duck: 0.1,
     reverb: { ch2: 0.15, ch9: 0.25, line1: 0.2, line4: 0.3, line5: 0.35 },
-    delay: { ch9: 0.1, line1: 0.15, line4: 0.25, line5: 0.4 },
+    delay: { ch9: 0.1, line1: 0.1, line4: 0.25, line5: 0.4 },
     // balanced by measured RMS (headless Chrome, a full pass): the bass a dB over the kick, as dub has it; the delay
     // return (with the desk feedback) a little under; the rimshot 3.5 under, the melodica 6 and the siren 8
-    faders: { ch1: 0.77, ch2: 0.3, ch9: 0.78, line1: 0.8, line4: 0.24, line5: 0.24 },
+    faders: { ch1: 0.77, ch2: 0.3, ch9: 0.78, line1: 0.18, line4: 0.24, line5: 0.24 },
   });
   Object.assign(mix.mixer.mixer!.controls!, {
     // the skank's echo send is pre-fader, so it can be thrown into the delay with its fader down
@@ -153,8 +156,8 @@ export function steppersSermon(): Song {
     bars: BARS,
     beatsPerBar: 4,
     sleeve: { art: 'frost', colors: ['#0d0d0d', '#d92b2b', '#f5c518', '#1f9d55'] },
-    band: ['drums', 'bass', 'poly', 'lynch', 'pipe', 'm2600', 'reverb', 'delay', 'buscomp'],
-    inputs: { ch1: 'MOA-BASS' }, // the bass on the first channel (no MOA-1 in this one)
+    band: ['drums', 'bass', 'poly', 'guitar', 'pipe', 'm2600', 'reverb', 'delay', 'buscomp'],
+    inputs: { ch1: 'MOA-BASS', line1: 'MOA-GUITAR' }, // the bass on the first channel (no MOA-1 in this one), the skank on the first line
     setup: {
       drums: { drums: { controls: { ...DRUM_PUNCH.drums!.controls, 'rim.level': 0.75, 'rim.tone': 1900, 'crash.level': 0.45 } } },
       bass: { bass: { controls: {
@@ -163,7 +166,11 @@ export function steppersSermon(): Song {
         'amp.gain': 0.35, 'amp.bass': 4, 'amp.mid': -2, 'amp.treble': -5, 'cab.type': '8x10', 'cab.mic': 'off-axis', 'cab.blend': 0.65, level: 0.9,
       } } },
       poly: { poly: { preset: 14 } }, // Pulse Organ: the bubble
-      lynch: { lynch: { preset: 15 } }, // Clav: the skank
+      // the skank: clean, sharp and thin, the bridge single coil, picked hard right by the bridge, a tight strum, more DI
+      guitar: { guitar: { controls: {
+        'pickup.select': 'bridge', 'pickup.type': 'single', tone: 10, 'pluck.style': 'pick', 'pluck.position': 0.035, 'pluck.strength': 0.65,
+        strum: 'down', 'strum.time': 2, 'drive.mix': 0, 'amp.gain': 0.15, 'amp.bass': -8, 'amp.mid': 3, 'amp.treble': 6, 'cab.type': '1x12', 'cab.blend': 0.6,
+      } } },
       pipe: { pipe: { preset: 10 } }, // Reed Organ: the melodica
       // the siren: a pulse swept up and down by the LFO, a slow swell in and out
       m2600: { m2600: { preset: 0, controls: {
@@ -175,8 +182,8 @@ export function steppersSermon(): Song {
       reverb: { reverb: { controls: { 'reverb.size': 'large', 'reverb.lowcut': 220, 'reverb.damp': 4500, 'reverb.predelay': 30 } } },
       ...mix,
     },
-    tracks: { drums: parts.drums(), bass: parts.bass(), poly: parts.bubble(), lynch: parts.skank(), pipe: parts.melodica(), m2600: parts.siren() },
+    tracks: { drums: parts.drums(), bass: parts.bass(), poly: parts.bubble(), guitar: parts.skank(), pipe: parts.melodica(), m2600: parts.siren() },
     automation: dubMix(),
-    humanise: { timing: { drums: 5, bass: 8, poly: 10, lynch: 7, pipe: 12, m2600: 4 }, velocity: 0.08, layback: { drums: { 37: 12 } } },
+    humanise: { timing: { drums: 5, bass: 8, poly: 10, guitar: 7, pipe: 12, m2600: 4 }, velocity: 0.08, layback: { drums: { 37: 12 } } },
   };
 }

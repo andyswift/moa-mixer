@@ -1,9 +1,9 @@
 import { BAND_PAGES, ON_DEMAND_PAGES, type PageId, type PageState, sendControl, watchStatus } from './control';
 
 /** Page ids whose files and folders are named differently (an id can't start with a digit). */
-const PATHS: Partial<Record<PageId, string>> = { m2600: '2600', bass2: 'bass' };
-/** Page ids played by another page standing in as a second player (`?as=`): a second bassist on the bass page. */
-const AS: Partial<Record<PageId, string>> = { bass2: 'bass2' };
+const PATHS: Partial<Record<PageId, string>> = { m2600: '2600', bass2: 'bass', guitar2: 'guitar' };
+/** Page ids played by another page standing in as a second player (`?as=`): a second bassist on the bass page, a second guitarist on the guitar page. */
+const AS: Partial<Record<PageId, string>> = { bass2: 'bass2', guitar2: 'guitar2' };
 
 /** Where each page lives: separate pages on the site, separate files in the dev server. */
 export function pageUrl(id: PageId): string {
