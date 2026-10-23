@@ -371,8 +371,8 @@ function automation(): Automation[] {
     // the guitar's amp and pedal: driven throughout, both pushed hard for C, a rhythm crunch for D
     per('guitar', 'guitar', 'amp.gain', { C: 0.9, D: 0.7, rest: 0.45 }),
     per('guitar', 'guitar', 'drive.gain', { C: 0.85, D: 0.6, rest: 0.35 }),
-    // its echo: a touch in A, more in B, most in A' (the riff answering itself), dry in C and D
-    per('mixer', 'mixer', 'ch3.aux2', { intro: 0.18, A: 0.22, B: 0.32, A2: 0.45, C: 0.08, D: 0.08, B2: 0.3, rest: 0.18 }),
+    // its echo: only a little in the A sections (the riff wants to be heard dry), more in B, dry in C and D
+    per('mixer', 'mixer', 'ch3.aux2', { intro: 0.1, A: 0.08, B: 0.32, A2: 0.15, C: 0.08, D: 0.08, B2: 0.3, rest: 0.1 }),
     // D is the free bass's: its overdrive on and its fader up (4 dB) to lead
     per('bass2', 'bass', 'drive.mix', { D: 1, rest: 0 }),
 
@@ -424,7 +424,7 @@ export function oddHours(): Song {
         // level over a full pass (each strip's meter, post-fader): the guitar 5 dB under the kit, the dub bass 1, the free bass 4
         'ch1.fader': 0.69, 'ch1.pan': 0.15, 'ch1.aux1': 0.05,
         'ch2.fader': 0.36, 'ch2.pan': 0.5, 'ch2.aux1': 0.15, 'ch2.aux2': 0.15,
-        'ch3.fader': 0.23, 'ch3.pan': -0.5, 'ch3.aux1': 0.06, 'ch3.aux2': 0.18,
+        'ch3.fader': 0.23, 'ch3.pan': -0.5, 'ch3.aux1': 0.06, 'ch3.aux2': 0.1,
         'line1.fader': 1.5, 'line1.aux1': 0.12,
         'ret1.fader': 0.8, 'ret2.fader': 0.7,
       } } },
