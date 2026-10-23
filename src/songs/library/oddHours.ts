@@ -215,8 +215,8 @@ function freeBass(): NoteEvent[] {
       if (time === 0 && i < 4) for (const [e, ns, len] of FREE_A[i % 2]!) play(out, bar, e, turn ? ns : down(ns, 12), len, 86);
       else riffA(i).forEach((n, e) => play(out, bar, e, n - 24, 0.9, e === 0 ? 92 : 78)); // the guitar's riff two octaves down
     } else if (section === 'B') {
-      // the climb, from an octave lower (a tone higher the second time)
-      for (const [e, ns, len] of FREE_B[i % 2]!) play(out, bar, e, down(ns, time > 0 ? 10 : 12), len, 88);
+      // the climb, an octave lower (the same notes both times: moved up a tone, the line left the key)
+      for (const [e, ns, len] of FREE_B[i % 2]!) play(out, bar, e, down(ns, 12), len, 88);
       // stabs off the beat, a double-stop cut short
       for (const at of [2.5, 7.5]) play(out, bar, at, i % 2 ? [45, 50] : [42, 47], 0.3, 96);
     } else if (section === 'B2') {

@@ -43,3 +43,14 @@ describe('Odd Hours: the free bass leading in D', () => {
     for (const n of lead) expect(n.vel).toBeLessThanOrEqual(100);
   });
 });
+
+describe('Odd Hours: keeping in key', () => {
+  it('has the free bass play only notes of the key (A major, F# minor) in every B section', () => {
+    const song = oddHours();
+    const key = new Set([9, 11, 1, 2, 4, 6, 8]); // A B C# D E F# G#
+    const b = song.sections!.filter((s) => s.name === 'B' || s.name === 'B′');
+    const notes = song.tracks.bass2!.filter((n) => b.some((s) => n.t >= s.from && n.t < s.to));
+    expect(notes.length).toBeGreaterThan(50);
+    for (const n of notes) expect(key.has(n.note % 12), `note ${n.note} at beat ${n.t}`).toBe(true);
+  });
+});
