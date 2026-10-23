@@ -7,6 +7,7 @@ import { FOLD_NAME, FOLD_SOURCE } from './foldWorklet';
 import { LADDER_NAME, LADDER_SOURCE } from './ladderWorklet';
 import { SAMPLER_NAME, SAMPLER_SOURCE } from './samplerWorklet';
 import { STRING_NAME, STRING_SOURCE } from './stringWorklet';
+import { DRUM_NAME, KIT_SOURCE } from './kitWorklet';
 import { TONE_NAME, TONE_SOURCE } from './toneWorklet';
 import { GRANULAR_NAME, GRANULAR_SOURCE } from './granularWorklet';
 import { M2600_NAME, M2600_SOURCE } from './m2600Worklet';
@@ -50,7 +51,7 @@ export interface M2600View {
   sq?: { step: number; running: boolean; clk: boolean };
 }
 
-/** What a string node reports for display: its modes' amplitudes (m) and how far tension modulation has raised the pitch. */
+/** What a string or drum node reports for display: its modes' amplitudes (m) and how far tension modulation has raised the pitch. */
 /** What a sampler node reports for display: [pad, position 0..1 through its sound, envelope] per voice playing. */
 export interface SamplerView {
   voices: [number, number, number][];
@@ -166,7 +167,7 @@ export class AudioEngine {
     return this.samplerViews.get(`${deviceId}/${nodeId}`);
   }
 
-  /** The latest mode amplitudes of a string node; undefined until audio has started. */
+  /** The latest mode amplitudes of a string or drum node; undefined until audio has started. */
   readString(deviceId: string, nodeId: string): StringView | undefined {
     return this.stringViews.get(`${deviceId}/${nodeId}`);
   }
@@ -302,6 +303,15 @@ export class AudioEngine {
         }
         case 'string': {
           const node = new AudioWorkletNode(ctx, STRING_NAME, {
+            numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1], parameterData: n.params,
+            processorOptions: { config: JSON.parse(n.options.config ?? '{}') as unknown },
+          });
+          node.port.onmessage = (e: MessageEvent<StringView>) => this.stringViews.set(`${deviceId}/${n.id}`, e.data);
+          nodes.set(n.id, node);
+          break;
+        }
+        case 'drum': {
+          const node = new AudioWorkletNode(ctx, DRUM_NAME, {
             numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1], parameterData: n.params,
             processorOptions: { config: JSON.parse(n.options.config ?? '{}') as unknown },
           });
@@ -771,7 +781,7 @@ registerProcessor('${FOLLOWER_NAME}', MoaFollower);
 `;
 
 /** Every processor, as the one script the audio worklet loads. Top-level names must not clash between them. */
-export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE, SAMPLER_SOURCE, TONE_SOURCE].join('\n');
+export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE, KIT_SOURCE, SAMPLER_SOURCE, TONE_SOURCE].join('\n');
 
 /** The processors are one worklet module, loaded from an in-memory script. */
 function workletModuleUrl(): string {

@@ -2,6 +2,7 @@ import { Band } from './songs/band';
 import { browserHost } from './songs/host';
 import { library } from './songs/library';
 import { SongPlayer } from './songs/player';
+import { barAt } from './songs/types';
 
 // Dev-only test page for the song engine: pick a song, start the band in hidden iframes, play it. The records page does
 // the same with a record collection on top.
@@ -14,7 +15,7 @@ const songs = library();
 let current = songs[0]!;
 
 player.onTick = (beat) => {
-  const bar = Math.floor(beat / current.beatsPerBar) + 1;
+  const bar = barAt(current, Math.max(0, beat));
   out.textContent = `${current.title}: bar ${Math.max(bar, 0)} of ${current.bars}; band ${band.startedCount}/${band.pages.length} started`;
 };
 player.onEnd = () => { out.textContent = `${current.title}: finished`; };
@@ -27,6 +28,7 @@ for (const song of songs) {
     current = song;
     out.textContent = 'starting the band...';
     try {
+      band.setEffects(song.band); // the effect pages and extra instruments this song uses
       await band.start();
       player.setup(song);
       await new Promise((r) => setTimeout(r, 1200)); // let the settings land before the first note

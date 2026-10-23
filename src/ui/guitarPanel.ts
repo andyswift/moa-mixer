@@ -34,6 +34,10 @@ export function renderGuitarPanel(g: ElectricGuitar, engine: AudioEngine): HTMLE
   const hands = renderSection(g, { title: 'Hands', color: ORANGE, grow: 2, faders: [{ id: 'palm', label: 'Palm' }] });
   hands.querySelector('.synth-section-body')!.append(actionButton('Mute', 'Rest a hand on all the strings', () => g.voices.forEach((_, i) => g.release(i))));
   const pickups = renderSection(g, { title: 'Pickups', color: YELLOW, grow: 3, switches: ['pickup.select', 'pickup.type'], faders: ['tone'] });
+  const drive = renderSection(g, {
+    title: 'Overdrive', color: GREEN, grow: 3,
+    faders: [{ id: 'drive.mix', label: 'On' }, { id: 'drive.gain', label: 'Drive' }, { id: 'drive.tone', label: 'Tone' }, { id: 'drive.level', label: 'Level' }],
+  });
   const amp = renderSection(g, {
     title: 'Amp', color: PINK, grow: 4,
     faders: [{ id: 'amp.gain', label: 'Gain' }, { id: 'amp.bass', label: 'Bass' }, { id: 'amp.mid', label: 'Mid' }, { id: 'amp.treble', label: 'Treble' }],
@@ -45,7 +49,7 @@ export function renderGuitarPanel(g: ElectricGuitar, engine: AudioEngine): HTMLE
   const row1 = el('div', 'synth-row');
   row1.append(strings, pick, hands);
   const row2 = el('div', 'synth-row');
-  row2.append(pickups, amp, cab);
+  row2.append(pickups, drive, amp, cab);
   panel.append(row1, row2);
   return panel;
 }

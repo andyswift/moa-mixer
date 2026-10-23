@@ -107,4 +107,17 @@ describe('MOA-GUITAR, six strings', () => {
       expect(cab.hp).toBeGreaterThan(Math.max(...Object.values(CABINETS).map((c) => c.hp)));
     }
   });
+
+  it('has an overdrive pedal: its blend keeps the power from bypass to fully on, and only the highs go into the clipper', () => {
+    const g = new ElectricGuitar();
+    expect([param(g, 'pedalDry', 'gain'), param(g, 'odWet', 'gain')]).toEqual([1, 0]); // off as it comes
+    for (const v of [0.3, 0.7, 1]) {
+      set(g, 'drive.mix', v);
+      expect(param(g, 'pedalDry', 'gain') ** 2 + param(g, 'odWet', 'gain') ** 2).toBeCloseTo(1, 10);
+    }
+    const into = (node: string) => g.circuit.cables.filter((c) => c.to === node).map((c) => c.from);
+    expect(into('odGain')).toEqual(['odHp']);
+    expect(g.circuit.node('odHp').options.type).toBe('highpass');
+    expect(into('odLevel').sort()).toEqual(['odLow', 'odTone']); // the lows round the clipper, clean
+  });
 });

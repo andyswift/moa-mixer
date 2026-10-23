@@ -4,12 +4,13 @@ import type { PageId } from '../control';
 import { applySettings } from '../control';
 import { library } from '../library';
 import { expandSong } from '../player';
+import { songBeats } from '../types';
 
 const patches: Record<PageId, () => Patch> = {
   mixer: () => Patch.mixerRack(), synth: () => Patch.synth(), poly: () => Patch.poly(), drums: () => Patch.drums(),
   lynch: () => Patch.lynch(), duo: () => Patch.duo(), df2: () => Patch.df2(), pipe: () => Patch.pipe(),
   reverb: () => Patch.reverb(), delay: () => Patch.delay(), ouroboros: () => Patch.ouroboros(), buscomp: () => Patch.buscomp(), granular: () => Patch.granular(),
-  m2600: () => Patch.m2600(), bass: () => Patch.bass(), guitar: () => Patch.guitar(), mpc: () => Patch.mpc(), unicorn: () => Patch.unicorn(),
+  m2600: () => Patch.m2600(), bass: () => Patch.bass(), bass2: () => Patch.bass(), guitar: () => Patch.guitar(), kit: () => Patch.kit(), mpc: () => Patch.mpc(), unicorn: () => Patch.unicorn(),
 };
 
 describe.each(library().map((s) => [s.title, s] as const))('song: %s', (_title, song) => {
@@ -41,7 +42,7 @@ describe.each(library().map((s) => [s.title, s] as const))('song: %s', (_title, 
 
   it('keeps every note inside the song and in MIDI range, and every instrument in its band', () => {
     const msgs = expandSong(song, 1);
-    const end = song.bars * song.beatsPerBar * (60000 / song.bpm);
+    const end = songBeats(song) * (60000 / song.bpm);
     for (const m of msgs) {
       if (m.data.length === 1) continue; // MIDI clock, start and stop carry no note
       expect(m.data[1]).toBeGreaterThanOrEqual(0);
@@ -56,7 +57,7 @@ describe.each(library().map((s) => [s.title, s] as const))('song: %s', (_title, 
   });
 
   it('has no note whose release falls after the end of a pass, so looping never cuts one', () => {
-    const loopMs = song.bars * song.beatsPerBar * (60000 / song.bpm);
+    const loopMs = songBeats(song) * (60000 / song.bpm);
     for (const seed of [1, 2, 3]) {
       const late = expandSong(song, seed).filter((m) => (m.data[0]! & 0xf0) === 0x80 && m.ms > loopMs + 25);
       expect(late, `seed ${seed}`).toEqual([]);

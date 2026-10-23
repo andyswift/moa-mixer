@@ -1,5 +1,5 @@
 import { type ControlMessage, EFFECT_PAGES, type PageId } from './control';
-import type { Automation, Song } from './types';
+import { songBeats, swingDelay, type Automation, type Song } from './types';
 
 /** What the player needs from the outside, so tests can run it on a fake clock. */
 export interface PlayerHost {
@@ -50,14 +50,14 @@ export function expandSong(song: Song, seed = 1): ScheduledMessage[] {
     const channel = page === 'drums' ? 9 : 0;
     for (const e of events) {
       const odd16th = Math.abs((e.t * 4) % 2 - 1) < 1e-6;
-      const slip = wobble() * (h.timing[page] ?? 0) + (h.layback?.[page]?.[e.note] ?? 0) + (odd16th ? (h.swing ?? 0) * (beatMs / 4) : 0);
+      const slip = wobble() * (h.timing[page] ?? 0) + (h.layback?.[page]?.[e.note] ?? 0) + (odd16th ? (h.swing ?? 0) * (beatMs / 4) : 0) + swingDelay(song, e.t) * beatMs;
       const start = Math.max(0, e.t * beatMs + slip);
       const velocity = Math.max(1, Math.min(127, Math.round(e.vel * (1 + (random() * 2 - 1) * h.velocity))));
       out.push({ ms: start, page, data: [0x90 | channel, e.note, velocity] });
       out.push({ ms: start + e.len * beatMs * NOTE_OFF_SHARE, page, data: [0x80 | channel, e.note, 0] });
     }
   }
-  const pulses = song.bars * song.beatsPerBar * PPQN;
+  const pulses = Math.round(songBeats(song) * PPQN);
   for (const page of song.clock ?? []) {
     out.push({ ms: 0, page, data: [MIDI_START] }); // before the first pulse (the sort keeps equal times in order)
     for (let k = 0; k < pulses; k++) out.push({ ms: (k * beatMs) / PPQN, page, data: [MIDI_CLOCK] });
@@ -148,7 +148,7 @@ export class SongPlayer {
 
   /** The length of one pass of the song in beats. */
   get loopBeats(): number {
-    return this.song ? this.song.bars * this.song.beatsPerBar : 0;
+    return this.song ? songBeats(this.song) : 0;
   }
 
   play(song: Song, seed = 1): void {
@@ -184,7 +184,7 @@ export class SongPlayer {
     if (!song || this.state !== 'playing') return;
     const now = this.host.now();
     const beatMs = 60000 / song.bpm;
-    const loopMs = song.bars * song.beatsPerBar * beatMs;
+    const loopMs = songBeats(song) * beatMs;
     for (;;) {
       while (this.next < this.messages.length) {
         const m = this.messages[this.next]!;
@@ -210,7 +210,7 @@ export class SongPlayer {
       break;
     }
     const beat = (now - this.startAt) / beatMs;
-    const loopBeats = song.bars * song.beatsPerBar;
+    const loopBeats = songBeats(song);
     const sweepBeat = this.loop && beat >= 0 ? beat % loopBeats : beat; // a sweep starts over with each pass
     for (const a of song.automation) if (sweepBeat >= -1 && !this.paused.has(a.page)) this.applyAutomation(a, automationValue(a, sweepBeat));
     this.onTick?.(beat);

@@ -1,0 +1,65 @@
+/* ---- the band page: the moaswift look (dark panels, Barlow Condensed, IBM Plex Mono) ---- */
+body { margin: 0; background: #16171a; }
+.band { min-height: 100vh; background: #16171a; color: #f1eee6; font-family: 'Barlow Semi Condensed', system-ui, sans-serif; padding: 32px 16px 48px; box-sizing: border-box; }
+.band-wrap { max-width: 1360px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+.band-sorry { max-width: 1360px; margin: 0 auto 16px; padding: 12px 16px; border-radius: 8px; background: #2a2423; color: #ffb27a; font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+.band-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 20px; }
+.band-name { margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 56px; line-height: 1; text-transform: uppercase; }
+.band-tagline { margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: 0.3em; text-transform: uppercase; color: #a9adb3; }
+
+.band-transport { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; padding: 16px 20px; background: #232528; border: 1px solid #3a3d42; border-top: 4px solid #e8742c; border-radius: 8px; }
+.band-play { flex: none; width: 64px; height: 64px; border-radius: 50%; border: 0; background: #e8742c; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.band-play:disabled { opacity: 0.6; cursor: progress; }
+.band-play:focus-visible, .band-open:focus-visible { outline: 3px solid #ffd25e; outline-offset: 3px; }
+.band-title { display: flex; flex-direction: column; gap: 2px; min-width: 180px; }
+.band-song { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 30px; line-height: 1.05; text-transform: uppercase; }
+.band-meta, .band-caption { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #a9adb3; }
+.band-readouts { display: flex; gap: 20px; font-family: 'IBM Plex Mono', monospace; }
+.band-readout { display: flex; flex-direction: column; gap: 2px; min-width: 44px; }
+.band-readout-label { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #a9adb3; }
+.band-readout-value { font-size: 22px; }
+.band-time { flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.band-timeline { position: relative; display: flex; gap: 3px; height: 36px; }
+.band-section { flex: 1 1 0; min-width: 0; border-radius: 4px; background: #2e3136; color: #d9d6ce; display: flex; align-items: center; justify-content: space-between; padding: 0 6px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 15px; overflow: hidden; }
+.band-section { container-type: inline-size; }
+.band-section-name { white-space: nowrap; overflow: hidden; text-overflow: clip; }
+.band-section-meter { font-family: 'IBM Plex Mono', monospace; font-weight: 400; font-size: 10px; white-space: nowrap; }
+/* a short section shows its name only */
+@container (max-width: 58px) { .band-section-meter { display: none; } }
+.band-section.now { background: #e8742c; color: #16171a; }
+.band-playhead { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #ffd25e; left: 0; pointer-events: none; }
+
+.band-stage { overflow-x: auto; border-radius: 8px; border: 1px solid #2c2f34; background: #1d1e22; }
+.band-stage-svg { display: block; width: 100%; min-width: 900px; height: auto; }
+
+.band-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.band-card { background: #232528; border: 1px solid #3a3d42; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.band-card-head { display: flex; align-items: center; gap: 10px; }
+.band-card-bar { width: 28px; height: 4px; border-radius: 2px; }
+.band-card-role { margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 20px; letter-spacing: 0.14em; text-transform: uppercase; }
+.band-card-text { margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #d9d6ce; }
+.band-card-about { margin: 0; font-size: 15px; line-height: 1.4; color: #c9ccd1; }
+.band-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.band-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 4px; border: 1px solid #464a50; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.08em; color: #a9adb3; }
+.band-chip.on { color: #f1eee6; }
+.band-led { width: 8px; height: 8px; border-radius: 50%; background: #3b3e43; }
+.band-chip.on .band-led { background: #ff5a4f; box-shadow: 0 0 6px #ff5a4f; }
+.band-level { height: 6px; border-radius: 3px; background: #2e3136; overflow: hidden; }
+.band-level-fill { width: 0; height: 100%; background: #4fb286; }
+.band-open { align-self: flex-start; min-height: 40px; padding: 8px 14px; border-radius: 4px; background: #2a2d31; border: 1px solid #464a50; color: #f1eee6; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; cursor: pointer; }
+.band-open[aria-pressed='true'] { background: #e8742c; color: #16171a; border-color: #e8742c; }
+
+/* never display:none: the band's pages live in here, and a hidden frame can stop its audio */
+.band-rack { display: flex; flex-direction: column; border-radius: 8px; overflow: hidden; }
+.band-rack.open { border: 1px solid #3a3d42; }
+.band-rack-head { display: none; }
+.band-rack.open .band-rack-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; background: #232528; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; }
+/* the band's pages live here: a 1 px box until one is opened (never display:none, which can stop their audio) */
+.band-frames { position: relative; width: 1px; height: 1px; }
+.band-rack.open .band-frames { width: 100%; height: min(78vh, 860px); }
+.band-note { margin: 0; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #a9adb3; }
+
+@media (max-width: 600px) {
+  .band-name { font-size: 40px; }
+  .band-tagline { letter-spacing: 0.16em; }
+}

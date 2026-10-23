@@ -7,7 +7,7 @@ export const SAMPLER_NAME = 'moa-60';
  * - Sounds arrive once each (`sample`: an id, a rate and one or two channels) and pads point at them (`pad`: the
  *   sound, its start and end, tune, level, pan, envelope, filter, mute group and how velocity plays it).
  * - `hit` starts a voice on a pad (`over` changes the pad's settings for that hit), `release` lets go of it; both take `when`, an audio-clock time, so a sequencer can
- *   place them to the sample. 32 voices; a 33rd takes the oldest.
+ *   place them to the sample. A `hit` can instead take `delay`, seconds from when it arrives (the MOA-KIT's cymbals). 32 voices; a 33rd takes the oldest.
  * - A voice reads its sound at 2^(tune / 12) times its own rate, between samples by a cubic (Hermite) curve, forward
  *   or reversed, once or looping.
  * - Its envelope: an attack, then in "one shot" the whole sound (shortened by Decay if it is set below its maximum),
@@ -187,7 +187,7 @@ if (typeof registerProcessor === 'function') {
         if (m.type === 'sample') this.core.addSample(m.id, m.rate, m.channels);
         else if (m.type === 'drop') this.core.dropSample(m.id);
         else if (m.type === 'pad') this.core.setPad(m.pad, m.settings);
-        else if (m.type === 'hit') this.core.hit(m.pad, m.velocity, frameOf(m.when), m.over);
+        else if (m.type === 'hit') this.core.hit(m.pad, m.velocity, m.when === undefined && m.delay > 0 ? currentFrame + Math.round(m.delay * sampleRate) : frameOf(m.when), m.over);
         else if (m.type === 'release') this.core.release(m.pad, frameOf(m.when));
         else if (m.type === 'stopAll') this.core.stopAll();
       };
