@@ -6,6 +6,7 @@ import { OuroborosFx } from '../devices/ouroboros';
 import { DuoSynth } from '../devices/duoSynth';
 import { M2600Synth } from '../devices/m2600Synth';
 import { BassGuitar } from '../devices/bassGuitar';
+import { ElectricGuitar } from '../devices/electricGuitar';
 import { Mpc60 } from '../devices/mpc60';
 import { UnicornSynth } from '../devices/unicornSynth';
 import { FilterBox } from '../devices/filterBox';
@@ -126,6 +127,11 @@ export class Patch {
   /** The MOA-BASS page: the four-string bass, its amp and cabinet, straight to the speakers. */
   static bass(): Patch {
     return new Patch().add('bass', new BassGuitar('MOA-BASS')).setOutput('bass', 'out');
+  }
+
+  /** The MOA-GUITAR page: the six-string electric guitar, its amp and cabinet, straight to the speakers. */
+  static guitar(): Patch {
+    return new Patch().add('guitar', new ElectricGuitar('MOA-GUITAR')).setOutput('guitar', 'out');
   }
 
   /** The MOA-2600 page: the synth (with the MOA-SQ16 under it) straight to the speakers. */

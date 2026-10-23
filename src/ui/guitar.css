@@ -1,0 +1,6 @@
+/* ---- MOA-GUITAR: the bass page's layout (bass.css), six strings and a maple neck ---- */
+.guitar-panel { border-top-color: #e8742c; }
+.guitar-panel .bass-canvas { height: 270px; }
+.guitar-panel .bass-table td:first-child { color: #e8742c; }
+/* the five-way switch's in-between positions need a wider column */
+.guitar-panel .switch:has([aria-label='Pickups']) { width: 118px; }
