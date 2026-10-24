@@ -1,5 +1,6 @@
 import { coldMirrorBall } from '../songs/library/coldMirrorBall';
 import { oddHours } from '../songs/library/oddHours';
+import { pierLights } from '../songs/library/pierLights';
 import { sunEngine } from '../songs/library/sunEngine';
 import type { SetSong } from './bandView';
 
@@ -50,6 +51,24 @@ export function bandSet(): SetSong[] {
         'Lift′': 'the octaves again, the crashes every two bars',
         'Hook″': 'the tune with everything',
         Outro: 'the arpeggios fading, down to the kick',
+        End: 'the last chord, left to ring',
+      },
+    },
+    {
+      song: pierLights(),
+      style: 'jangle pop',
+      lead: 'Chorus',
+      look: 'disco',
+      gear: { guitar: 'MOA-GUITAR · bridge and middle single coils · clean · chorus', bass2: 'MOA-BASS · roundwounds · fingers · chorus' },
+      captions: {
+        Intro: 'the guitar’s arpeggios alone, the open B and E ringing over every chord, then the band',
+        Verse: 'A F#m D E A C#m D E: a chord a bar, the free bass running through each into the next',
+        Chorus: 'D E C#m F#m D E A: the guitar strumming eighths, the free bass up the neck, the kit on the ride',
+        'Verse′': 'the arpeggios again',
+        'Chorus′': 'the chorus again, harder',
+        Bridge: 'Bm E F#m D E: the guitar’s melody in octaves, the floor tom driving, a cross-stick on the backbeat',
+        'Chorus″': 'the last chorus, everything in',
+        Outro: 'A and F#m, the arpeggios ringing out',
         End: 'the last chord, left to ring',
       },
     },

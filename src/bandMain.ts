@@ -7,9 +7,9 @@ import { bandSet } from './ui/bandSet';
 import { BandStage } from './ui/bandStage';
 import { renderBandPage } from './ui/bandView';
 
-// The band page: the band on stage playing their set (Odd Hours, Sun Engine, Cold Mirror Ball) on the modelled
-// instruments. The instruments, the mixer and the effects run in hidden iframes, as on the records page (src/songs);
-// every note sent to them also reaches the stage, so the players move to what they play.
+// The band page: the band on stage playing their set (src/ui/bandSet.ts) on the modelled instruments. The
+// instruments, the mixer and the effects run in hidden iframes, as on the records page (src/songs); every note sent to
+// them also reaches the stage, so the players move to what they play.
 const root = document.querySelector<HTMLDivElement>('#app')!;
 const supported = typeof BroadcastChannel !== 'undefined' && typeof AudioWorkletNode !== 'undefined' && !/Mobi|Android|iPhone|iPad/.test(navigator.userAgent);
 
