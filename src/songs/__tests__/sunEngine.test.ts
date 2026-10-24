@@ -29,7 +29,7 @@ describe('Sun Engine', () => {
     for (const n of [...song.tracks.bass!, ...song.tracks.bass2!]) expect(n.note).toBeGreaterThanOrEqual(28), expect(n.note).toBeLessThanOrEqual(67);
   });
 
-  it('bends the lead in the jam, and has the strings back in tune before the next note is picked', () => {
+  it('bends the guitar calls in the jam, and has the strings back in tune before the next note is picked', () => {
     const tension = song.automation.filter((a) => a.page === 'guitar' && a.control.endsWith('.tension'));
     expect(tension).toHaveLength(6);
     const jam = inSection('Jam');
@@ -45,7 +45,7 @@ describe('Sun Engine', () => {
         expect(jam(n.t)).toBe(true);
       }
     }
-    expect(bent).toBeGreaterThanOrEqual(8);
+    expect(bent).toBeGreaterThanOrEqual(3);
   });
 
   it('puts the guitarist out of tune at the peaks only, by at most 10 cents', () => {
@@ -63,5 +63,21 @@ describe('Sun Engine', () => {
     const flight = song.tracks.bass2!.filter((n) => inSection('Space')(n.t));
     expect(flight.length).toBeGreaterThan(30);
     for (const n of flight) expect(n.vel).toBeLessThanOrEqual(100);
+  });
+
+  it('stays on E through the jam (no chord change), the dub bass driving it on', () => {
+    const jam = sections.find((s) => s.name === 'Jam')!;
+    const dub = song.tracks.bass!.filter((n) => n.t >= jam.from && n.t < jam.to && n.vel > 40);
+    expect(dub.length).toBeGreaterThanOrEqual(16 * 8);
+    for (const n of dub) expect([4, 7, 9, 11, 2]).toContain(n.note % 12); // E G A B D: the line, never a shift to A
+  });
+
+  it('trades phrases in the jam instead of a solo: never the guitar and the free bass at once, but for the run up together', () => {
+    const jam = sections.find((s) => s.name === 'Jam')!;
+    const inJam = (n: { t: number }) => n.t >= jam.from && n.t < jam.to - 4;
+    const guitar = song.tracks.guitar!.filter(inJam), bass = song.tracks.bass2!.filter(inJam);
+    expect(guitar.length).toBeGreaterThan(20);
+    expect(bass.length).toBeGreaterThan(20);
+    for (const g of guitar) for (const b of bass) expect(b.t < g.t + g.len - 1e-9 && g.t < b.t + b.len - 1e-9, `${g.t} and ${b.t}`).toBe(false);
   });
 });

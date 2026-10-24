@@ -29,7 +29,7 @@ export function bandSet(): SetSong[] {
       captions: {
         Intro: 'the guitar swelling into the echo, a floor tom coming up under it',
         Vamp: 'motorik: one chord, the dub bass driving, the free bass’s figure turning against the bar, the theme',
-        Jam: 'E to A on the ride: the guitar wanders off, bending notes up into the echo',
+        Jam: 'still on E, on the ride: the guitar and the free bass trading phrases, the dub bass driving it on, a run up together',
         Peak: 'fuzz: the stoner riff on power chords, both basses under it. The guitarist freaks out',
         Space: 'the kit down to the bell, the echo running away, the free bass taking off through his drive',
         'Vamp′': 'the vamp back, the theme an octave up, sixteenths on the hats',

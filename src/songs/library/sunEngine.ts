@@ -12,8 +12,9 @@ import type { Automation, NoteEvent, Song } from '../types';
  *
  * Intro: the guitar's volume swells into the echo, a floor tom pulse coming up under them. V (the vamp): motorik on
  * the hats, the dub bass driving eighths on E, the free bass's three-note figure in dotted eighths across the bar, the
- * guitar's theme over its open low E. J (the jam): E to A every four bars, the kit on the ride, the guitar's lead
- * bending notes up into the echo. P (the peak): fuzz, a stoner riff on power chords with both basses under it, the
+ * guitar's theme over its open low E. J (the jam): still on E, the kit on the ride; no solo: the guitar and the free
+ * bass trade phrases (a bar each, then the bass calling, then half a bar each, then a run up together), while the dub
+ * bass drives it on with a climbing line. P (the peak): fuzz, a stoner riff on power chords with both basses under it, the
  * guitarist freaking out, ending on three stops. S (space): the kit down to the bell, the echo running away, the free
  * bass taking off through its drive, then a build. V′: the vamp back, the theme an octave up, sixteenths on the hats.
  * P′: the riff again. The last chord rings into the echo.
@@ -42,8 +43,6 @@ function play(out: NoteEvent[], bar: Bar, at: number, pitches: number | readonly
 
 const KIT = { kick: 36, stick: 37, snare: 38, floor: 41, hat: 42, pedal: 44, tom: 47, openHat: 46, crash: 49, ride: 51, bell: 53 } as const;
 
-/** The jam's chord for a bar: E for four bars, then A (the dorian IV, major). As a shift from E. */
-const chordJ = (bar: Bar) => (bar.section === 'J' && Math.floor(bar.i / 4) % 2 === 1 ? 5 : 0);
 
 // ---- the parts' figures ----
 
@@ -52,23 +51,44 @@ const THEME: [number, number, number][][] = [
   [[0, 64, 1], [1, 67, 1], [2, 69, 1], [3, 71, 2], [5, 74, 1], [6, 71, 1], [7, 69, 1]],
   [[0, 67, 1], [1, 69, 1], [2, 73, 2], [4, 71, 2], [6, 69, 1], [7, 67, 1]],
 ];
+/** A phrase: [eighth, note, length in eighths, bend in semitones (the guitar's, by string tension)]. */
+type Phrase = [number, number, number, number?][];
 /**
- * The guitar's lead in the jam, two bars a phrase ([eighth, note, length in eighths, bend in semitones]): the note is
- * fretted, then bent up (by string tension) and let down after it ends. A bent note always has a rest after it, so the
- * strings are back in tune before the next is picked.
+ * The jam, bar by bar: call and response, no solo. The guitar calls and the free bass answers, a bar each, its answer
+ * an echo of the call two octaves down that lands somewhere else; then the bass calls and the guitar answers; then they
+ * trade half bars, closer and closer; and in the last bar they run up together, two octaves apart, into the peak. A
+ * bent note always has a rest after it, so the strings are back in tune before the guitar's next note.
  */
-const LEAD: [number, number, number, number?][][] = [
-  [[0, 71, 3], [4, 74, 1], [5, 74, 3, 2], [10, 71, 1], [11, 69, 1], [12, 67, 3]],
-  [[0, 64, 1], [1, 67, 1], [2, 69, 1], [3, 71, 2], [6, 74, 1], [7, 71, 1], [8, 69, 4, 2], [14, 67, 1], [15, 64, 1]],
-  [[0, 73, 2], [2, 76, 2], [4, 78, 1], [5, 76, 1], [6, 73, 2], [8, 69, 1], [9, 71, 5, 2]],
-  [[0, 81, 3], [3, 79, 1], [4, 78, 1], [5, 76, 1], [6, 73, 2], [8, 74, 4, 2], [14, 76, 1], [15, 78, 1]],
-  [[0, 79, 1], [1, 81, 1], [2, 83, 4, 2], [8, 83, 1], [9, 81, 1], [10, 79, 1], [11, 78, 1], [12, 76, 4]],
-  [
-    ...[76, 74, 71, 74, 76, 79, 76, 74].map((n, k): [number, number, number] => [k / 2, n, 0.5]),
-    [4, 71, 1], [5, 69, 1], [6, 67, 2], [8, 64, 1], [9, 67, 1], [10, 69, 5, 2],
-  ],
-  [[0, 81, 6, 2], [8, 83, 1], [9, 81, 1], [10, 78, 1], [11, 76, 1], [12, 73, 2], [14, 76, 2]],
-  [[0, 74, 2], [2, 73, 2], [4, 71, 1], [5, 69, 1], [6, 71, 4, 2], [12, 69, 1], [13, 67, 1], [14, 64, 2]],
+const JAM: { guitar?: Phrase; bass?: Phrase }[] = [
+  { guitar: [[0, 71, 1], [1, 74, 1], [2, 74, 3, 2]] },
+  { bass: [[0, 47, 1], [1, 50, 1], [2, 52, 3]] },
+  { guitar: [[0, 76, 1], [1, 74, 1], [2, 71, 1], [3, 69, 1], [4, 71, 2]] },
+  { bass: [[0, 52, 1], [1, 50, 1], [2, 47, 1], [3, 45, 1], [4, 43, 2], [6, 40, 1]] },
+  { guitar: [[0, 79, 1], [1, 78, 1], [2, 76, 1], [3, 74, 1], [4, 76, 3, 2]] },
+  { bass: [[0, 55, 1], [1, 54, 1], [2, 52, 1], [3, 50, 1], [4, 47, 3]] },
+  { guitar: [[0, 64, 1], [1, 67, 1], [2, 69, 1], [3, 71, 1], [4, 73, 1], [5, 74, 2]] },
+  { bass: [[0, 40, 1], [1, 43, 1], [2, 45, 1], [3, 47, 1], [4, 49, 1], [5, 50, 1], [6, 52, 2]] },
+  // the bass calling now
+  { bass: [[0, 52, 1], [1, 55, 1], [2, 57, 2], [4, 55, 1], [5, 52, 2]] },
+  { guitar: [[0, 76, 1], [1, 79, 1], [2, 81, 2], [4, 79, 1], [5, 76, 2, 2]] },
+  { bass: [[0, 47, 1], [1, 50, 1], [2, 52, 1], [3, 54, 1], [4, 55, 3]] },
+  { guitar: [[0, 71, 1], [1, 74, 1], [2, 76, 1], [3, 78, 1], [4, 79, 3]] },
+  // half a bar each
+  { guitar: [[0, 76, 1], [1, 79, 1], [2, 78, 2]], bass: [[4, 52, 1], [5, 55, 1], [6, 54, 2]] },
+  { guitar: [[0, 74, 1], [1, 73, 1], [2, 71, 2]], bass: [[4, 50, 1], [5, 49, 1], [6, 47, 2]] },
+  { guitar: [[0, 81, 1], [1, 79, 1], [2, 76, 2]], bass: [[4, 57, 1], [5, 55, 1], [6, 52, 2]] },
+  // together, up into the peak
+  {
+    guitar: [64, 66, 67, 69, 71, 73, 74, 76].map((n, e): [number, number, number] => [e, n, 1]),
+    bass: [40, 42, 43, 45, 47, 49, 50, 52].map((n, e): [number, number, number] => [e, n, 1]),
+  },
+];
+/** The dub bass driving the jam on, four bars of eighths that climb: E, G and A, E, B and A and D into E. */
+const DRIVE_J = [
+  [28, 28, 40, 28, 28, 40, 38, 40],
+  [31, 31, 43, 31, 33, 33, 45, 33],
+  [28, 28, 40, 28, 28, 40, 38, 40],
+  [35, 35, 47, 35, 33, 33, 38, 40],
 ];
 /** The peak's riff, two bars, by root (the guitar plays power chords on it, the basses the roots): [eighth, root, length]. */
 const RIFF_P: [number, number, number][][] = [
@@ -106,7 +126,7 @@ function guitar(): NoteEvent[] {
       // the open low E under it, let ring or struck again on 3 (as it falls under the hand)
       if (random() < 0.35) { play(out, bar, 0, 40, 3.5, 84); play(out, bar, 4, 40, 3.5, 70); } else play(out, bar, 0, 40, 4, 84);
     } else if (section === 'J') {
-      if (i % 2 === 0) for (const [e, p, len] of LEAD[i / 2]!) play(out, bar, e, p, len, len >= 3 ? 96 : 84);
+      for (const [e, p, len] of JAM[i]!.guitar ?? []) play(out, bar, e, p, len, e === 0 ? 92 : 84);
     } else if (section === 'P') {
       if (i === 7) for (const e of STOPS) play(out, bar, e, power(40), 0.9, 120);
       else for (const [e, root, len] of RIFF_P[i % 2]!) play(out, bar, e, power(root), len * 0.9, e === 0 ? 118 : 106);
@@ -129,14 +149,18 @@ function dubBass(): NoteEvent[] {
     const { section, i } = bar;
     if (section === 'intro') {
       if (i === 6) play(out, bar, 0, 28, 15, 96);
-    } else if (section === 'V' || section === 'V2' || section === 'J') {
-      const shift = chordJ(bar);
-      const inKey = (p: number) => (p % 12 === 0 ? p + 1 : p); // on A, the walk up from G moves to C: the dorian's C#
+    } else if (section === 'V' || section === 'V2') {
       for (const [e, p, len] of VAMP[i % 2]!) {
         if (e % 1 && random() < 0.15) continue; // an octave pop let go now and then
-        play(out, bar, e, inKey(p + shift), len, e === 0 ? 108 : e % 1 ? 84 : 94);
+        play(out, bar, e, p, len, e === 0 ? 108 : e % 1 ? 84 : 94);
       }
-      if (random() < 0.4) play(out, bar, 2.5, 28 + shift, 0.12, 36); // a dead note in the gap
+      if (random() < 0.4) play(out, bar, 2.5, 28, 0.12, 36); // a dead note in the gap
+    } else if (section === 'J') {
+      // driving the jam on: the climbing line in eighths, the last four bars pushed with sixteenths into the peak
+      DRIVE_J[i % 4]!.forEach((p, e) => {
+        play(out, bar, e, p, 0.8, e === 0 ? 108 : e % 2 ? 88 : 98);
+        if (i >= 12 && e % 2) play(out, bar, e + 0.5, p, 0.4, 80);
+      });
     } else if (section === 'P') {
       if (i === 7) for (const e of STOPS) play(out, bar, e, 28, 0.9, 118);
       else for (const [e, root, len] of RIFF_P[i % 2]!) play(out, bar, e, root - 12, len * 0.9, e === 0 ? 116 : 104);
@@ -155,19 +179,22 @@ function freeBass(): NoteEvent[] {
   for (const block of BLOCKS) {
     const bars = barsOf(block);
     const { section } = block;
-    if (section === 'V' || section === 'V2' || section === 'J') {
+    if (section === 'V' || section === 'V2') {
       // the figure in dotted eighths (three sixteenths) right through the block, the first of every four leaned on
       const from = section === 'V' ? 4 : 0; // in V, it comes in on the fifth bar
       const end = block.start + bars.length * 4;
       for (let k = 0, t = block.start + from * 4; t < end - 1e-9; k++, t += 0.75) {
         const bar = bars[Math.floor((t - block.start) / 4)]!;
         const up = section === 'V2' ? 12 : 0;
-        out.push(note(t, 0.6, FIGURE[k % 3]! + chordJ(bar) + up, k % 4 === 0 ? 96 : 82));
+        out.push(note(t, 0.6, FIGURE[k % 3]! + up, k % 4 === 0 ? 96 : 82));
       }
     }
     for (const bar of bars) {
       const { i } = bar;
-      if (section === 'intro') {
+      if (section === 'J') {
+        // answering the guitar, calling to it, trading with it (never picked hard: a bass picked hard by the bridge goes sharp)
+        for (const [e, p, len] of JAM[i]!.bass ?? []) play(out, bar, e, p, len, e === 0 || e === 4 ? 96 : 88);
+      } else if (section === 'intro') {
         if (i === 4 || i === 6) play(out, bar, 0, i === 4 ? 52 : 47, 15, 72);
       } else if (section === 'P') {
         // the riff with the dub bass, an octave up; single notes (a driven bass goes muddy on double-stops)
@@ -286,8 +313,8 @@ const tensionAt = (k: number, cents: number) => Math.round(GUITAR_TUNED[k]! * Ma
 function bends(): { t: number; len: number; by: number }[] {
   const out: { t: number; len: number; by: number }[] = [];
   for (const bar of BARS) {
-    if (bar.section !== 'J' || bar.i % 2 !== 0) continue;
-    for (const [e, , len, by] of LEAD[bar.i / 2]!) if (by) out.push({ t: bar.start + e / 2, len: len / 2, by });
+    if (bar.section !== 'J') continue;
+    for (const [e, , len, by] of JAM[bar.i]!.guitar ?? []) if (by) out.push({ t: bar.start + e / 2, len: len / 2, by });
   }
   return out;
 }
@@ -331,7 +358,7 @@ function automation(): Automation[] {
     }
     return { page, device, control, points };
   };
-  const level = per('mixer', 'mixer', 'ch3.fader', { J: 0.3, P: 0.2, rest: 0.24 });
+  const level = per('mixer', 'mixer', 'ch3.fader', { J: 0.26, P: 0.2, rest: 0.24 }); // in the jam, level with the free bass trading with it
   // the intro's swells: the guitar's fader (a volume pedal) up from nothing over each chord, down before the next
   const swells: [number, number][] = [];
   for (let k = 0; k < 4; k++) swells.push([k * 8, 0], [k * 8 + 3, 0.24], ...(k < 3 ? [[k * 8 + 7.6, 0.24] as [number, number]] : []));
@@ -354,8 +381,8 @@ function automation(): Automation[] {
     per('mixer', 'mixer', 'ch3.aux1', { intro: 0.3, S: 0.3, end: 0.3, rest: 0.1 }),
     // the free bass: its drive on for the peaks and his flight, and into the echo for it
     per('bass2', 'bass', 'drive.mix', { P: 1, S: 1, rest: 0 }),
-    per('mixer', 'mixer', 'ch2.aux2', { S: 0.4, rest: 0.1 }),
-    per('mixer', 'mixer', 'ch2.fader', { S: 0.5, rest: 0.33 }), // his figure is accompaniment: a touch under
+    per('mixer', 'mixer', 'ch2.aux2', { J: 0.25, S: 0.4, rest: 0.1 }),
+    per('mixer', 'mixer', 'ch2.fader', { J: 0.4, S: 0.5, rest: 0.33 }), // his figure is accompaniment: a touch under; up to trade in the jam
     ...strings(),
   ];
 }
