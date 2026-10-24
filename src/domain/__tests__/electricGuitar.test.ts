@@ -120,6 +120,28 @@ describe('MOA-GUITAR, six strings', () => {
     expect(g.circuit.node('odHp').options.type).toBe('highpass');
     expect(into('odLevel').sort()).toEqual(['odLow', 'odTone']); // the lows round the clipper, clean
   });
+
+  it('has a chorus after the overdrive: off as it comes, only the highs swept, and its Flange knob turns it into a flanger that feeds back', () => {
+    const g = new ElectricGuitar();
+    const into = (node: string) => g.circuit.cables.filter((c) => c.to === node && c.port === 'in').map((c) => c.from);
+    expect(into('chIn').sort()).toEqual(['odWet', 'pedalDry']);
+    expect(into('ampIn').sort()).toEqual(['chDry', 'chWet']);
+    expect(into('chLine').sort()).toEqual(['chHp', 'chRegen']);
+    expect(g.circuit.cables.some((c) => c.from === 'chDepth' && c.to === 'chLine' && c.port === 'delayTime')).toBe(true);
+    expect([param(g, 'chDry', 'gain'), param(g, 'chWet', 'gain')]).toEqual([1, 0]);
+
+    set(g, 'chorus.mix', 0.6);
+    expect(param(g, 'chWet', 'gain')).toBeGreaterThan(0.4);
+    // as a chorus the sweep never reaches zero delay and nothing feeds back; as a flanger it is shorter and rings
+    set(g, 'chorus.depth', 1);
+    expect(param(g, 'chLine', 'delayTime')).toBeGreaterThan(param(g, 'chDepth', 'gain'));
+    expect(param(g, 'chRegen', 'gain')).toBe(0);
+    set(g, 'chorus.flange', 1);
+    expect(param(g, 'chLine', 'delayTime')).toBeLessThan(0.004);
+    expect(param(g, 'chLine', 'delayTime')).toBeGreaterThan(param(g, 'chDepth', 'gain'));
+    expect(param(g, 'chRegen', 'gain')).toBeGreaterThan(0.3);
+    expect(param(g, 'chRegen', 'gain')).toBeLessThan(0.9);
+  });
 });
 
 describe('dead notes', () => {

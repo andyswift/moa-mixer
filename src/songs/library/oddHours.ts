@@ -1,5 +1,6 @@
 import { GAUGES, GUITAR_GAUGES, GUITAR_SCALES, SCALES, midiToHz, tensionFor } from '../../domain/devices/bassPhysics';
 import { GUITAR_STRINGS } from '../../domain/devices/electricGuitar';
+import { seeded, withDynamics } from '../feel';
 import { note } from '../generators';
 import type { Automation, NoteEvent, Song } from '../types';
 
@@ -140,15 +141,17 @@ const ghost = (out: NoteEvent[], bar: Bar, at: number, n: number) => play(out, b
 
 function guitar(): NoteEvent[] {
   const out: NoteEvent[] = [];
+  const random = seeded(1138);
   for (const bar of BARS) {
     const { section, i } = bar;
     if (section === 'intro' || section === 'A' || section === 'A2') {
       riffA(i).forEach((n, e) => play(out, bar, e, n, 0.95, e === 0 || e === 2 || e === 4 ? 92 : 72));
       // scratches between the riff's notes (not in the bare first bars): the funk under the arpeggio
-      if (section !== 'intro' || i >= 2) for (const at of [2.5, 4.5, 5.5]) ghost(out, bar, at, 52);
+      // (a few of the gaps each bar, never the same few twice running)
+      if (section !== 'intro' || i >= 2) for (const at of [1.5, 2.5, 4.5, 5.5, 6.5]) if (random() < 0.55) ghost(out, bar, at, 52);
     } else if (section === 'B' || section === 'B2') {
       for (const [e, ns] of RIFF_B[i % 2]!) play(out, bar, e, ns, ns.length > 1 ? 1.4 : 0.9, ns.length > 1 ? 96 : 76);
-      for (const at of [1.5, 4.5, 7.5, 9.5]) ghost(out, bar, at, i % 2 ? 50 : 54);
+      for (const at of [1.5, 4.5, 7.5, 9.5]) if (random() < 0.75) ghost(out, bar, at, i % 2 ? 50 : 54);
     } else if (section === 'C') {
       if (i < 4) for (const [e, n, len] of LINE_C) play(out, bar, e, n + (i >= 2 ? 1 : 0), len, 100); // a semitone up the second time
       else if (i < 6) for (const e of [0, 1.5, 5, 6.5]) play(out, bar, e, [40, 47, 52], 0.8, 112); // E5 stabs, off the beat
@@ -245,7 +248,16 @@ function freeBass(): NoteEvent[] {
 
 function kit(): NoteEvent[] {
   const out: NoteEvent[] = [];
-  const hit = (bar: Bar, e: number, n: number, vel: number) => play(out, bar, e, n, 0.4, vel);
+  const random = seeded(1139);
+  // every stroke a little different, as a drummer's are
+  const hit = (bar: Bar, e: number, n: number, vel: number) => play(out, bar, e, n, 0.4, Math.round(vel * (0.94 + 0.12 * random())));
+  /** One of the fills, picked as the drummer feels it: [the drums, a sixteenth each]. */
+  const fills = [
+    [KIT.snare, KIT.snare, KIT.tom, KIT.tom, KIT.floor, KIT.floor, KIT.floor, KIT.kick],
+    [KIT.snare, KIT.tom, KIT.snare, KIT.tom, KIT.floor, KIT.kick, KIT.floor, KIT.floor],
+    [KIT.tom, KIT.tom, KIT.tom, KIT.floor, KIT.floor, KIT.snare, KIT.snare, KIT.kick],
+  ];
+  const fill = () => fills[Math.floor(random() * fills.length)]!;
   for (const bar of BARS) {
     const { section, i } = bar;
     if (section === 'intro') {
@@ -256,13 +268,14 @@ function kit(): NoteEvent[] {
       for (let s = 0; s < 14; s++) {
         const e = s / 2;
         if (i % 4 === 3 && e === 6) hit(bar, e, KIT.openHat, 80);
+        else if (s % 2 === 1 && random() < 0.12) continue; // a sixteenth left out: the hand breathing
         else if (!(i % 4 === 3 && e === 6.5)) hit(bar, e, KIT.hat, e === 0 || e === 2 || e === 4 ? 84 : s % 2 === 0 ? 62 : 40);
       }
       hit(bar, 0, KIT.kick, 112); hit(bar, 4, KIT.kick, 100);
       if (i % 2 === 1) hit(bar, 5.5, KIT.kick, 84);
       if (i % 4 === 1) hit(bar, 1.5, KIT.kick, 78); // a push before the snare
       hit(bar, 2, KIT.snare, 104); hit(bar, 5, KIT.snare, 100);
-      for (const g of [0.5, 1.5, 3.5, 4.5, 6.5]) hit(bar, g, KIT.snare, g === 1.5 ? 36 : 26); // ghost notes
+      for (const g of [0.5, 1.5, 3.5, 4.5, 6.5]) if (g === 1.5 || random() < 0.7) hit(bar, g, KIT.snare, g === 1.5 ? 36 : 26); // ghost notes, not all of them every bar
       if (i === 0 || i === 8) hit(bar, 0, KIT.crash, 100);
     } else if (section === 'B' || section === 'B2') {
       for (let e = 0; e < 10; e++) hit(bar, e, KIT.ride, [0, 3, 6, 8].includes(e) ? 86 : 60);
@@ -272,7 +285,7 @@ function kit(): NoteEvent[] {
       hit(bar, 6, KIT.snare, 108); // the backbeat, moved to the third group
       for (const g of [1.5, 4.5, 7.5, 9.5]) hit(bar, g, KIT.snare, 30);
       if (i % 4 === 0) hit(bar, 0, KIT.crash, section === 'B2' ? 110 : 96);
-      if (i % 4 === 3) [KIT.snare, KIT.snare, KIT.tom, KIT.tom, KIT.floor, KIT.floor, KIT.floor, KIT.kick].forEach((n, s) => hit(bar, 6 + s / 2, n, 80 + s * 4));
+      if (i % 4 === 3) fill().forEach((n, s) => hit(bar, 6 + s / 2, n, 80 + s * 4));
     } else if (section === 'C') {
       if (i === 0) hit(bar, 0, KIT.crash, 110);
       if (i < 2) {
@@ -293,13 +306,16 @@ function kit(): NoteEvent[] {
       }
     } else if (section === 'D') {
       // straight rock: eighths on the ride, the kick on 1, 3 and the and of 3, the snare on 2 and 4, a crash every two bars
-      const fill = i % 8 === 7;
-      for (let e = 0; e < (fill ? 4 : 8); e++) hit(bar, e, KIT.ride, e % 2 === 0 ? 90 : 66);
+      const filled = i % 8 === 7;
+      for (let e = 0; e < (filled ? 4 : 8); e++) hit(bar, e, KIT.ride, e % 2 === 0 ? 90 : 66);
       if (i % 2 === 0) hit(bar, 0, KIT.crash, i === 0 ? 118 : 104);
       hit(bar, 0, KIT.kick, 116); hit(bar, 4, KIT.kick, 108); hit(bar, 5, KIT.kick, 94);
       hit(bar, 2, KIT.snare, 112);
-      if (fill) [KIT.snare, KIT.snare, KIT.tom, KIT.tom, KIT.floor, KIT.floor, KIT.kick, KIT.floor].forEach((n, s) => hit(bar, 4 + s / 2, n, 92 + s * 3));
-      else { hit(bar, 6, KIT.snare, 114); hit(bar, 6.5, KIT.snare, 34); }
+      if (filled) fill().forEach((n, s) => hit(bar, 4 + s / 2, n, 92 + s * 3));
+      else {
+        hit(bar, 6, KIT.snare, 114); hit(bar, 6.5, KIT.snare, 34);
+        if (random() < 0.3) hit(bar, 7.5, KIT.kick, 88); // now and then a push into the next bar
+      }
     } else {
       hit(bar, 0, KIT.kick, 124); hit(bar, 0, KIT.crash, 124); hit(bar, 0, KIT.floor, 118);
     }
@@ -320,6 +336,25 @@ const BLOCKS = BARS.filter((bar) => bar.i === 0);
 
 /** How heavy each section is: the guitarist freaks out in C and D (and plays like it), the free bass in D. */
 const HEAT: Record<Section, number> = { intro: 0, A: 0.2, B: 0.35, A2: 0.4, C: 1, D: 0.85, B2: 0.6, end: 0.3 };
+/**
+ * How loud the band plays at a beat (1 as written), all of them together: the section's level (the second A dropping
+ * back, A′ building, C climbing to its hits, the second D and B′ biggest), every four-bar phrase easing off after its
+ * first bar and swelling through its last, and into each new section.
+ */
+function level(beat: number): number {
+  let k = 0;
+  while (k + 1 < BARS.length && BARS[k + 1]!.start <= beat + 1e-9) k++;
+  const bar = BARS[k]!;
+  const { section, i, n } = bar;
+  const through = (beat - bar.start) / (bar.eighths / 2);
+  const base = {
+    intro: 0.84, A: n === 0 ? 0.88 : 0.84, B: n === 0 ? 0.92 : 0.96, D: n === 0 ? 1 : 1.04,
+    A2: n === 0 ? 0.86 + (0.08 * i) / 7 : 0.9, C: 0.94 + (0.14 * i) / 7, B2: 1, end: 1,
+  }[section];
+  const last = BARS[k + 1]?.i === 0;
+  const p = i % 4;
+  return base * ([1, 0.93, 0.96, 0.98][p]! + (p === 3 || last ? 0.08 * through : 0));
+}
 const NAMES: Record<Section, string> = { intro: 'Intro', A: 'A', B: 'B', A2: 'A′', C: 'C', D: 'D', B2: 'B′', end: 'End' };
 /** The guitar's strings at the tension that tunes them (as the guitar comes). */
 const GUITAR_TUNED = GUITAR_STRINGS.map((n) => Math.round(tensionFor(GUITAR_GAUGES[n], GUITAR_SCALES['25.5"'], midiToHz(GUITAR_GAUGES[n].note)) * 10) / 10);
@@ -429,7 +464,12 @@ export function oddHours(): Song {
         'ret1.fader': 0.8, 'ret2.fader': 0.7,
       } } },
     },
-    tracks: { guitar: harder(guitar(), 0.15, heatAt), kit: kit(), bass: dubBass(), bass2: freeBass() },
+    tracks: {
+      guitar: withDynamics(harder(guitar(), 0.15, heatAt), level),
+      kit: withDynamics(kit(), level),
+      bass: withDynamics(dubBass(), level),
+      bass2: withDynamics(freeBass(), level, 100),
+    },
     automation: automation(),
     sections: BLOCKS.map((block) => ({
       name: NAMES[block.section], from: block.start, to: block.start + blockBeats(block),

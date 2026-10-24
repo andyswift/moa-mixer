@@ -25,7 +25,7 @@ export class BassGuitar extends StringedInstrument {
       frets: BASS_FRETS, scales: SCALES, scale: 'long', tension: [40, 400],
       pluckHeight: [0.0003, 0.006], // 0.3 mm to 6 mm
       palmAt: 0.03, pluck: { style: 'finger', position: 0.12 }, bendDown: false,
-      toneStack: { bass: 100, mid: 600, treble: 2500 },
+      chorusLowCut: 250, toneStack: { bass: 100, mid: 600, treble: 2500 },
       drive: (v) => ({ pre: 0.4 + v * 4, post: 1 / (0.4 + v * 2.2) }), // make-up: more drive, about the same level
       gain: 0.3, cabinets: CABINETS, cabinet: '4x10', blend: 0.6, level: 0.8,
     });
