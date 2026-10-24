@@ -15,10 +15,16 @@ import type { PageId } from '../songs/control';
  *   jumps, most of all when he leads (the hottest sections count double for him).
  *
  * Each character is a set of groups (legs, upper body, head, arms, instrument) turned about their joints every frame.
+ *
+ * The stage has a look per song (`setLook`): plain (a warm, bare room), or disco (the lights down, a mirror ball
+ * scattering reflections across the back wall, coloured beams swaying to the beat, pools of light flashing on the kick,
+ * and haze).
  */
 
 /** Whose stage spot a page is. */
 export type Player = 'guitar' | 'kit' | 'bass' | 'bass2';
+/** How the stage is dressed for a song. */
+export type StageLook = 'plain' | 'disco';
 
 const W = 1240, H = 520;
 const NS = 'http://www.w3.org/2000/svg';
@@ -155,6 +161,40 @@ const FREE = `
  */
 const mirror = (middle: number) => `translate(${2 * middle} 0) scale(-1 1)`;
 
+// ---- the disco: beams from the rig, pools of light on the floor, a mirror ball and its reflections ----
+
+const DISCO_COLOURS = ['#ff3ea5', '#3ee0ff', '#8a5cff', '#ff4a4a'];
+const BEAMS_AT = [180, 470, 790, 1080];
+const BALL: [number, number, number] = [640, 70, 26];
+/** The reflections on the back wall, seeded so they are the same every time: x, y, radius. */
+const DOTS: [number, number, number][] = [];
+{
+  let seed = 7;
+  const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  for (let k = 0; k < 46; k++) DOTS.push([random() * W, 12 + random() * (H - 150), 1.2 + random() * 2]);
+}
+function discoBack(): string {
+  const [bx, by, br] = BALL;
+  const gradients = DISCO_COLOURS.map((c, k) => `<linearGradient id="disco-g${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity="0.75"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient>`).join('');
+  const dots = DOTS.map(([x, y, r]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}"/><circle cx="${(x + W).toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}"/>`).join('');
+  const beams = BEAMS_AT.map((x, k) => `<g id="disco-beam${k}"><path d="M${x} -10 L${x - 80} ${H - 110} L${x + 80} ${H - 110} Z" fill="url(#disco-g${k})"/></g>`).join('');
+  const pools = BEAMS_AT.map((x, k) => `<ellipse id="disco-pool${k}" cx="${x}" cy="${H - 50}" rx="120" ry="26" fill="${DISCO_COLOURS[k]}" opacity="0.2"/>`).join('');
+  // the ball's facets: columns of squares a facet apart, drawn wider than the ball and slid along, clipped to it
+  let facets = '';
+  for (let x = bx - br - 8; x < bx + br + 8; x += 7) for (let y = by - br; y < by + br; y += 7) {
+    const shade = 0.35 + 0.5 * (((x * 13 + y * 7) % 10) / 10);
+    facets += `<rect x="${x}" y="${y}" width="6" height="6" fill="#e8e6f0" fill-opacity="${shade.toFixed(2)}"/>`;
+  }
+  return `<defs>${gradients}<clipPath id="disco-ballclip"><circle cx="${bx}" cy="${by}" r="${br}"/></clipPath>
+    <radialGradient id="disco-haze" cx="0.5" cy="0.7" r="0.7"><stop offset="0" stop-color="#8a5cff" stop-opacity="0.16"/><stop offset="1" stop-color="#8a5cff" stop-opacity="0"/></radialGradient></defs>
+    <g id="disco-dots" fill="#fff" fill-opacity="0.5">${dots}</g>
+    ${pools}${beams}
+    <line x1="${bx}" y1="0" x2="${bx}" y2="${by - br}" stroke="#55525e" stroke-width="2"/>
+    <circle cx="${bx}" cy="${by}" r="${br}" fill="#3a3845"/>
+    <g clip-path="url(#disco-ballclip)"><g id="disco-facets">${facets}</g></g>
+    <circle cx="${bx - 8}" cy="${by - 9}" r="5" fill="#fff" fill-opacity="0.8"/>`;
+}
+
 /** Where each character stands on the stage (its 280 or 340 by 420 drawing's top left). */
 const SPOTS: Record<Player, [number, number]> = { guitar: [36, 82], kit: [336, 46], bass: [645, 82], bass2: [935, 82] };
 
@@ -226,6 +266,7 @@ export class BandStage {
   readonly activity: Record<Player, number> = { guitar: 0, kit: 0, bass: 0, bass2: 0 };
   private last = 0;
   private readonly shake = { guitar: shaker(1.3), bass2: shaker(4.1) };
+  private look: StageLook = 'plain';
 
   constructor() {
     const svg = document.createElementNS(NS, 'svg');
@@ -235,17 +276,31 @@ export class BandStage {
     svg.classList.add('band-stage-svg');
     const at = (who: Player) => `translate(${SPOTS[who][0]} ${SPOTS[who][1]})`;
     svg.innerHTML = `
-      <rect width="${W}" height="${H}" fill="#1d1e22"/>
-      <rect y="${H - 120}" width="${W}" height="120" fill="#2a2723"/><rect y="${H - 120}" width="${W}" height="2" fill="#3b362f"/>
-      <ellipse cx="176" cy="${H - 34}" rx="130" ry="30" fill="#ffd25e" fill-opacity="0.08"/><ellipse cx="506" cy="${H - 44}" rx="150" ry="34" fill="#ffd25e" fill-opacity="0.08"/>
-      <ellipse cx="785" cy="${H - 34}" rx="120" ry="30" fill="#ffd25e" fill-opacity="0.08"/><ellipse cx="1075" cy="${H - 34}" rx="120" ry="30" fill="#ffd25e" fill-opacity="0.08"/>
+      <rect id="stage-wall" width="${W}" height="${H}" fill="#1d1e22"/>
+      <rect id="stage-floor" y="${H - 120}" width="${W}" height="120" fill="#2a2723"/><rect y="${H - 120}" width="${W}" height="2" fill="#3b362f"/>
+      <g id="disco-back" display="none">${discoBack()}</g>
+      <g id="stage-spots"><ellipse cx="176" cy="${H - 34}" rx="130" ry="30" fill="#ffd25e" fill-opacity="0.08"/><ellipse cx="506" cy="${H - 44}" rx="150" ry="34" fill="#ffd25e" fill-opacity="0.08"/>
+      <ellipse cx="785" cy="${H - 34}" rx="120" ry="30" fill="#ffd25e" fill-opacity="0.08"/><ellipse cx="1075" cy="${H - 34}" rx="120" ry="30" fill="#ffd25e" fill-opacity="0.08"/></g>
       <rect x="356" y="${H - 74}" width="300" height="34" fill="#34302a"/><rect x="356" y="${H - 74}" width="300" height="2" fill="#4a443b"/>
       <g id="spot-guitar" transform="${at('guitar')}"><g transform="${mirror(140)}"><g id="gt-all">${GUITARIST}</g></g></g>
       <g id="spot-kit" transform="${at('kit')}"><g transform="${mirror(170)}"><g id="dr-all">${DRUMMER}</g></g></g>
       <g id="spot-bass" transform="${at('bass')}"><g transform="${mirror(140)}"><g id="db-all">${DUB}</g></g></g>
-      <g id="spot-bass2" transform="${at('bass2')}"><g transform="${mirror(140)}"><g id="fb-all">${FREE}</g></g></g>`;
+      <g id="spot-bass2" transform="${at('bass2')}"><g transform="${mirror(140)}"><g id="fb-all">${FREE}</g></g></g>
+      <rect id="disco-front" display="none" width="${W}" height="${H}" fill="url(#disco-haze)" pointer-events="none"/>`;
     for (const g of Array.from(svg.querySelectorAll<SVGGElement>('g[id]'))) this.parts.set(g.id, g);
     this.element = svg;
+  }
+
+  /** Dresses the stage for a song: the lights down and the disco up, or the plain room. */
+  setLook(look: StageLook): void {
+    this.look = look;
+    const disco = look === 'disco';
+    const attr = (id: string, name: string, value: string) => this.element.querySelector(`#${id}`)?.setAttribute(name, value);
+    attr('stage-wall', 'fill', disco ? '#0c0b11' : '#1d1e22');
+    attr('stage-floor', 'fill', disco ? '#17151c' : '#2a2723');
+    attr('stage-spots', 'display', disco ? 'none' : 'inline');
+    attr('disco-back', 'display', disco ? 'inline' : 'none');
+    attr('disco-front', 'display', disco ? 'inline' : 'none');
   }
 
   /** A note the song player sent, due at `at` (wall-clock ms, as `epochNow`). Note-offs are ignored. */
@@ -420,5 +475,21 @@ export class BandStage {
       this.brows('fb', -10 * grin, 3 * grin + 3 * shout, [[131, 91], [149, 91]]);
       this.eyes('fb', 1 + 0.4 * grin);
     }
+    if (this.look === 'disco') this.disco(t, mood, onBeat);
+  }
+
+  /** The disco lights: the ball turning, its reflections drifting, the beams swaying and brightening on the beat, the pools on the kick. */
+  private disco(t: number, mood: StageMood, onBeat: number): void {
+    const playing = mood.playing ? 1 : 0;
+    this.set('disco-facets', `translate(${(-((t * 9) % 7)).toFixed(2)} 0)`);
+    this.set('disco-dots', `translate(${(-((t * 16) % W)).toFixed(1)} 0)`);
+    BEAMS_AT.forEach((x, k) => {
+      const swing = (10 + 14 * playing * (0.4 + mood.heat)) * Math.sin(t * 0.55 + k * 1.9);
+      const beam = this.parts.get(`disco-beam${k}`);
+      beam?.setAttribute('transform', `rotate(${swing.toFixed(2)} ${x} -10)`);
+      beam?.setAttribute('opacity', (0.25 + playing * (0.15 + 0.5 * onBeat)).toFixed(2));
+    });
+    const kick = this.hits.get('kick') ?? 0;
+    for (let k = 0; k < BEAMS_AT.length; k++) this.element.querySelector(`#disco-pool${k}`)?.setAttribute('opacity', (0.12 + 0.5 * kick).toFixed(2));
   }
 }

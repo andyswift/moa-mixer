@@ -46,6 +46,8 @@ export interface StringedDesign {
   pluck: { style: 'finger' | 'pick'; position: number };
   /** Whether the bend can lower the pitch too (a vibrato arm) or only raise it (a string pulled sideways). */
   bendDown: boolean;
+  /** Below this the chorus pedal leaves the sound dry, Hz (higher on a bass, so its bottom stays still and tight). */
+  chorusLowCut: number;
   /** The amp's tone stack: the bass shelf, the mid peak and the treble shelf, Hz. */
   toneStack: { bass: number; mid: number; treble: number };
   /** The gain into the valve and the make-up after it, for the Gain knob at 0..1. */
@@ -81,7 +83,9 @@ export interface PickupView {
  * an amp (gain into a valve curve, a three-band tone stack) and a miked speaker cabinet, blended with the DI as a
  * studio would record it. The pedal is a green-box overdrive: only the mids and highs are pushed into a soft clipper
  * (above about 700 Hz), the lows go round it clean, so the bottom stays tight and the mids hump; then its tone (a
- * low-pass) and level. Its blend crossfades it with the bypass, so a song can stamp on it. A note
+ * low-pass) and level. Its blend crossfades it with the bypass, so a song can stamp on it. After it, a chorus pedal
+ * (a CE-2 in spirit): a short delay swept by a slow LFO, mixed back with the dry sound, only above the design's low
+ * cut; its Flange knob morphs it into a flanger, the delay shorter and fed back into itself, for the jet sweep. A note
  * goes to the string a player would use: the one that needs the least hand movement from where the hand is, avoiding
  * a string that is already holding a note; letting go of a key mutes its string.
  *
@@ -99,6 +103,7 @@ export abstract class StringedInstrument extends Device implements Playable {
   private bend = 0;
   private modWheelValue = 0;
   private pedal = false;
+  private readonly chorus = { flange: 0, depth: 0.5 };
   private latched = new Set<number>();
   private building = true;
   private readonly noteListeners = new Set<() => void>();
@@ -132,6 +137,25 @@ export abstract class StringedInstrument extends Device implements Playable {
       .connect('strings', 'odLow')
       .connect('odLow', 'odLevel')
       .connect('odLevel', 'odWet');
+    // the chorus pedal: the dry sound, and the highs through a delay swept by the LFO (fed back on itself as a flanger)
+    c.add('chIn', 'gain', { gain: 1 })
+      .add('chDry', 'gain', { gain: 1 })
+      .add('chHp', 'filter', { frequency: design.chorusLowCut, Q: 0.5 }, { type: 'highpass' })
+      .add('chLine', 'delay', { delayTime: 0.007, maxTime: 0.03 })
+      .add('chLfo', 'oscillator', { frequency: 0.8, detune: 0 }, { waveform: 'sine' })
+      .add('chDepth', 'gain', { gain: 0.0015 })
+      .add('chRegen', 'gain', { gain: 0 })
+      .add('chWet', 'gain', { gain: 0 })
+      .connect('pedalDry', 'chIn')
+      .connect('odWet', 'chIn')
+      .connect('chIn', 'chDry')
+      .connect('chIn', 'chHp')
+      .connect('chHp', 'chLine')
+      .connect('chLine', 'chRegen')
+      .connect('chRegen', 'chLine')
+      .connect('chLine', 'chWet')
+      .connect('chLfo', 'chDepth')
+      .connect('chDepth', 'chLine', 'delayTime');
     // the amp: gain into a valve curve, make-up, then bass, mid and treble
     const stack = design.toneStack;
     c.add('ampIn', 'gain', { gain: 1 })
@@ -151,8 +175,8 @@ export abstract class StringedInstrument extends Device implements Playable {
       // the DI: the pickups straight to the desk
       .add('diOut', 'gain', { gain: 0.6 })
       .add('master', 'gain', { gain: 0.8 })
-      .connect('pedalDry', 'ampIn')
-      .connect('odWet', 'ampIn')
+      .connect('chDry', 'ampIn')
+      .connect('chWet', 'ampIn')
       .connect('ampIn', 'ampDrive')
       .connect('ampDrive', 'ampPost')
       .connect('ampPost', 'ampBass')
@@ -190,6 +214,14 @@ export abstract class StringedInstrument extends Device implements Playable {
     this.num('drive.gain', 'Gain', 0, 1, 0.4, '', (v) => c.setParam('odGain', 'gain', 2 * Math.pow(30, v))); // 2 to 60 into the clipper
     this.num('drive.tone', 'Tone', 800, 8000, 3000, 'Hz', (v) => c.setParam('odTone', 'frequency', v), 'log');
     this.num('drive.level', 'Level', 0, 1.5, 0.4, '', (v) => c.setParam('odLevel', 'gain', v));
+    // the chorus: the wet half up to about as loud as the dry (as a CE-2 mixes it), the dry backing off a little
+    this.num('chorus.mix', 'Chorus', 0, 1, 0, '', (v) => {
+      c.setParam('chWet', 'gain', 0.8 * v);
+      c.setParam('chDry', 'gain', 1 - 0.3 * v);
+    });
+    this.num('chorus.flange', 'Flange', 0, 1, 0, '', (v) => { this.chorus.flange = v; this.applyChorus(); });
+    this.num('chorus.rate', 'Rate', 0.1, 6, 0.8, 'Hz', (v) => c.setParam('chLfo', 'frequency', v), 'log');
+    this.num('chorus.depth', 'Depth', 0, 1, 0.5, '', (v) => { this.chorus.depth = v; this.applyChorus(); });
     // the amp and the cabinet
     this.num('amp.gain', 'Gain', 0, 1, design.gain, '', (v) => {
       const { pre, post } = design.drive(v);
@@ -207,6 +239,18 @@ export abstract class StringedInstrument extends Device implements Playable {
       c.setParam('cabOut', 'gain', Math.sin((v * Math.PI) / 2));
     });
     this.num('level', 'Level', 0, 1.5, design.level, '', (v) => c.setParam('master', 'gain', v));
+  }
+
+  /**
+   * The chorus's delay and sweep, from chorus to flanger as the Flange knob turns: as a chorus, 7 ms swept up to 3 ms
+   * either way (the pitch wavers, the copy sits apart from the dry); as a flanger, 2.5 ms swept up to 2 ms, fed back so
+   * the comb rings.
+   */
+  private applyChorus(): void {
+    const { flange, depth } = this.chorus;
+    this.circuit.setParam('chLine', 'delayTime', 0.007 - 0.0045 * flange);
+    this.circuit.setParam('chDepth', 'gain', depth * (0.003 - 0.001 * flange));
+    this.circuit.setParam('chRegen', 'gain', 0.6 * flange);
   }
 
   protected choice(id: string, label: string, options: readonly string[], init: string, apply: (v: string) => void): void {

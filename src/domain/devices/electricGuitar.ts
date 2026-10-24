@@ -56,7 +56,7 @@ export class ElectricGuitar extends StringedInstrument {
       frets: GUITAR_FRETS, scales: GUITAR_SCALES, scale: '25.5"', tension: [20, 150],
       pluckHeight: [0.0002, 0.003], // 0.2 mm to 3 mm
       palmAt: 0.02, pluck: { style: 'pick', position: 0.09 }, bendDown: true,
-      toneStack: { bass: 120, mid: 750, treble: 3000 },
+      chorusLowCut: 120, toneStack: { bass: 120, mid: 750, treble: 3000 },
       // clean at 0 (a chord's peaks stay low on the valve's curve), well into crunch at 1; the make-up keeps a chord
       // about as loud throughout (measured through the curve: within 1.5 dB from 0 to 1), so crunch only compresses
       drive: (v) => {

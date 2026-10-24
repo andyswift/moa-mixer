@@ -3,7 +3,7 @@ import type { Band } from '../songs/band';
 import type { PageId } from '../songs/control';
 import { automationValue, type SongPlayer } from '../songs/player';
 import { barAt, barStartAt, songBeats, type Song } from '../songs/types';
-import { BandStage, type Player } from './bandStage';
+import { BandStage, type Player, type StageLook } from './bandStage';
 import { CLOSE_PANEL } from './embed';
 import { el } from './widgets';
 
@@ -22,28 +22,38 @@ export interface SetSong {
   lead: string;
   /** What happens in each section, by name, for the caption under the timeline. */
   captions: Record<string, string>;
+  /** How the stage is dressed for it (plain if not said). */
+  look?: StageLook;
+  /** What a player's card says they play, where it differs from the usual. */
+  gear?: Partial<Record<Player, string>>;
 }
 
-/** A pedal on a card: lit while the song has it on (read from the song's automation at the beat). */
+/** A pedal on a card: lit while the song has it on (read from the song's automation at the beat, or its setup). */
 interface Chip {
   page: Player;
   label: string;
   on: (set: SetSong, beat: number, heat: number) => boolean;
 }
 const CHIPS: Chip[] = [
-  { page: 'guitar', label: 'Drive', on: () => true },
-  { page: 'guitar', label: 'Delay', on: (s, b) => automated(s.song, 'mixer', 'ch3.aux2', b, 0) >= 0.2 },
+  { page: 'guitar', label: 'Drive', on: (s, b) => setting(s.song, 'guitar', 'drive.mix', b) > 0.5 },
+  { page: 'guitar', label: 'Chorus', on: (s, b) => setting(s.song, 'guitar', 'chorus.mix', b) > 0.2 && setting(s.song, 'guitar', 'chorus.flange', b) < 0.5 },
+  { page: 'guitar', label: 'Flanger', on: (s, b) => setting(s.song, 'guitar', 'chorus.mix', b) > 0.2 && setting(s.song, 'guitar', 'chorus.flange', b) >= 0.5 },
+  { page: 'guitar', label: 'Delay', on: (s, b) => setting(s.song, 'mixer', 'ch3.aux2', b) >= 0.2 },
   { page: 'guitar', label: 'Freaking out', on: (_s, _b, heat) => heat >= 0.8 },
   { page: 'kit', label: 'Snare wires', on: () => true },
   { page: 'kit', label: 'Cymbal tails', on: () => true },
   { page: 'bass', label: 'Flatwounds', on: () => true },
-  { page: 'bass2', label: 'Drive', on: (s, b) => automated(s.song, 'bass2', 'drive.mix', b, 0) > 0.5 },
+  { page: 'bass2', label: 'Drive', on: (s, b) => setting(s.song, 'bass2', 'drive.mix', b) > 0.5 },
+  { page: 'bass2', label: 'Chorus', on: (s, b) => setting(s.song, 'bass2', 'chorus.mix', b) > 0.2 },
   { page: 'bass2', label: 'Leading', on: (s, b) => sectionAt(s.song, b)?.name === s.lead },
 ];
 
-function automated(song: Song, page: PageId, control: string, beat: number, otherwise: number): number {
+/** A control's value at a beat: from the song's automation, else as the song sets it up, else 0 (off). */
+function setting(song: Song, page: PageId, control: string, beat: number): number {
   const a = song.automation.find((x) => x.page === page && x.control === control);
-  return a ? automationValue(a, beat) : otherwise;
+  if (a) return automationValue(a, beat);
+  const set = Object.values(song.setup[page] ?? {})[0]?.controls?.[control];
+  return typeof set === 'number' ? set : 0;
 }
 
 const sectionAt = (song: Song, beat: number) => song.sections?.find((s) => beat >= s.from && beat < s.to);
@@ -53,10 +63,10 @@ const sectionAt = (song: Song, beat: number) => song.sections?.find((s) => beat 
  * records page), one song at a time, picked from the set list; a transport with where they are in it, a card per
  * player, and a rack that shows any of their instruments while it plays.
  */
-export function renderBandPage(root: HTMLElement, set: SetSong[], band: Band, player: SongPlayer, holder: HTMLElement, stage: BandStage): void {
+export function renderBandPage(root: HTMLElement, set: SetSong[], band: Band, player: SongPlayer, holder: HTMLElement, stage: BandStage, first?: string): void {
   root.className = 'band';
   const wrap = el('div', 'band-wrap');
-  let current = set[0]!;
+  let current = set.find((entry) => entry.song.id === first) ?? set[0]!;
 
   const header = el('header', 'band-head');
   header.append(el('h1', 'band-name', current.song.artist), el('p', 'band-tagline', 'Two basses, a guitar and a drum kit · all modelled · live in your browser'));
@@ -113,6 +123,7 @@ export function renderBandPage(root: HTMLElement, set: SetSong[], band: Band, pl
   const cards = el('section', 'band-cards');
   cards.setAttribute('aria-label', 'The players');
   const abouts: { text: string; el: HTMLElement }[] = [];
+  const gear: { page: Player; text: string; el: HTMLElement }[] = [];
   const meters = new Map<Player, HTMLElement>();
   const chipEls: { chip: Chip; el: HTMLElement }[] = [];
   const openButtons = new Map<Player, HTMLButtonElement>();
@@ -140,7 +151,9 @@ export function renderBandPage(root: HTMLElement, set: SetSong[], band: Band, pl
     openButtons.set(c.page, open);
     const about = el('p', 'band-card-about');
     abouts.push({ text: c.about, el: about });
-    card.append(head, el('p', 'band-card-text', c.instrument), about, chips, level, open);
+    const plays = el('p', 'band-card-text');
+    gear.push({ page: c.page, text: c.instrument, el: plays });
+    card.append(head, plays, about, chips, level, open);
     cards.append(card);
   }
 
@@ -185,6 +198,10 @@ export function renderBandPage(root: HTMLElement, set: SetSong[], band: Band, pl
     if (player.state === 'playing') stop();
     current = entry;
     const { song } = entry;
+    const url = new URL(location.href);
+    if (entry === set[0]) url.searchParams.delete('song');
+    else url.searchParams.set('song', song.id);
+    history.replaceState(null, '', url); // so the address shares the song picked
     picks.forEach((pick, k) => pick.setAttribute('aria-pressed', String(set[k] === entry)));
     const minutes = (songBeats(song) * 60) / song.bpm;
     songTitle.textContent = song.title;
@@ -200,6 +217,8 @@ export function renderBandPage(root: HTMLElement, set: SetSong[], band: Band, pl
     });
     timeline.append(playhead);
     for (const a of abouts) a.el.textContent = a.text.replace('{lead}', entry.lead);
+    for (const g of gear) g.el.textContent = entry.gear?.[g.page] ?? g.text;
+    stage.setLook(entry.look ?? 'plain');
   }
   choose(current);
 

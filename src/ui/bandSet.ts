@@ -1,3 +1,4 @@
+import { coldMirrorBall } from '../songs/library/coldMirrorBall';
 import { oddHours } from '../songs/library/oddHours';
 import { sunEngine } from '../songs/library/sunEngine';
 import type { SetSong } from './bandView';
@@ -32,6 +33,24 @@ export function bandSet(): SetSong[] {
         Space: 'the kit down to the bell, the echo running away, the free bass taking off through his drive',
         'Vamp′': 'the vamp back, the theme an octave up, sixteenths on the hats',
         End: 'the last chord, ringing into the echo',
+      },
+    },
+    {
+      song: coldMirrorBall(),
+      style: 'dark disco',
+      lead: 'Hook',
+      look: 'disco',
+      gear: { guitar: 'MOA-GUITAR · neck and middle single coils · clean · chorus', bass2: 'MOA-BASS · roundwounds · pick · chorus' },
+      captions: {
+        Intro: 'the kick and hats, then the disco octaves, then the guitar’s arpeggios',
+        Hook: 'Bm G D A: four on the floor, the free bass carrying the tune high on the neck through his chorus',
+        Lift: 'G A F#m Bm: the guitar’s octave melody, the free bass holding long notes',
+        'Hook′': 'the tune again',
+        Fog: 'the breakdown: kick and floor tom, no snare, the guitar’s line through the flanger and a long echo',
+        'Lift′': 'the octaves again, the crashes every two bars',
+        'Hook″': 'the tune with everything',
+        Outro: 'the arpeggios fading, down to the kick',
+        End: 'the last chord, left to ring',
       },
     },
   ];
