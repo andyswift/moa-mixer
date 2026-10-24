@@ -355,8 +355,8 @@ function automation(): Automation[] {
     return { page, device, control, points };
   };
   return [
-    // the tune up front: the free bass 3 dB over where the band sits; in the Bridge the guitar has it instead
-    per('mixer', 'mixer', 'ch2.fader', { M: 0.42, rest: 0.56 }),
+    // the tune in front, not on top (3 dB came down after a listen); in the Bridge the guitar has it instead
+    per('mixer', 'mixer', 'ch2.fader', { M: 0.3, rest: 0.4 }),
     per('mixer', 'mixer', 'ch3.fader', { M: 0.3, rest: 0.19 }),
     // the guitar: a light chorus on the accompaniment, more and an echo for the Bridge's octaves
     per('guitar', 'guitar', 'chorus.mix', { M: 0.6, rest: 0.35 }),
@@ -402,9 +402,9 @@ export function pierLights(): Song {
       delay: { delay: { controls: { 'delay.time': 341, 'delay.feedback': 0.3, 'delay.tone': 4000, 'delay.wobble': 0.08, 'delay.drive': 0.05, 'delay.spread': 0.8 } } },
       reverb: { reverb: { controls: { 'reverb.size': 'medium', 'reverb.lowcut': 300, 'reverb.damp': 7000, 'reverb.predelay': 20 } } },
       mixer: { mixer: { controls: {
-        // as Odd Hours' places; the accompaniment down (the guitar 3 dB, the dub bass 2, the kit 1) and the tune up
+        // as Odd Hours' places; the accompaniment down (the guitar 3 dB, the dub bass 2, the kit 1); the tune where it was
         'ch1.fader': 0.52, 'ch1.pan': 0.15, 'ch1.aux1': 0.05,
-        'ch2.fader': 0.56, 'ch2.pan': 0.5, 'ch2.aux1': 0.18, 'ch2.aux2': 0.14,
+        'ch2.fader': 0.4, 'ch2.pan': 0.5, 'ch2.aux1': 0.18, 'ch2.aux2': 0.14,
         'ch3.fader': 0.19, 'ch3.pan': -0.5, 'ch3.aux1': 0.18, 'ch3.aux2': 0.12,
         'line1.fader': 1.3, 'line1.aux1': 0.1,
         'ret1.fader': 0.8, 'ret2.fader': 0.7,
