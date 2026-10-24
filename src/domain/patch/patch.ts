@@ -10,6 +10,7 @@ import { ElectricGuitar } from '../devices/electricGuitar';
 import { DrumKit } from '../devices/drumKit';
 import { Mpc60 } from '../devices/mpc60';
 import { UnicornSynth } from '../devices/unicornSynth';
+import { VoxSinger } from '../devices/voxSinger';
 import { FilterBox } from '../devices/filterBox';
 import { LynchSynth } from '../devices/lynchSynth';
 import { PipeSynth } from '../devices/pipeSynth';
@@ -113,6 +114,11 @@ export class Patch {
   /** The Lynch 106 page: just the synth, straight to the speakers. */
   static lynch(clock = new MidiClock()): Patch {
     return new Patch().add('lynch', new LynchSynth('Lynch', clock)).setOutput('lynch', 'out');
+  }
+
+  /** The MOA-VOX page: the physically modelled singing voice, straight to the speakers. */
+  static vox(): Patch {
+    return new Patch().add('vox', new VoxSinger('MOA-VOX')).setOutput('vox', 'out');
   }
 
   /** The MOA-UNICORN page: the children's keyboard, straight to the speakers. */

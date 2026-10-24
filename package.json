@@ -28,7 +28,8 @@
     "build:kit": "tsc --noEmit && vite build --config vite.kit.config.ts",
     "build:band": "tsc --noEmit && vite build --config vite.band.config.ts",
     "build:mpc": "tsc --noEmit && vite build --config vite.mpc.config.ts",
-    "build:unicorn": "tsc --noEmit && vite build --config vite.unicorn.config.ts"
+    "build:unicorn": "tsc --noEmit && vite build --config vite.unicorn.config.ts",
+    "build:vox": "tsc --noEmit && vite build --config vite.vox.config.ts"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
