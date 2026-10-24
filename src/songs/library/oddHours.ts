@@ -141,17 +141,15 @@ const ghost = (out: NoteEvent[], bar: Bar, at: number, n: number) => play(out, b
 
 function guitar(): NoteEvent[] {
   const out: NoteEvent[] = [];
-  const random = seeded(1138);
   for (const bar of BARS) {
     const { section, i } = bar;
     if (section === 'intro' || section === 'A' || section === 'A2') {
       riffA(i).forEach((n, e) => play(out, bar, e, n, 0.95, e === 0 || e === 2 || e === 4 ? 92 : 72));
       // scratches between the riff's notes (not in the bare first bars): the funk under the arpeggio
-      // (a few of the gaps each bar, never the same few twice running)
-      if (section !== 'intro' || i >= 2) for (const at of [1.5, 2.5, 4.5, 5.5, 6.5]) if (random() < 0.55) ghost(out, bar, at, 52);
+      if (section !== 'intro' || i >= 2) for (const at of [2.5, 4.5, 5.5]) ghost(out, bar, at, 52);
     } else if (section === 'B' || section === 'B2') {
       for (const [e, ns] of RIFF_B[i % 2]!) play(out, bar, e, ns, ns.length > 1 ? 1.4 : 0.9, ns.length > 1 ? 96 : 76);
-      for (const at of [1.5, 4.5, 7.5, 9.5]) if (random() < 0.75) ghost(out, bar, at, i % 2 ? 50 : 54);
+      for (const at of [1.5, 4.5, 7.5, 9.5]) ghost(out, bar, at, i % 2 ? 50 : 54);
     } else if (section === 'C') {
       if (i < 4) for (const [e, n, len] of LINE_C) play(out, bar, e, n + (i >= 2 ? 1 : 0), len, 100); // a semitone up the second time
       else if (i < 6) for (const e of [0, 1.5, 5, 6.5]) play(out, bar, e, [40, 47, 52], 0.8, 112); // E5 stabs, off the beat
@@ -249,8 +247,8 @@ function freeBass(): NoteEvent[] {
 function kit(): NoteEvent[] {
   const out: NoteEvent[] = [];
   const random = seeded(1139);
-  // every stroke a little different, as a drummer's are
-  const hit = (bar: Bar, e: number, n: number, vel: number) => play(out, bar, e, n, 0.4, Math.round(vel * (0.94 + 0.12 * random())));
+  // every stroke a little different, as a drummer's are, but only a little: this band is tight
+  const hit = (bar: Bar, e: number, n: number, vel: number) => play(out, bar, e, n, 0.4, Math.round(vel * (0.97 + 0.06 * random())));
   /** One of the fills, picked as the drummer feels it: [the drums, a sixteenth each]. */
   const fills = [
     [KIT.snare, KIT.snare, KIT.tom, KIT.tom, KIT.floor, KIT.floor, KIT.floor, KIT.kick],
@@ -268,14 +266,13 @@ function kit(): NoteEvent[] {
       for (let s = 0; s < 14; s++) {
         const e = s / 2;
         if (i % 4 === 3 && e === 6) hit(bar, e, KIT.openHat, 80);
-        else if (s % 2 === 1 && random() < 0.12) continue; // a sixteenth left out: the hand breathing
         else if (!(i % 4 === 3 && e === 6.5)) hit(bar, e, KIT.hat, e === 0 || e === 2 || e === 4 ? 84 : s % 2 === 0 ? 62 : 40);
       }
       hit(bar, 0, KIT.kick, 112); hit(bar, 4, KIT.kick, 100);
       if (i % 2 === 1) hit(bar, 5.5, KIT.kick, 84);
       if (i % 4 === 1) hit(bar, 1.5, KIT.kick, 78); // a push before the snare
       hit(bar, 2, KIT.snare, 104); hit(bar, 5, KIT.snare, 100);
-      for (const g of [0.5, 1.5, 3.5, 4.5, 6.5]) if (g === 1.5 || random() < 0.7) hit(bar, g, KIT.snare, g === 1.5 ? 36 : 26); // ghost notes, not all of them every bar
+      for (const g of [0.5, 1.5, 3.5, 4.5, 6.5]) hit(bar, g, KIT.snare, g === 1.5 ? 36 : 26); // ghost notes
       if (i === 0 || i === 8) hit(bar, 0, KIT.crash, 100);
     } else if (section === 'B' || section === 'B2') {
       for (let e = 0; e < 10; e++) hit(bar, e, KIT.ride, [0, 3, 6, 8].includes(e) ? 86 : 60);
@@ -480,6 +477,7 @@ export function oddHours(): Song {
     swung: BARS.filter(swungBar).map((bar) => ({
       from: bar.start, to: bar.start + bar.eighths / 2, amount: bar.section === 'B' || bar.section === 'B2' ? 62 : 58, grid: 16,
     })),
-    humanise: { timing: { kit: 4, bass: 9, bass2: 8, guitar: 5 }, velocity: 0.07, layback: { kit: { 38: 5 } } },
+    // tight: the band locked to each other, a few ms either way at most, the snare barely behind
+    humanise: { timing: { kit: 2, bass: 3, bass2: 3, guitar: 2 }, velocity: 0.04, layback: { kit: { 38: 2 } } },
   };
 }
