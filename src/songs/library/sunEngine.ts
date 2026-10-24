@@ -1,5 +1,6 @@
 import { GAUGES, GUITAR_GAUGES, GUITAR_SCALES, SCALES, midiToHz, tensionFor } from '../../domain/devices/bassPhysics';
 import { GUITAR_STRINGS } from '../../domain/devices/electricGuitar';
+import { seeded, withDynamics } from '../feel';
 import { note } from '../generators';
 import type { Automation, NoteEvent, Song } from '../types';
 
@@ -92,6 +93,7 @@ const FLIGHT: [number, number, number][] = [
 
 function guitar(): NoteEvent[] {
   const out: NoteEvent[] = [];
+  const random = seeded(1969);
   for (const bar of BARS) {
     const { section, i } = bar;
     if (section === 'intro') {
@@ -101,7 +103,8 @@ function guitar(): NoteEvent[] {
     } else if (section === 'V' || section === 'V2') {
       const up = section === 'V2' && i < 8 ? 12 : 0;
       for (const [e, p, len] of THEME[i % 2]!) play(out, bar, e, p + up, len, e === 0 || e === 3 ? 90 : 76);
-      play(out, bar, 0, 40, 4, 84); // the open low E under it
+      // the open low E under it, let ring or struck again on 3 (as it falls under the hand)
+      if (random() < 0.35) { play(out, bar, 0, 40, 3.5, 84); play(out, bar, 4, 40, 3.5, 70); } else play(out, bar, 0, 40, 4, 84);
     } else if (section === 'J') {
       if (i % 2 === 0) for (const [e, p, len] of LEAD[i / 2]!) play(out, bar, e, p, len, len >= 3 ? 96 : 84);
     } else if (section === 'P') {
@@ -121,6 +124,7 @@ function guitar(): NoteEvent[] {
 
 function dubBass(): NoteEvent[] {
   const out: NoteEvent[] = [];
+  const random = seeded(1970);
   for (const bar of BARS) {
     const { section, i } = bar;
     if (section === 'intro') {
@@ -128,7 +132,11 @@ function dubBass(): NoteEvent[] {
     } else if (section === 'V' || section === 'V2' || section === 'J') {
       const shift = chordJ(bar);
       const inKey = (p: number) => (p % 12 === 0 ? p + 1 : p); // on A, the walk up from G moves to C: the dorian's C#
-      for (const [e, p, len] of VAMP[i % 2]!) play(out, bar, e, inKey(p + shift), len, e === 0 ? 108 : e % 1 ? 84 : 94);
+      for (const [e, p, len] of VAMP[i % 2]!) {
+        if (e % 1 && random() < 0.15) continue; // an octave pop let go now and then
+        play(out, bar, e, inKey(p + shift), len, e === 0 ? 108 : e % 1 ? 84 : 94);
+      }
+      if (random() < 0.4) play(out, bar, 2.5, 28 + shift, 0.12, 36); // a dead note in the gap
     } else if (section === 'P') {
       if (i === 7) for (const e of STOPS) play(out, bar, e, 28, 0.9, 118);
       else for (const [e, root, len] of RIFF_P[i % 2]!) play(out, bar, e, root - 12, len * 0.9, e === 0 ? 116 : 104);
@@ -180,9 +188,16 @@ function freeBass(): NoteEvent[] {
 
 function kit(): NoteEvent[] {
   const out: NoteEvent[] = [];
-  const hit = (bar: Bar, e: number, n: number, vel: number) => play(out, bar, e, n, 0.4, vel);
-  const fill = (bar: Bar, from: number) =>
-    [KIT.snare, KIT.snare, KIT.tom, KIT.tom, KIT.floor, KIT.floor, KIT.floor, KIT.kick].forEach((n, s) => hit(bar, from + s / 2, n, 84 + s * 4));
+  const random = seeded(1971);
+  // every stroke a little different, as a drummer's are
+  const hit = (bar: Bar, e: number, n: number, vel: number) => play(out, bar, e, n, 0.4, Math.round(vel * (0.94 + 0.12 * random())));
+  /** A fill on the last two beats, one of three, picked as the drummer feels it. */
+  const fills = [
+    [KIT.snare, KIT.snare, KIT.tom, KIT.tom, KIT.floor, KIT.floor, KIT.floor, KIT.kick],
+    [KIT.snare, KIT.tom, KIT.snare, KIT.tom, KIT.floor, KIT.kick, KIT.floor, KIT.floor],
+    [KIT.tom, KIT.tom, KIT.tom, KIT.floor, KIT.floor, KIT.snare, KIT.snare, KIT.kick],
+  ];
+  const fill = (bar: Bar, from: number) => fills[Math.floor(random() * fills.length)]!.forEach((n, s) => hit(bar, from + s / 2, n, 84 + s * 4));
   for (const bar of BARS) {
     const { section, i } = bar;
     if (section === 'intro') {
@@ -195,19 +210,24 @@ function kit(): NoteEvent[] {
       for (let s = 0; s < 8 * per; s++) {
         const e = s / per;
         if (i % 4 === 3 && e === 7) hit(bar, e, KIT.openHat, 78);
+        else if (e === 3 && random() < 0.12) hit(bar, e, KIT.openHat, 66); // a hat lifted on the and of 2
+        else if (e % 1 && random() < 0.12) continue; // a sixteenth left out
         else if (!(i % 4 === 3 && e > 7)) hit(bar, e, KIT.hat, e % 2 === 0 ? 76 : e % 1 ? 40 : 56);
       }
       hit(bar, 0, KIT.kick, 110); hit(bar, 3, KIT.kick, 92); hit(bar, 4, KIT.kick, 104);
       hit(bar, 2, KIT.snare, 104);
+      if (random() < 0.35) hit(bar, random() < 0.5 ? 3.5 : 5.5, KIT.snare, 28); // a ghost note
       if (i % 8 === 7) fill(bar, 4);
       else hit(bar, 6, KIT.snare, 106);
       if (i === 0) hit(bar, 0, KIT.crash, 108);
     } else if (section === 'J') {
       // the same groove opened up on the ride, ghost notes on the snare, a crash at every change of chord
-      for (let e = 0; e < 8; e++) hit(bar, e, KIT.ride, e % 2 === 0 ? 84 : 62);
-      hit(bar, 0, KIT.kick, 110); hit(bar, 3, KIT.kick, 92); hit(bar, 4, KIT.kick, 104); hit(bar, 5.5, KIT.kick, 80);
+      // (the bell now and then on 4, the kick's push and the ghost notes not every bar)
+      for (let e = 0; e < 8; e++) hit(bar, e, e === 6 && random() < 0.25 ? KIT.bell : KIT.ride, e % 2 === 0 ? 84 : 62);
+      hit(bar, 0, KIT.kick, 110); hit(bar, 3, KIT.kick, 92); hit(bar, 4, KIT.kick, 104);
+      if (random() < 0.6) hit(bar, 5.5, KIT.kick, 80);
       hit(bar, 2, KIT.snare, 106);
-      for (const g of [1.5, 3.5, 4.5, 7.5]) hit(bar, g, KIT.snare, 30);
+      for (const g of [1.5, 3.5, 4.5, 7.5]) if (random() < 0.65) hit(bar, g, KIT.snare, 30);
       if (i % 4 === 0) hit(bar, 0, KIT.crash, 104);
       if (i % 4 === 3) fill(bar, 4);
       else hit(bar, 6, KIT.snare, 108);
@@ -238,6 +258,24 @@ function kit(): NoteEvent[] {
 
 /** How heavy each section is: the guitarist freaks out at the peaks; the free bass takes off in S (`lead`). */
 const HEAT: Record<Section, number> = { intro: 0.05, V: 0.3, J: 0.55, P: 1, S: 0.15, V2: 0.45, end: 0.3 };
+/**
+ * How loud the band plays at a beat (1 as written), all of them together: the vamp and the jam slowly building (a
+ * motorik groove climbs, it does not jump), the peaks all out, the space down low until its build, and every four-bar
+ * phrase easing off after its first bar and swelling through its last, and into each new section.
+ */
+function level(beat: number): number {
+  const k = Math.min(BARS.length - 1, Math.floor(beat / 4));
+  const bar = BARS[k]!;
+  const { section, i } = bar;
+  const through = (beat - bar.start) / 4;
+  const base = {
+    intro: 0.85 + (0.1 * i) / 7, V: 0.86 + (0.1 * i) / 15, J: 0.92 + (0.1 * i) / 15, P: 1.08,
+    S: i < 6 ? 0.62 : 0.62 + (0.4 * (i - 6 + through)) / 2, V2: 0.94 + (0.08 * i) / 15, end: 1,
+  }[section];
+  const last = BARS[k + 1]?.i === 0;
+  const p = i % 4;
+  return base * ([1, 0.94, 0.96, 0.98][p]! + (p === 3 || last ? 0.08 * through : 0));
+}
 const NAMES: Record<Section, string> = { intro: 'Intro', V: 'Vamp', J: 'Jam', P: 'Peak', S: 'Space', V2: 'Vamp′', end: 'End' };
 /** The guitar's strings at the tension that tunes them (as the guitar comes). */
 const GUITAR_TUNED = GUITAR_STRINGS.map((n) => Math.round(tensionFor(GUITAR_GAUGES[n], GUITAR_SCALES['25.5"'], midiToHz(GUITAR_GAUGES[n].note)) * 10) / 10);
@@ -317,7 +355,7 @@ function automation(): Automation[] {
     // the free bass: its drive on for the peaks and his flight, and into the echo for it
     per('bass2', 'bass', 'drive.mix', { P: 1, S: 1, rest: 0 }),
     per('mixer', 'mixer', 'ch2.aux2', { S: 0.4, rest: 0.1 }),
-    per('mixer', 'mixer', 'ch2.fader', { S: 0.5, rest: 0.36 }),
+    per('mixer', 'mixer', 'ch2.fader', { S: 0.5, rest: 0.33 }), // his figure is accompaniment: a touch under
     ...strings(),
   ];
 }
@@ -367,7 +405,12 @@ export function sunEngine(): Song {
         'ret1.fader': 0.85, 'ret2.fader': 0.75,
       } } },
     },
-    tracks: { guitar: guitar(), kit: kit(), bass: dubBass(), bass2: freeBass() },
+    tracks: {
+      guitar: withDynamics(guitar(), level),
+      kit: withDynamics(kit(), level),
+      bass: withDynamics(dubBass(), level),
+      bass2: withDynamics(freeBass(), level, 100),
+    },
     automation: automation(),
     sections: BLOCKS.map((block) => ({
       name: NAMES[block.section], from: block.start, to: block.start + barsOf(block).length * 4, meter: '4/4', heat: HEAT[block.section],

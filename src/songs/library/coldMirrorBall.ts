@@ -1,4 +1,5 @@
 import { GAUGES, SCALES, midiToHz, tensionFor } from '../../domain/devices/bassPhysics';
+import { seeded, withDynamics } from '../feel';
 import { note } from '../generators';
 import type { Automation, NoteEvent, Song } from '../types';
 
@@ -91,30 +92,61 @@ const OCTAVES_L: Partial<Record<Chord, [number, number, number][]>> = {
 };
 /** The guitar's line in the Fog, one bar, through the flanger: B D C# B A B F#. */
 const LINE_F: [number, number, number][] = [[0, 71, 1], [1, 74, 1], [2, 73, 1], [3, 71, 1], [4, 69, 1], [5, 71, 1], [6, 66, 2]];
-/** Which of a voicing's five notes each sixteenth of the arpeggio plays: up and across, ringing over each other. */
-const ARPEGGIO = [0, 2, 3, 4, 2, 3, 1, 3, 0, 2, 4, 3, 2, 4, 1, 3];
-
-/** The guitar's arpeggio for a bar: each note let ring three sixteenths, the beats leaned on. */
-function jangle(out: NoteEvent[], bar: Bar, soft: number): void {
-  const voicing = CHORDS[chordOf(bar)].voicing;
-  ARPEGGIO.forEach((k, s) => play(out, bar, s / 2, voicing[k]!, 1.5, Math.round((s % 4 === 0 ? 84 : s % 2 === 0 ? 70 : 62) * soft)));
+/**
+ * A bar of picking, in sixteenths: [sixteenth, which of the voicing's notes (0 the lowest; several for a dyad), length
+ * in sixteenths, accent], and where the muted scratches go between.
+ */
+interface Figure {
+  notes: [number, number | number[], number, number][];
+  scratches: number[];
 }
+const FIGURES: Record<'shimmer' | 'pulse' | 'hang' | 'run', Figure> = {
+  // notes let ring over each other, an eighth apart
+  shimmer: { notes: [[0, 0, 4, 1], [2, 3, 4, 0.75], [4, 4, 4, 0.85], [6, 2, 2, 0.65], [8, 1, 4, 0.9], [10, 4, 4, 0.8], [12, 3, 2, 0.7], [14, 2, 2, 0.65]], scratches: [7, 13] },
+  // driving sixteenths, with gaps
+  pulse: { notes: [[0, 0, 2, 1], [1, 2, 1, 0.6], [2, 4, 2, 0.8], [4, 3, 2, 0.75], [5, 2, 1, 0.55], [6, 4, 2, 0.8], [8, 1, 2, 0.9], [9, 3, 1, 0.55], [10, 4, 2, 0.8], [12, 2, 2, 0.7], [14, [3, 4], 2, 0.8]], scratches: [3, 11] },
+  // dyads hung in the air
+  hang: { notes: [[0, [0, 3], 6, 1], [6, 4, 2, 0.65], [8, [1, 4], 6, 0.9], [14, 2, 2, 0.6]], scratches: [4, 12] },
+  // into a new section: up the strings, then the top three together
+  run: { notes: [[0, 0, 2, 0.9], [2, 1, 2, 0.7], [4, 2, 2, 0.75], [6, 3, 2, 0.8], [8, 4, 2, 0.85], [10, 3, 1, 0.6], [11, 4, 1, 0.7], [12, [2, 3, 4], 4, 1]], scratches: [] },
+};
+/** The usual order of figures through a four-bar phrase. */
+const PHRASE: (keyof typeof FIGURES)[] = ['shimmer', 'pulse', 'shimmer', 'hang'];
+/** Whether a bar is its block's last. */
+const lastOf = (bar: Bar) => BARS[BARS.indexOf(bar) + 1]?.i === 0;
 
 function guitar(): NoteEvent[] {
   const out: NoteEvent[] = [];
+  const random = seeded(1989);
+  /**
+   * The guitar's picking for a bar, as a player does it: a figure from the phrase (now and then another), a run up
+   * into each new section, a quiet note left out here and there, the accents never quite even.
+   */
+  const jangle = (bar: Bar, soft: number, figure?: Figure) => {
+    figure ??= lastOf(bar) && bar.section !== 'O' ? FIGURES.run
+      : random() < 0.3 ? FIGURES[(['shimmer', 'pulse', 'hang'] as const)[Math.floor(random() * 3)]!]
+      : FIGURES[PHRASE[bar.i % 4]!];
+    const voicing = CHORDS[chordOf(bar)].voicing;
+    for (const [s, which, len, accent] of figure.notes) {
+      if (accent < 0.7 && random() < 0.15) continue;
+      const vel = Math.round(80 * accent * soft * (0.93 + 0.14 * random()));
+      play(out, bar, s / 2, typeof which === 'number' ? voicing[which]! : which.map((k) => voicing[k]!), len / 2, vel);
+    }
+    for (const s of figure.scratches) play(out, bar, s / 2, voicing[3]!, 0.12, 34);
+  };
   for (const bar of BARS) {
     const { section, i } = bar;
     if (section === 'intro') {
-      if (i >= 4) jangle(out, bar, 0.85);
+      if (i >= 4) jangle(bar, 0.9);
     } else if (section === 'H') {
-      jangle(out, bar, 1);
+      jangle(bar, 1);
     } else if (section === 'L') {
       if (i % 2 === 0) for (const [e, p, len] of OCTAVES_L[chordOf(bar)]!) play(out, bar, e, [p, p + 12], len, e === 0 ? 92 : 82);
     } else if (section === 'F') {
       if (i < 12) for (const [e, p, len] of LINE_F) play(out, bar, e, p, len, e === 0 ? 88 : 76);
-      else jangle(out, bar, 0.7 + (i - 12) * 0.1);
+      else jangle(bar, 0.8 + (i - 12) * 0.06, lastOf(bar) ? FIGURES.run : FIGURES.pulse);
     } else if (section === 'O') {
-      jangle(out, bar, 1 - i * 0.08);
+      jangle(bar, 1);
     } else if (i === 0) {
       play(out, bar, 0, CHORDS.Bm.voicing, 15, 88); // the last chord, strummed and left to ring
     }
@@ -124,6 +156,7 @@ function guitar(): NoteEvent[] {
 
 function dubBass(): NoteEvent[] {
   const out: NoteEvent[] = [];
+  const random = seeded(1990);
   for (const bar of BARS) {
     const { section, i } = bar;
     const root = CHORDS[chordOf(bar)].root;
@@ -134,7 +167,11 @@ function dubBass(): NoteEvent[] {
       for (let e = 0; e < 8; e++) play(out, bar, e, root, 0.8, e % 2 === 0 ? 100 : 86);
     } else if (!(section === 'intro' && i < 2)) {
       // disco octaves: the root on the beat, an octave up off it
-      for (let e = 0; e < 8; e++) play(out, bar, e, e % 2 ? root + 12 : root, 0.45, e % 2 ? 90 : 104);
+      // (now and then an octave swallowed to a dead note: the hand, not a sequencer)
+      for (let e = 0; e < 8; e++) {
+        if (e % 2 && random() < 0.12) play(out, bar, e, root + 12, 0.12, 36);
+        else play(out, bar, e, e % 2 ? root + 12 : root, 0.45, e % 2 ? 90 : 104);
+      }
     }
   }
   return out;
@@ -161,18 +198,30 @@ function freeBass(): NoteEvent[] {
 
 function kit(): NoteEvent[] {
   const out: NoteEvent[] = [];
-  const hit = (bar: Bar, e: number, n: number, vel: number) => play(out, bar, e, n, 0.4, vel);
-  const fill = (bar: Bar) => [KIT.tom, KIT.tom, KIT.floor, KIT.floor, KIT.tom, KIT.floor, KIT.floor, KIT.kick].forEach((n, s) => hit(bar, 4 + s / 2, n, 84 + s * 4));
+  const random = seeded(1991);
+  // every stroke a little different, as a drummer's are
+  const hit = (bar: Bar, e: number, n: number, vel: number) => play(out, bar, e, n, 0.4, Math.round(vel * (0.94 + 0.12 * random())));
+  /** A fill on the last two beats, one of three, picked as the drummer feels it. */
+  const fills = [
+    [KIT.tom, KIT.tom, KIT.floor, KIT.floor, KIT.tom, KIT.floor, KIT.floor, KIT.kick],
+    [KIT.snare, KIT.tom, KIT.snare, KIT.tom, KIT.floor, KIT.kick, KIT.floor, KIT.floor],
+    [KIT.snare, KIT.snare, KIT.snare, KIT.tom, KIT.tom, KIT.floor, KIT.floor, KIT.kick],
+  ];
+  const fill = (bar: Bar) => fills[Math.floor(random() * fills.length)]!.forEach((n, s) => hit(bar, 4 + s / 2, n, 84 + s * 4));
   /** Four on the floor: the kick on every beat, the snare on 2 and 4, open hats on the off-beats, closed between. */
   const disco = (bar: Bar, snare: boolean) => {
     for (const e of [0, 2, 4, 6]) hit(bar, e, KIT.kick, e === 0 ? 114 : 108);
     for (let s = 0; s < 16; s++) {
       const e = s / 2;
-      if (s % 4 === 2) hit(bar, e, KIT.openHat, 76);
+      if (s % 4 === 2) hit(bar, e, random() < 0.15 ? KIT.hat : KIT.openHat, 76); // the hat not always let open
+      else if (s % 2 && random() < 0.1) continue; // a sixteenth left out
       else if (s % 4 !== 0) hit(bar, e, KIT.hat, s % 2 ? 42 : 52);
       else hit(bar, e, KIT.hat, 60);
     }
-    if (snare) { hit(bar, 2, KIT.snare, 104); hit(bar, 6, KIT.snare, 106); }
+    if (snare) {
+      hit(bar, 2, KIT.snare, 104); hit(bar, 6, KIT.snare, 106);
+      if (random() < 0.3) hit(bar, random() < 0.5 ? 3.5 : 7.5, KIT.snare, 30); // a ghost note
+    }
   };
   for (const bar of BARS) {
     const { section, i } = bar;
@@ -190,7 +239,10 @@ function kit(): NoteEvent[] {
       if (i < 12) {
         // the kick on the beat, softer, and a floor tom driving eighths; no snare, the hats only on the beat
         for (const e of [0, 2, 4, 6]) { hit(bar, e, KIT.kick, 100); hit(bar, e, KIT.hat, 48); }
-        for (let e = 0; e < 8; e++) hit(bar, e, KIT.floor, e % 2 ? 58 : 74);
+        for (let e = 0; e < 8; e++) {
+          hit(bar, e, KIT.floor, e % 2 ? 58 : 74);
+          if (e % 2 && random() < 0.15) hit(bar, e + 0.5, KIT.floor, 46); // a sixteenth pick-up on the tom now and then
+        }
         if (i === 0) hit(bar, 0, KIT.crash, 96);
       } else if (i < 14) disco(bar, true);
       else {
@@ -209,6 +261,23 @@ function kit(): NoteEvent[] {
 
 /** How heavy each block is: never all out (the guitarist stays calm); the free bass leads in the Hooks. */
 const HEAT: number[] = [0.1, 0.35, 0.5, 0.45, 0.2, 0.6, 0.6, 0.3, 0.2];
+/**
+ * How loud the band plays at a beat (1 as written), all of them together: a level per block (Intro, Hook, Lift, Hook′,
+ * Fog, Lift′, Hook″, Outro, End), the Fog down low until its build, the last Hook biggest, the Outro fading; and every
+ * four-bar phrase easing off after its first bar and swelling through its last, and into each new section.
+ */
+function level(beat: number): number {
+  const k = Math.min(BARS.length - 1, Math.floor(beat / 4));
+  const bar = BARS[k]!;
+  const { i } = bar;
+  const through = (beat - bar.start) / 4;
+  const block = BLOCKS.filter((b) => b.start <= bar.start).length - 1;
+  const base = [
+    0.82 + (0.1 * i) / 7, 0.9, 1, 0.94, i < 12 ? 0.7 : 0.7 + (0.35 * (i - 12 + through)) / 4, 1.04, 1.08, 0.95 - (0.4 * (i + through)) / 8, 0.95,
+  ][block]!;
+  const p = i % 4;
+  return base * ([1, 0.94, 0.96, 0.98][p]! + (p === 3 || lastOf(bar) ? 0.08 * through : 0));
+}
 const NAMES: string[] = ['Intro', 'Hook', 'Lift', 'Hook′', 'Fog', 'Lift′', 'Hook″', 'Outro', 'End'];
 
 function automation(): Automation[] {
@@ -230,7 +299,7 @@ function automation(): Automation[] {
     per('guitar', 'guitar', 'chorus.rate', { F: 0.25, rest: 0.9 }),
     per('mixer', 'mixer', 'ch3.aux2', { L: 0.3, F: 0.45, rest: 0.2 }),
     // the free bass: up to lead in the Hooks, into the echo for the slow notes in the Fog
-    per('mixer', 'mixer', 'ch2.fader', { H: 0.5, rest: 0.4 }),
+    per('mixer', 'mixer', 'ch2.fader', { H: 0.46, rest: 0.4 }),
     per('mixer', 'mixer', 'ch2.aux2', { F: 0.35, rest: 0.15 }),
   ];
 }
@@ -273,15 +342,21 @@ export function coldMirrorBall(): Song {
       delay: { delay: { controls: { 'delay.time': 363, 'delay.feedback': 0.38, 'delay.tone': 3600, 'delay.wobble': 0.1, 'delay.drive': 0.05, 'delay.spread': 0.9 } } },
       reverb: { reverb: { controls: { 'reverb.size': 'large', 'reverb.lowcut': 300, 'reverb.damp': 6500, 'reverb.predelay': 30 } } },
       mixer: { mixer: { controls: {
-        // as Odd Hours: the guitar left, the kit in the middle, the basses right of it
-        'ch1.fader': 0.69, 'ch1.pan': 0.15, 'ch1.aux1': 0.05,
+        // as Odd Hours' places; the accompaniment a little down (the guitar 1 dB, the dub bass 1) so the tune sits in front
+        'ch1.fader': 0.62, 'ch1.pan': 0.15, 'ch1.aux1': 0.05,
         'ch2.fader': 0.4, 'ch2.pan': 0.5, 'ch2.aux1': 0.2, 'ch2.aux2': 0.15,
-        'ch3.fader': 0.24, 'ch3.pan': -0.5, 'ch3.aux1': 0.22, 'ch3.aux2': 0.2,
+        'ch3.fader': 0.21, 'ch3.pan': -0.5, 'ch3.aux1': 0.22, 'ch3.aux2': 0.2,
         'line1.fader': 1.5, 'line1.aux1': 0.1,
         'ret1.fader': 0.85, 'ret2.fader': 0.7,
       } } },
     },
-    tracks: { guitar: guitar(), kit: kit(), bass: dubBass(), bass2: freeBass() },
+    tracks: {
+      guitar: withDynamics(guitar(), level),
+      kit: withDynamics(kit(), level),
+      bass: withDynamics(dubBass(), level),
+      // the tune swells with the band, half as much (a singer rides over it)
+      bass2: withDynamics(freeBass(), (beat) => 0.5 + 0.5 * level(beat), 100),
+    },
     automation: automation(),
     sections: BLOCKS.map((block, k) => ({ name: NAMES[k]!, from: block.start, to: block.start + barsOf(block).length * 4, meter: '4/4', heat: HEAT[k]! })),
     // a little swing on the sixteenths right through, as a disco drummer and the arpeggios sit
