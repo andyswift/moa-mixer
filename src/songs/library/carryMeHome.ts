@@ -1,7 +1,7 @@
 import { GAUGES, SCALES, midiToHz, tensionFor } from '../../domain/devices/bassPhysics';
 import { seeded, withDynamics } from '../feel';
 import { note } from '../generators';
-import type { NoteEvent, Song } from '../types';
+import type { NoteEvent, Song, SungLine } from '../types';
 
 /**
  * An original gospel song for the band, a lead singer and three backing singers (MOA-VOX and MOA-VOX CHOIR), with
@@ -132,6 +132,31 @@ const RESPONSES: Line[] = [
   [[0, 68, 0.5, 'lift'], [0.5, 70, 0.5, 'mee'], [1, 72, 2.5, 'uhp']],
   [[0, 68, 1, 'yes'], [1, 72, 2.5, 'lohrd']],
 ];
+
+/** The words as they read, for the band page to show (the lines above, as written). */
+const VERSE_LINES = [
+  ['When my road is long', 'and my heart is low', 'I will lift my eyes', 'I will not let go'],
+  ['When I’m weak and worn', 'when I lose my way', 'I will raise my voice', 'I will sing and pray'],
+];
+const CHORUS_LINES = ['Carry me home', 'carry me home', 'lift me up high', 'I’m not alone'];
+const ANSWER_LINES = ['oh yeah', 'yes Lord', 'oh yeah', ''];
+const CALL_LINES = ['Can I get a witness?', 'Say it again now', 'Oh, lift me up', 'Oh, oh, yeah'];
+const RESPONSE_LINES = ['Yes Lord!', 'Yes Lord!', 'Lift me up!', 'Yes Lord!'];
+
+/** The words, a line at a time, timed as they are sung, and who sings each. */
+function words(): SungLine[] {
+  const out: SungLine[] = [];
+  for (const bar of BARS) {
+    const { section, i, n } = bar, pair = Math.floor(i / 2);
+    if (section === 'V' && i % 2 === 0) out.push({ from: bar.start, to: bar.start + 8, text: VERSE_LINES[n]![pair]!, who: 'lead' });
+    else if (section === 'C' && i % 2 === 0) {
+      out.push({ from: bar.start, to: bar.start + 5, text: CHORUS_LINES[pair]!, who: 'choir' });
+      if (ANSWER_LINES[pair]) out.push({ from: bar.start + 5, to: bar.start + 8, text: ANSWER_LINES[pair]!, who: 'lead' });
+    } else if (section === 'S') out.push({ from: bar.start, to: bar.start + 4, text: (i % 2 ? RESPONSE_LINES : CALL_LINES)[pair]!, who: i % 2 ? 'choir' : 'lead' });
+    else if (section === 'end' && i < 2) out.push({ from: bar.start, to: bar.start + (i ? 8 : 4), text: i ? 'A-men' : 'Ah…', who: 'everyone' });
+  }
+  return out;
+}
 
 /** A sung part: its notes, and the syllable of each, in the order they start (its line of lyrics). */
 interface Part { notes: NoteEvent[]; words: string[] }
@@ -357,6 +382,7 @@ export function carryMeHome(): Song {
     },
     automation: [],
     sections: BLOCKS.map((block, k) => ({ name: NAMES[k]!, from: block.start, to: block.start + barsOf(block).length * 4, meter: '4/4', heat: HEAT[k]! })),
+    words: words(),
     // the shuffle: every offbeat eighth late, the whole band together
     swung: [{ from: 0, to: BARS.length * 4, amount: 64, grid: 8 }],
     humanise: { timing: { kit: 4, bass: 6, bass2: 6, guitar: 5, pipe: 8, vox: 6, choir: 10 }, velocity: 0.05, layback: { kit: { 38: 6 } } },

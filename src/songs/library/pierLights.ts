@@ -1,7 +1,7 @@
 import { GAUGES, SCALES, midiToHz, tensionFor } from '../../domain/devices/bassPhysics';
 import { seeded, withDynamics } from '../feel';
 import { note } from '../generators';
-import type { Automation, NoteEvent, Song } from '../types';
+import type { Automation, NoteEvent, Song, SungLine } from '../types';
 
 /**
  * An original jangle-pop song for two basses, a guitar, a drum kit and a singer (working title): bright and quick, the
@@ -186,6 +186,23 @@ const CHORUS_SONG: Sung[] = [
   [[0, 61, 1], [1, 62, 1], [2, 61, 1], [3, 59, 1.5], [4.5, 57, 1], [5.5, 57, 2.5]],
 ];
 const CHORUS_WORDS = ['oh sah loh muhn suhn', 'shain ahn ahz loh too', 'aim fahr too payl too stay', 'aend fahr too pohr too goh'];
+/** The same words as they read. */
+const VERSE_LINES = [
+  ['Oslo in November', 'grey on every street', 'I sign a form again', 'and I dream of sun'],
+  ['Sun on Solomon sands', 'here I am at work', 'Boss wants it by Friday', 'I want to see sun'],
+];
+const CHORUS_LINES = ['Oh, Solomon sun', 'shine on Oslo too', 'I’m far too pale to stay', 'and far too poor to go'];
+
+/** The words as they read, a line at a time, timed as the singer sings them. */
+function words(): SungLine[] {
+  const out: SungLine[] = [];
+  for (const block of BLOCKS) {
+    if (block.section === 'V') VERSE_LINES[block.n]!.forEach((text, k) => out.push({ from: block.start + 16 * k, to: block.start + 16 * (k + 1), text }));
+    else if (block.section === 'C') CHORUS_LINES.forEach((text, k) => out.push({ from: block.start + 8 * k, to: block.start + 8 * (k + 1), text }));
+    else if (block.section === 'O') for (const k of [0, 1]) out.push({ from: block.start + 16 * k, to: block.start + 16 * k + 12, text: 'Oslo…' });
+  }
+  return out;
+}
 /** The outro: the city's name, twice, let ring. */
 const OUTRO_SONG: Sung = [[0.5, 57, 1.5], [2, 61, 6]];
 
@@ -466,6 +483,7 @@ export function pierLights(): Song {
     },
     automation: automation(),
     sections: BLOCKS.map((block, k) => ({ name: NAMES[k]!, from: block.start, to: block.start + barsOf(block).length * 4, meter: '4/4', heat: HEAT[k]! })),
+    words: words(),
     // the band swings the sixteenths a little, together
     swung: [{ from: 0, to: BARS.length * 4, amount: 54, grid: 16 }],
     humanise: { timing: { kit: 4, bass: 6, bass2: 7, guitar: 6, vox: 8 }, velocity: 0.05, layback: { kit: { 38: 3 } } },

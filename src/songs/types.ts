@@ -41,6 +41,14 @@ export interface SongSection {
   heat: number;
 }
 
+/** A line of a song's words: when it is sung (beats), what it says, and who sings it. */
+export interface SungLine {
+  from: number;
+  to: number;
+  text: string;
+  who?: string;
+}
+
 export interface Swing {
   from: number;
   to: number;
@@ -91,6 +99,8 @@ export interface Song {
   swung?: Swing[];
   /** The song's sections in order, for a page that shows where the band is (the band page's timeline and moods). */
   sections?: SongSection[];
+  /** The words, as they read (not as the voices spell them), a line at a time, for a page that shows them as they are sung. */
+  words?: SungLine[];
   /** Only in dev builds: songs that imitate real recordings are never published. */
   localOnly?: boolean;
 }

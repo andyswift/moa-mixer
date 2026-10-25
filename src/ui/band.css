@@ -73,3 +73,18 @@ body { margin: 0; background: #16171a; }
   .band-name { font-size: 40px; }
   .band-tagline { letter-spacing: 0.16em; }
 }
+
+/* the words: the line being sung large, the next dim, who sings it; the whole lyric to fold out */
+.band-words { position: relative; padding: 14px 20px 12px; background: #232528; border: 1px solid #3a3d42; border-radius: 8px; text-align: center; }
+.band-words[hidden] { display: none; }
+.band-words-who { position: absolute; left: 16px; top: 12px; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #a9adb3; }
+.band-words-now { min-height: 40px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 32px; line-height: 1.2; color: #f1eee6; }
+.band-words-next { min-height: 22px; font-family: 'Barlow Semi Condensed', sans-serif; font-size: 18px; color: #7f848b; }
+.band-words-sheet { margin-top: 8px; text-align: left; }
+.band-words-sheet summary { cursor: pointer; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: #a9adb3; }
+.band-words-sheet summary:focus-visible { outline: 3px solid #ffd25e; outline-offset: 3px; }
+.band-words-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 24px; margin-top: 10px; }
+.band-words-section h3 { margin: 0 0 4px; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; letter-spacing: 0.12em; text-transform: uppercase; color: #e8742c; }
+.band-words-section p { margin: 0; font-family: 'Barlow Semi Condensed', sans-serif; font-size: 16px; color: #f1eee6; }
+.band-words-section p.band-words-choir { color: #c9a8e8; font-style: italic; }
+@media (max-width: 600px) { .band-words-now { font-size: 24px; } }

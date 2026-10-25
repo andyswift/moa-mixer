@@ -2,7 +2,7 @@ import { epochNow } from '../midi/bus';
 import type { Band } from '../songs/band';
 import type { PageId } from '../songs/control';
 import { automationValue, type SongPlayer } from '../songs/player';
-import { barAt, barStartAt, songBeats, type Song } from '../songs/types';
+import { barAt, barStartAt, songBeats, type Song, type SungLine } from '../songs/types';
 import { BandStage, type Player, type SingerLook, type StageLook } from './bandStage';
 import { CLOSE_PANEL } from './embed';
 import { el } from './widgets';
@@ -192,7 +192,30 @@ export function renderBandPage(root: HTMLElement, set: SetSong[], band: Band, pl
   window.addEventListener('message', (e) => { if (e.origin === location.origin && e.data?.type === CLOSE_PANEL && open) closeRack(); });
 
   const note = el('p', 'band-note', 'Needs desktop Chrome or similar: the mixer, two basses, a guitar, the kit and their effects run in one tab.');
-  wrap.append(header, setList, transport, stageBox, cards, rack, note);
+  // ---- the words: the line being sung, the next one after it, and the whole lyric to fold out
+  const wordsBox = el('section', 'band-words');
+  wordsBox.setAttribute('aria-label', 'Lyrics');
+  const nowLine = el('div', 'band-words-now'), nextLine = el('div', 'band-words-next'), who = el('span', 'band-words-who');
+  nowLine.setAttribute('aria-live', 'off');
+  const sheet = document.createElement('details');
+  sheet.className = 'band-words-sheet';
+  const sheetBody = el('div', 'band-words-body');
+  sheet.append(el('summary', undefined, 'All the words'), sheetBody);
+  wordsBox.append(who, nowLine, nextLine, sheet);
+  let shownLine: SungLine | null | undefined;
+  /** The current line (sung now) and the next to come, at a beat; idle, the first. */
+  function showWords(song: Song, beat: number | undefined): void {
+    const lines = song.words ?? [];
+    const now = beat === undefined ? undefined : lines.find((l) => beat >= l.from && beat < l.to);
+    const next = beat === undefined ? lines[0] : lines.find((l) => l.from >= (now ? now.to : beat));
+    if (now === shownLine && nextLine.textContent === (next?.text ?? '')) return;
+    shownLine = now ?? null;
+    nowLine.textContent = now?.text ?? '';
+    who.textContent = now?.who ?? '';
+    nextLine.textContent = next?.text ?? '';
+  }
+
+  wrap.append(header, setList, transport, wordsBox, stageBox, cards, rack, note);
   root.append(wrap);
 
   /** Puts a song from the set up on the transport (stopping the one playing): its title, its length, its sections. */
@@ -219,6 +242,18 @@ export function renderBandPage(root: HTMLElement, set: SetSong[], band: Band, pl
     });
     timeline.append(playhead);
     for (const a of abouts) a.el.textContent = entry.about?.[a.page] ?? a.text.replace('{lead}', entry.lead);
+    // the words: shown only for a song that is sung; the whole lyric by section, each line once in order
+    wordsBox.hidden = !song.words?.length;
+    sheetBody.replaceChildren();
+    for (const section of song.sections ?? []) {
+      const lines = (song.words ?? []).filter((l) => l.from >= section.from && l.from < section.to);
+      if (!lines.length) continue;
+      const block = el('div', 'band-words-section');
+      block.append(el('h3', undefined, section.name), ...lines.map((l) => el('p', l.who === 'choir' ? 'band-words-choir' : undefined, l.text)));
+      sheetBody.append(block);
+    }
+    shownLine = undefined;
+    showWords(song, undefined);
     for (const g of gear) g.el.textContent = entry.gear?.[g.page] ?? g.text;
     stage.setLook(entry.look ?? 'plain');
     stage.setSinger(entry.singer);
@@ -293,9 +328,11 @@ export function renderBandPage(root: HTMLElement, set: SetSong[], band: Band, pl
         caption.textContent = s ? `${s.name}: ${current.captions[s.name] ?? ''}` : '';
       }
       barRead.value.textContent = String(barAt(song, beat));
+      showWords(song, beat);
       playhead.style.left = `${(beat / loopBeats) * 100}%`;
       for (const { chip, el: e } of chipEls) e.classList.toggle('on', chip.on(current, beat, heat));
     } else if (shownSection !== -1 || !playing) {
+      if (!playing) showWords(song, undefined);
       shownSection = -1;
       sections.forEach((cell) => cell.classList.remove('now'));
       playhead.style.left = '0%';
