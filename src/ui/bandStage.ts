@@ -219,22 +219,32 @@ function choirSinger(k: number): string {
       <ellipse id="ch${k}-mouth" cx="70" cy="67" rx="6" ry="1.5" fill="#4a1c18"/></g>
   </g>`;
 }
-/** The lead singer: a suit, a microphone held to the mouth, a free arm to raise. */
+/** The lead singer: trousers, a jacket, a microphone held to the mouth, a free arm to raise; dressed by the song (`SINGER_LOOKS`). */
 const LEAD_SINGER = `<g id="ld-all">
-  <path d="M50 330 L56 250 L76 250 L74 330 Z M86 330 L84 250 L104 250 L110 330 Z" fill="#1d2230"/>
+  <path id="ld-legs" d="M50 330 L56 250 L76 250 L74 330 Z M86 330 L84 250 L104 250 L110 330 Z" fill="#1d2230"/>
   <rect x="48" y="326" width="30" height="8" rx="3" fill="#141518"/><rect x="82" y="326" width="30" height="8" rx="3" fill="#141518"/>
   <g id="ld-upper">
-    <path d="M40 112 Q80 98 120 112 L126 256 L34 256 Z" fill="#2e3550"/>
-    <path d="M70 108 L80 160 L90 108 Z" fill="#f1eee6"/><path d="M77 116 L80 150 L83 116 Z" fill="#e8742c"/>
-    <g id="ld-free"><path d="M42 116 Q22 170 38 220 L52 216 Q40 170 56 124 Z" fill="#2e3550"/><circle cx="45" cy="222" r="9" fill="#6b4226"/></g>
-    <g id="ld-head"><rect x="70" y="86" width="20" height="20" fill="#6b4226"/><circle cx="80" cy="66" r="28" fill="#6b4226"/>
-      <path d="M52 60 Q52 34 80 34 Q108 34 108 60 Q100 46 80 46 Q60 46 52 60 Z" fill="#141010"/>
+    <path class="ld-jacket" d="M40 112 Q80 98 120 112 L126 256 L34 256 Z" fill="#2e3550"/>
+    <path d="M70 108 L80 160 L90 108 Z" fill="#f1eee6"/><path id="ld-tie" d="M77 116 L80 150 L83 116 Z" fill="#e8742c"/>
+    <g id="ld-free"><path class="ld-jacket" d="M42 116 Q22 170 38 220 L52 216 Q40 170 56 124 Z" fill="#2e3550"/><circle class="ld-skin" cx="45" cy="222" r="9" fill="#6b4226"/></g>
+    <g id="ld-head"><rect class="ld-skin" x="70" y="86" width="20" height="20" fill="#6b4226"/><circle class="ld-skin" cx="80" cy="66" r="28" fill="#6b4226"/>
+      <path id="ld-hair" d="M52 60 Q52 34 80 34 Q108 34 108 60 Q100 46 80 46 Q60 46 52 60 Z" fill="#141010"/>
       <circle cx="70" cy="64" r="2.8" fill="#141010"/><circle cx="90" cy="64" r="2.8" fill="#141010"/>
       <ellipse id="ld-mouth" cx="80" cy="80" rx="7" ry="1.5" fill="#4a1c18"/></g>
-    <path d="M118 118 Q132 104 104 86 L96 94 Q114 108 106 120 Z" fill="#2e3550"/>
+    <path class="ld-jacket" d="M118 118 Q132 104 104 86 L96 94 Q114 108 106 120 Z" fill="#2e3550"/>
     <rect x="94" y="78" width="9" height="20" rx="3" fill="#2a2b2e" transform="rotate(-30 98 88)"/><circle cx="94" cy="78" r="7" fill="#7f848b"/>
   </g>
 </g>`;
+/** Who sings at the front: a gospel singer in a suit and tie, or a crooner with a quiff, a cardigan and an open collar. */
+export type SingerLook = 'gospel' | 'crooner';
+const SINGER_LOOKS: Record<SingerLook, { skin: string; hair: string; hairColour: string; jacket: string; legs: string; tie: boolean }> = {
+  gospel: { skin: '#6b4226', hair: 'M52 60 Q52 34 80 34 Q108 34 108 60 Q100 46 80 46 Q60 46 52 60 Z', hairColour: '#141010', jacket: '#2e3550', legs: '#1d2230', tie: true },
+  crooner: {
+    skin: '#e8b896', hair: 'M52 62 Q46 30 70 22 Q96 10 112 30 Q114 46 106 54 Q102 42 90 40 Q74 38 62 46 Q56 52 52 62 Z', hairColour: '#3a2618',
+    jacket: '#6b5b45', legs: '#2b2b30', tie: false,
+  },
+};
+
 /** The gospel look's back: a warm wall's stained-glass window, the riser, and the choir on it. */
 function gospelBack(): string {
   const panes = ['#e8742c', '#ffd25e', '#4a9be0', '#d9628a', '#4fb286', '#ffd25e', '#e8742c', '#4a9be0'];
@@ -320,6 +330,8 @@ export class BandStage {
   private last = 0;
   private readonly shake = { guitar: shaker(1.3), bass2: shaker(4.1) };
   private look: StageLook = 'plain';
+  /** Who sings at the front, if anyone. */
+  private singer?: SingerLook;
   /** How much each singer is singing now (0..1, falling away): the lead, the choir. */
   private voice = { lead: 0, choir: 0, leadPitch: 64 };
 
@@ -343,7 +355,7 @@ export class BandStage {
       <g id="spot-bass" transform="${at('bass')}"><g transform="${mirror(140)}"><g id="db-all">${DUB}</g></g></g>
       <g id="spot-bass2" transform="${at('bass2')}"><g transform="${mirror(140)}"><g id="fb-all">${FREE}</g></g></g>
       <rect id="disco-front" display="none" width="${W}" height="${H}" fill="url(#disco-haze)" pointer-events="none"/>
-      <g id="gospel-front" display="none" transform="translate(560 165)">${LEAD_SINGER}</g>`;
+      <g id="singer-lead" display="none" transform="translate(560 165)">${LEAD_SINGER}</g>`;
     for (const g of Array.from(svg.querySelectorAll<SVGGElement>('g[id]'))) this.parts.set(g.id, g);
     this.element = svg;
   }
@@ -356,10 +368,24 @@ export class BandStage {
     attr('stage-wall', 'fill', disco ? '#0c0b11' : gospel ? '#2a1d12' : '#1d1e22');
     attr('stage-floor', 'fill', disco ? '#17151c' : gospel ? '#3a2a1c' : '#2a2723');
     attr('gospel-back', 'display', gospel ? 'inline' : 'none');
-    attr('gospel-front', 'display', gospel ? 'inline' : 'none');
     attr('stage-spots', 'display', disco ? 'none' : 'inline');
     attr('disco-back', 'display', disco ? 'inline' : 'none');
     attr('disco-front', 'display', disco ? 'inline' : 'none');
+  }
+
+  /** Puts a singer at the front, dressed as the song has him (or none). */
+  setSinger(look: SingerLook | undefined): void {
+    this.singer = look;
+    this.element.querySelector('#singer-lead')?.setAttribute('display', look ? 'inline' : 'none');
+    if (!look) return;
+    const s = SINGER_LOOKS[look];
+    for (const e of Array.from(this.element.querySelectorAll('.ld-skin'))) e.setAttribute('fill', s.skin);
+    for (const e of Array.from(this.element.querySelectorAll('.ld-jacket'))) e.setAttribute('fill', s.jacket);
+    const hair = this.element.querySelector('#ld-hair');
+    hair?.setAttribute('d', s.hair);
+    hair?.setAttribute('fill', s.hairColour);
+    this.element.querySelector('#ld-legs')?.setAttribute('fill', s.legs);
+    this.element.querySelector('#ld-tie')?.setAttribute('display', s.tie ? 'inline' : 'none');
   }
 
   /** A note the song player sent, due at `at` (wall-clock ms, as `epochNow`). Note-offs are ignored. */
@@ -537,14 +563,15 @@ export class BandStage {
       this.eyes('fb', 1 + 0.4 * grin);
     }
     if (this.look === 'disco') this.disco(t, mood, onBeat);
-    if (this.look === 'gospel') this.gospel(dt, mood, onBeat);
+    if (this.look === 'gospel' || this.singer) this.singers(dt, mood, onBeat);
   }
 
   /**
-   * The singers: the choir swaying together (a step side to side every two beats), clapping on 2 and 4 when the song
-   * lifts, mouths open as they sing; the lead bobbing, head back on the high notes, the free arm up in the shout.
+   * The singers: the choir (the gospel look's) swaying together (a step side to side every two beats), clapping on 2
+   * and 4 when the song lifts, mouths open as they sing; the lead bobbing, head back on the high notes, the free arm up
+   * in the shout, or, a crooner, swept slowly out and back as he holds a note.
    */
-  private gospel(dt: number, mood: StageMood, onBeat: number): void {
+  private singers(dt: number, mood: StageMood, onBeat: number): void {
     const fall = Math.exp(-dt / 0.35);
     this.voice.lead *= fall;
     this.voice.choir *= fall;
@@ -565,7 +592,10 @@ export class BandStage {
     this.set('ld-upper', `translate(0 ${(3 * onBeat * playing).toFixed(2)})`);
     const high = Math.max(0, Math.min(1, (this.voice.leadPitch - 64) / 8));
     this.set('ld-head', `rotate(${(-10 * high * this.voice.lead + 3 * Math.sin(Math.PI * beat) * playing).toFixed(2)} 80 100)`);
-    this.set('ld-free', `rotate(${(70 * shout + 25 * this.voice.lead * (1 - shout)).toFixed(2)} 48 118)`);
+    const crooner = this.singer === 'crooner';
+    const sweep = crooner ? playing * this.voice.lead * (35 + 25 * Math.sin((Math.PI * beat) / 4)) : 70 * shout + 25 * this.voice.lead * (1 - shout);
+    this.set('ld-free', `rotate(${sweep.toFixed(2)} 48 118)`);
+    if (crooner) this.set('ld-all', `rotate(${(2.5 * Math.sin((Math.PI * beat) / 4) * playing).toFixed(2)} 80 330)`);
     this.element.querySelector('#ld-mouth')?.setAttribute('ry', (1.5 + 9 * this.voice.lead).toFixed(2));
   }
 

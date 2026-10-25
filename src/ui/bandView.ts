@@ -3,7 +3,7 @@ import type { Band } from '../songs/band';
 import type { PageId } from '../songs/control';
 import { automationValue, type SongPlayer } from '../songs/player';
 import { barAt, barStartAt, songBeats, type Song } from '../songs/types';
-import { BandStage, type Player, type StageLook } from './bandStage';
+import { BandStage, type Player, type SingerLook, type StageLook } from './bandStage';
 import { CLOSE_PANEL } from './embed';
 import { el } from './widgets';
 
@@ -22,8 +22,9 @@ export interface SetSong {
   lead: string;
   /** What happens in each section, by name, for the caption under the timeline. */
   captions: Record<string, string>;
-  /** How the stage is dressed for it (plain if not said). */
+  /** How the stage is dressed for it (plain if not said), and who sings at the front. */
   look?: StageLook;
+  singer?: SingerLook;
   /** What a player's card says they play, and about them, where it differs from the usual. */
   gear?: Partial<Record<Player, string>>;
   about?: Partial<Record<Player, string>>;
@@ -220,6 +221,7 @@ export function renderBandPage(root: HTMLElement, set: SetSong[], band: Band, pl
     for (const a of abouts) a.el.textContent = entry.about?.[a.page] ?? a.text.replace('{lead}', entry.lead);
     for (const g of gear) g.el.textContent = entry.gear?.[g.page] ?? g.text;
     stage.setLook(entry.look ?? 'plain');
+    stage.setSinger(entry.singer);
   }
   choose(current);
 

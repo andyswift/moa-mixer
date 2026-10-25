@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { parseLyrics } from '../../domain/devices/voxPhonemes';
 import { pierLights } from '../library/pierLights';
 import { automationValue } from '../player';
 import { songBeats } from '../types';
@@ -66,18 +67,33 @@ describe('Pier Lights', () => {
     for (const page of ['guitar', 'bass', 'bass2'] as const) expect(mean(page, 'Verse′'), page).toBeLessThan(mean(page, 'Verse'));
   });
 
-  it('puts the tune up front: the free bass over the accompaniment in the mix, the guitar taking over in the bridge', () => {
+  it('puts the singer up front: louder than every part, the guitar taking the tune only in the bridge', () => {
     const mixer = song.setup.mixer!.mixer!.controls!;
-    expect(mixer['ch2.fader'] as number).toBeGreaterThan(1.8 * (mixer['ch3.fader'] as number));
+    for (const ch of ['ch1', 'ch2', 'ch3']) expect(mixer['ch4.fader'] as number, ch).toBeGreaterThan(2 * (mixer[`${ch}.fader`] as number));
     const fader = (ch: string) => song.automation.find((a) => a.control === `${ch}.fader`)!;
     const bridge = sections.find((x) => x.name === 'Bridge')!;
     expect(automationValue(fader('ch3'), bridge.from + 2)).toBeGreaterThan(automationValue(fader('ch3'), 40));
+    expect(song.tracks.vox!.some((n) => inside('Bridge')(n.t))).toBe(false);
   });
 
-  it('has the free bass sing the tune in the verses and choruses, never picked hard (a bass picked hard by the bridge goes sharp)', () => {
-    const tune = song.tracks.bass2!.filter((n) => inside('Verse')(n.t) || inside('Chorus')(n.t));
-    expect(tune.length).toBeGreaterThan(80);
-    expect(Math.min(...tune.map((n) => n.note))).toBeGreaterThanOrEqual(52);
+  it('gives the singer a syllable to every note (a hold to every held one), so the words stay on the tune', () => {
+    const lyrics = song.setup.vox!.vox!.controls!.lyrics as string;
+    expect(parseLyrics(lyrics).length).toBe(song.tracks.vox!.length);
+    expect(lyrics).toContain('ahz loh'); // Oslo
+    expect(lyrics).toContain('sah loh muhn'); // Solomon
+  });
+
+  it('croons: a baritone, behind the beat, the held syllables sung legato from the note before', () => {
+    const vox = song.tracks.vox!;
+    for (const n of vox) { expect(n.note).toBeGreaterThanOrEqual(50); expect(n.note).toBeLessThanOrEqual(66); }
+    expect(vox.every((n) => (n.t * 2) % 1 !== 0)).toBe(true); // never quite on an eighth: lazy
+    const holds = parseLyrics(song.setup.vox!.vox!.controls!.lyrics as string).map((x) => x.hold ?? false);
+    vox.forEach((n, k) => { if (holds[k]) expect(vox[k - 1]!.t + vox[k - 1]!.len, `hold at ${n.t}`).toBeGreaterThan(n.t); });
+  });
+
+  it('has the free bass run a line under the singer, never picked hard (a bass picked hard by the bridge goes sharp)', () => {
+    const line = song.tracks.bass2!.filter((n) => inside('Chorus')(n.t));
+    expect(line.length).toBeGreaterThan(50);
     for (const n of song.tracks.bass2!) expect(n.vel).toBeLessThanOrEqual(100);
   });
 });
