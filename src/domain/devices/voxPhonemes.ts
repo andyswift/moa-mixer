@@ -20,6 +20,11 @@ export interface Gesture {
   /** The velum's opening (0.01 shut; 0.4 open: a nasal). */
   velum: number;
   voiced: boolean;
+  /**
+   * How strongly the folds keep buzzing (1 unless said): behind a closed mouth with the velum shut the air has
+   * nowhere to go, the pressure builds and the voicing all but stops (a b d g's closure is a faint voice bar).
+   */
+  voicing?: number;
   /** Turbulence made at the constriction (0..1): a fricative. */
   noise: number;
   /** Turbulence made at the glottis (0..1): an h, the breath after a p t k. */
@@ -34,7 +39,7 @@ const PLACE: Record<Place, number> = { lips: 41, teeth: 40, alveolar: 36, postal
 
 const gesture = (g: Partial<Gesture> & Pick<Gesture, 'index' | 'diameter'>): Gesture => ({ velum: 0.01, voiced: true, noise: 0, aspirate: 0, dur: 0.06, ...g });
 const stop = (place: Place, voiced: boolean): Gesture[] => voiced
-  ? [gesture({ index: PLACE[place], diameter: 0, dur: 0.06 })]
+  ? [gesture({ index: PLACE[place], diameter: 0, voicing: 0.3, dur: 0.06 })]
   : [gesture({ index: PLACE[place], diameter: 0, voiced: false, dur: 0.07 }), gesture({ index: -1, diameter: 0, voiced: false, aspirate: 0.8, dur: 0.045 })];
 const nasal = (place: Place): Gesture[] => [gesture({ index: PLACE[place], diameter: 0, velum: 0.4, dur: 0.08 })];
 const fricative = (place: Place, diameter: number, voiced: boolean, lips?: number): Gesture[] =>
@@ -55,7 +60,7 @@ export const CONSONANTS: Record<string, Gesture[]> = {
   h: [gesture({ index: -1, diameter: 0, voiced: false, aspirate: 1, dur: 0.07 })],
 };
 
-/** The vowels' shapes (as the Vowel knob's five, and uh: the tract at rest), by name. */
+/** The vowels' shapes (as the Vowel knob's five; uh, the tract at rest; and ae), by name. */
 export const VOWEL_SHAPES: Record<string, Omit<TractShape, 'velum'>> = {
   oo: { tongueIndex: 25, tongueDiameter: 2.25, lips: 0.5 },
   oh: { tongueIndex: 19, tongueDiameter: 2.4, lips: 0.7 },
@@ -63,6 +68,8 @@ export const VOWEL_SHAPES: Record<string, Omit<TractShape, 'velum'>> = {
   eh: { tongueIndex: 28, tongueDiameter: 3.3, lips: 1.3 },
   ee: { tongueIndex: 35.5, tongueDiameter: 2.5, lips: 0.7 },
   uh: { tongueIndex: 20, tongueDiameter: 3, lips: 1.2 },
+  // the a of "grand": between ah and eh
+  ae: { tongueIndex: 19.5, tongueDiameter: 2.75, lips: 1.4 },
 };
 
 /** How vowels are written: each to its vowel, and for a diphthong the vowel it glides to as the note ends. */
@@ -80,36 +87,68 @@ export interface Syllable {
   vowel: string;
   vowel2?: string;
   coda: Gesture[];
+  /** A hold (written _): the note carries on the vowel before it, as a singer holds a syllable over several notes. */
+  hold?: boolean;
+}
+
+/** A piece of a written word: a consonant, or a vowel (and the vowel a diphthong glides to), as spelled. */
+type Token = { kind: 'c'; spelled: string } | { kind: 'v'; spelled: string; vowel: string; vowel2?: string };
+
+/** Reads a word into consonants and vowels. A y ending a word after a consonant is sung ee (baby, happy). */
+function tokenize(word: string): Token[] {
+  const s = word.toLowerCase().replace(/[^a-z]/g, '');
+  const out: Token[] = [];
+  for (let i = 0; i < s.length;) {
+    if (s[i] === 'y' && i === s.length - 1 && out.at(-1)?.kind === 'c') { out.push({ kind: 'v', spelled: 'y', vowel: 'ee' }); i++; continue; }
+    const v = VOWEL_SPELLINGS.find(([x]) => s.startsWith(x, i));
+    // a vowel spelling, unless it is a consonant's start (the y of "ya" is a consonant before the a)
+    if (v && !(s[i] === 'y')) { out.push({ kind: 'v', spelled: v[0], vowel: v[1], vowel2: v[2] }); i += v[0].length; continue; }
+    const c = CONSONANT_SPELLINGS.find((x) => s.startsWith(x, i));
+    if (c) { out.push({ kind: 'c', spelled: c }); i += c.length; continue; }
+    i++;
+  }
+  return out;
+}
+
+/** Two consonants that can start a syllable together (gr, bl, st, sp...): they stay with the vowel after them. */
+const startsTogether = (a: string, b: string) =>
+  (['r', 'l', 'w', 'y'].includes(b) && ['b', 'p', 'd', 't', 'g', 'k', 'f', 'sh'].includes(a)) || (a === 's' && ['t', 'p', 'k', 'm', 'n', 'l', 'w'].includes(b));
+
+/**
+ * Splits a word into its syllables, one to a note ("grandma": grand, ma; "hello": hel, lo): each vowel starts a new
+ * one, taking the consonant before it (two, if they can start a syllable together), the rest closing the syllable
+ * before.
+ */
+export function syllabify(word: string): string[] {
+  const t = tokenize(word);
+  const vowels = t.map((x, k) => (x.kind === 'v' ? k : -1)).filter((k) => k >= 0);
+  if (vowels.length < 2) return [word];
+  const cuts: number[] = [];
+  for (let v = 1; v < vowels.length; v++) {
+    const between = vowels[v]! - vowels[v - 1]! - 1;
+    const at = vowels[v]!;
+    if (between <= 1) cuts.push(at - between);
+    else cuts.push(startsTogether(t[at - 2]!.spelled, t[at - 1]!.spelled) ? at - 2 : at - 1);
+  }
+  const parts: string[] = [];
+  let from = 0;
+  for (const cut of [...cuts, t.length]) { parts.push(t.slice(from, cut).map((x) => x.spelled).join('')); from = cut; }
+  return parts;
 }
 
 /**
- * Reads a syllable as it is written: consonants, a vowel, consonants ("la", "doo", "bay", "on", "shh", "mm"). With no
- * vowel, a nasal is hummed and a fricative hissed for the whole note; anything else unknown is sung as ah.
+ * Reads a syllable as it is written: consonants, a vowel, consonants ("la", "doo", "bay", "on", "shh", "mm"). An a
+ * closing on consonants (grand, hand) is sung between ah and eh, as such an a is. With no vowel, a nasal is hummed and
+ * a fricative hissed for the whole note; anything else unknown is sung as ah.
  */
 export function parseSyllable(text: string): Syllable {
-  const s = text.toLowerCase().replace(/[^a-z]/g, '');
-  const onset: string[] = [], coda: string[] = [];
-  let vowel: string | undefined, vowel2: string | undefined;
-  let i = 0;
-  const readConsonant = (): string | undefined => {
-    const c = CONSONANT_SPELLINGS.find((x) => s.startsWith(x, i));
-    if (c) i += c.length;
-    return c;
-  };
-  while (i < s.length && !vowel) {
-    const v = VOWEL_SPELLINGS.find(([x]) => s.startsWith(x, i));
-    if (v) { vowel = v[1]; vowel2 = v[2]; i += v[0].length; break; }
-    const c = readConsonant();
-    if (c) onset.push(c);
-    else i++;
-  }
-  while (i < s.length) {
-    const c = readConsonant();
-    if (c) { if (coda.at(-1) !== c) coda.push(c); } // a doubled letter is one sound
-    else i++;
-  }
+  const tokens = tokenize(text);
+  const v = tokens.findIndex((x) => x.kind === 'v');
+  const onset = (v < 0 ? tokens : tokens.slice(0, v)).map((x) => x.spelled);
+  const coda: string[] = [];
+  for (const x of v < 0 ? [] : tokens.slice(v + 1)) if (x.kind === 'c' && coda.at(-1) !== x.spelled) coda.push(x.spelled); // a doubled letter is one sound
   const gestures = (list: string[]) => list.flatMap((c) => CONSONANTS[c]!.map((g) => ({ ...g })));
-  if (!vowel) {
+  if (v < 0) {
     // no vowel: hum a nasal, hiss a fricative, for as long as the note lasts
     const held = onset.find((c) => ['m', 'n', 'ng', 's', 'sh', 'f', 'z', 'v'].includes(c)); // "hmm" hums, "shh" hisses
     if (held) {
@@ -118,10 +157,18 @@ export function parseSyllable(text: string): Syllable {
     }
     return { text, onset: gestures(onset), vowel: 'ah', coda: [] };
   }
-  return { text, onset: gestures(onset), vowel, vowel2, coda: gestures(coda) };
+  const vt = tokens[v] as Extract<Token, { kind: 'v' }>;
+  const vowel = vt.spelled === 'a' && coda.length ? 'ae' : vt.vowel;
+  return { text, onset: gestures(onset), vowel, vowel2: vt.vowel2, coda: gestures(coda) };
 }
 
-/** A line of lyrics, as syllables: split at spaces and hyphens ("la la la", "bay-bee"). */
+/**
+ * A line of lyrics, as syllables, one to a note: words split at spaces and hyphens ("la la la", "bay-bee"), and each
+ * word into its syllables ("grandma": grand, ma). An _ holds the vowel before it over another note.
+ */
 export function parseLyrics(line: string): Syllable[] {
-  return line.split(/[\s\-]+/).filter((w) => /[a-z]/i.test(w)).map(parseSyllable);
+  return line.split(/[\s\-]+/).flatMap((w): Syllable[] => {
+    if (/^_+$/.test(w)) return [...w].map(() => ({ text: '_', onset: [], vowel: 'ah', coda: [], hold: true }));
+    return /[a-z]/i.test(w) ? syllabify(w).map(parseSyllable) : [];
+  });
 }

@@ -45,6 +45,11 @@ describe('MOA-VOX: syllables written down', () => {
     expect(parseSyllable('hmm').onset[0]!.velum).toBeGreaterThan(0.3);
     expect(parseSyllable('shh').onset[0]!.noise).toBe(1);
     expect(parseLyrics('la la, bay-bee').map((s) => s.text)).toEqual(['la', 'la,', 'bay', 'bee']);
+    expect(parseLyrics('grandma hello baby').map((s) => s.text)).toEqual(['grand', 'ma', 'hel', 'lo', 'ba', 'by']);
+    expect(parseLyrics('la _ _').map((s) => s.hold ?? false)).toEqual([false, true, true]);
+    expect(show('grand')).toBe('2:ae:2');
+    expect(show('by')).toBe('1:ee:0');
+    expect(parseLyrics('astra').map((s) => s.text)).toEqual(['as', 'tra']); // st cannot keep the r: s t r is split s | tr
   });
 });
 
@@ -102,17 +107,48 @@ describe('MOA-VOX: consonants, from the physics', () => {
   });
 });
 
+describe('MOA-VOX: smooth articulation', () => {
+  /** Sings words a note each and returns the sound. */
+  const phrase = (words: string[], gap = 0.2) => {
+    const c = voice();
+    const out: number[] = [];
+    const run = (sec: number) => { const b = sing(c, sec); out.push(...b); };
+    for (const w of words) { c.noteOn(220, 0.9, false, message(w)); run(0.35); c.noteOff(); run(gap); }
+    return Float32Array.from(out);
+  };
+  /** The worst click: the largest jump in the waveform's slope against its typical size (a plain ah scores about 2.5). */
+  const click = (x: Float32Array) => {
+    const d2 = Array.from({ length: x.length - 2 }, (_, i) => Math.abs(x[i + 2]! - 2 * x[i + 1]! + x[i]!));
+    const sorted = [...d2].sort((a, b) => a - b);
+    return Math.max(...d2) / sorted[Math.floor(sorted.length * 0.99)]!;
+  };
+
+  it('moves between consonants without clicking: each articulator lets go as the next closes', () => {
+    expect(click(phrase(['ah']))).toBeLessThan(4);
+    for (const words of [['grandma'], ['grand', 'ma'], ['ma'], ['na', 'na', 'na'], ['la', 'la']]) expect(click(phrase(words)), words.join(' ')).toBeLessThan(9);
+  });
+
+  it('starts a repeated na on the n, not on a flash of the last vowel (the mouth closes before the voice comes back)', () => {
+    const x = phrase(['na', 'na'], 0.15);
+    const second = Math.round(0.5 * SR); // the second note starts after 0.35 s and a 0.15 s gap
+    const start = rms(x.subarray(second, second + Math.round(0.03 * SR)));
+    const vowel = rms(x.subarray(second + Math.round(0.2 * SR), second + Math.round(0.3 * SR)));
+    expect(db(start, vowel)).toBeLessThan(-6);
+  });
+});
+
 describe('MOA-VOX: the singer with lyrics', () => {
-  it('sings the next syllable on each new note, round and round; a legato note carries on the vowel', () => {
+  it('sings the next syllable on every note, legato too, round and round; an _ holds the vowel', () => {
     const v = new VoxSinger();
-    const sent: { type: string; syllable?: { vowel: { tongueIndex: number } } }[] = [];
+    const sent: { type: string; legato?: boolean; syllable?: { vowel: { tongueIndex: number } } }[] = [];
     v.circuit.onChange((c) => { if (c.type === 'message') sent.push(c.data as typeof sent[number]); });
-    (v.control('lyrics') as { set(x: string): void }).set('la lee');
-    const vowels = () => sent.filter((m) => m.type === 'note').map((m) => m.syllable?.vowel.tongueIndex ?? 'legato');
+    (v.control('lyrics') as { set(x: string): void }).set('la lee _');
+    const vowels = () => sent.filter((m) => m.type === 'note').map((m) => `${m.syllable?.vowel.tongueIndex ?? 'hold'}${m.legato ? ' legato' : ''}`);
     v.keyDown(60); v.keyUp(60);
     v.keyDown(62); v.keyDown(64); v.keyUp(64); v.keyUp(62);
     v.keyDown(65); v.keyUp(65);
-    expect(vowels()).toEqual([VOWEL_SHAPES.ah!.tongueIndex, VOWEL_SHAPES.ee!.tongueIndex, 'legato', 'legato', VOWEL_SHAPES.ah!.tongueIndex]);
+    // la, lee, the _ held legato, back to the held key (its pitch only), then la again
+    expect(vowels()).toEqual([`${VOWEL_SHAPES.ah!.tongueIndex}`, `${VOWEL_SHAPES.ee!.tongueIndex}`, 'hold legato', 'hold legato', `${VOWEL_SHAPES.ah!.tongueIndex}`]);
     expect(v.lyricIndex).toBe(0);
   });
 });

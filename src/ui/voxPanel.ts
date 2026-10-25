@@ -68,13 +68,13 @@ export function renderVoxPanel(v: VoxSinger, engine: AudioEngine): HTMLElement {
   input.type = 'text';
   input.className = 'vox-lyrics-input';
   input.id = 'vox-lyrics';
-  input.placeholder = 'Empty: sing the Vowel knob. Or syllables: la la, doo-bee, ooh, mm, shh';
+  input.placeholder = 'Empty: sing the Vowel knob. Or words, a syllable to a note: la la, grandma, ooh, mm, shh; _ holds a vowel';
   input.spellcheck = false;
   input.value = lyricsControl.value;
   label.htmlFor = input.id;
   input.addEventListener('input', () => lyricsControl.set(input.value));
   const presets = el('div', 'vox-presets');
-  for (const line of ['ooh', 'aah', 'la la la', 'na na na', 'doo doo doo', 'mm', 'bay-bee', 'hey on', 'shh']) {
+  for (const line of ['ooh', 'aah', 'la la la', 'na na na', 'doo doo doo', 'mm', 'baby', 'hey on', 'grandma', 'la _ _ la', 'shh']) {
     const b = el('button', 'vox-preset', line);
     b.type = 'button';
     b.addEventListener('click', () => { lyricsControl.set(line); input.value = line; });

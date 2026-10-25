@@ -61,9 +61,9 @@ export interface VoxView {
  * letting it go glides back to the one still held. The bend wheel bends the pitch, the mod wheel adds vibrato; a
  * breath controller (CC 2) gives it air, the expression pedal (CC 11) how loud, and CC 74 moves the vowel.
  *
- * With a line of lyrics (syllables, `voxPhonemes.ts`), each new note sings the next syllable, round and round: its
- * consonants, its vowel (the Vowel knob is then unused), and as the note is let go its ending. A legato note carries
- * on the vowel, as a singer holds a syllable over several notes.
+ * With a line of lyrics (syllables, `voxPhonemes.ts`), each note sings the next syllable, round and round: its
+ * consonants, its vowel (the Vowel knob is then unused), and as the note is let go its ending. Legato, the voice
+ * sings on through the consonants without starting again; an _ in the lyrics holds the vowel over a note.
  */
 export class VoxSinger extends Device implements Playable {
   readonly name: string;
@@ -155,18 +155,18 @@ export class VoxSinger extends Device implements Playable {
     this.held = this.held.filter((n) => n !== note);
     this.velocities.delete(note);
     if (!this.held.length) this.circuit.send('voice', { type: 'off' });
-    else if (wasSinging) this.sing(this.held.at(-1)!, true); // back to the one still held
+    else if (wasSinging) this.sing(this.held.at(-1)!, true, false); // back to the one still held: its pitch, no new syllable
     this.notifyNotes();
   }
 
-  private sing(note: number, legato: boolean): void {
+  private sing(note: number, legato: boolean, newSyllable = true): void {
     const velocity = this.velocities.get(note) ?? 100;
     let syllable: object | undefined;
-    if (!legato && this.syllables.length) {
+    if (newSyllable && this.syllables.length) {
       const s = this.syllables[this.syllableAt % this.syllables.length]!;
       this.lyricIndex = this.syllableAt % this.syllables.length;
       this.syllableAt++;
-      syllable = { onset: s.onset, vowel: this.vowelShape(s.vowel), vowel2: s.vowel2 ? this.vowelShape(s.vowel2) : undefined, coda: s.coda };
+      if (!s.hold) syllable = { onset: s.onset, vowel: this.vowelShape(s.vowel), vowel2: s.vowel2 ? this.vowelShape(s.vowel2) : undefined, coda: s.coda };
     }
     this.circuit.send('voice', { type: 'note', hz: midiToHz(note), intensity: 0.35 + 0.65 * (velocity / 127), legato, syllable });
   }

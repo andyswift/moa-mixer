@@ -19,9 +19,10 @@ export const VOICE_NAME = 'moa-voice';
  *   front of the mouth, and how high: a smaller diameter closes the tract above it) and the lips (their opening),
  *   modelled as in Neil Thapen's Pink Trombone. The diameters move toward the shape asked for at the speed a tongue
  *   moves, so a change of vowel glides; reflections change smoothly through each block.
- * - Consonants: a second articulator over the vowel, a constriction at a place along the tract that closes, narrows
- *   or lets go fast (the tongue's tip and the lips are quicker than its body), with the velum and the folds' voicing
- *   set for it. Air through a narrow gap is turbulent, so noise is made there (a fricative's hiss; the burst of a
+ * - Consonants: three articulators over the vowel, each closing, narrowing or letting go on its own, quicker than
+ *   the tongue's body: its back (g k ng), its tip and blade (d t n s sh l r y) and the lips (b p m f v w), with the
+ *   velum and the folds' voicing set for each consonant. One lets go as the next closes, so a d into an m overlaps
+ *   as in a real mouth rather than jumping (a jump in the tube is a click). Air through a narrow gap is turbulent, so noise is made there (a fricative's hiss; the burst of a
  *   closure let go); an h is turbulence at the glottis with the folds apart. A syllable's consonants before its vowel
  *   play as the note starts; after it, as the note is let go (gliding first to a diphthong's second vowel), the voice
  *   singing on until they are done. A shut mouth lets nothing out of the lips; an m hums out of the nose.
@@ -55,10 +56,12 @@ class VoiceCore {
     this.jitter = 0; this.shimmer = 1; this.vibRateMul = 1; this.vibDepthMul = 1;
     this.phase = 0; // through the glottal period, 0..1
     this.lf = null;
-    // the consonant articulator: where the constriction is (in sections; -1 none), its width now and where it is going,
-    // the lips' (9: no say), the velum, the folds voicing (a gate), turbulence at the constriction and at the glottis
-    this.cIndex = -1; this.cDiam = 9; this.cTarget = 9; this.cLips = 9; this.velumNow = 0.01; this.velumTarget = 0.01;
-    this.vg = 1; this.voicedTarget = 1; this.fric = 0; this.fricTarget = 0; this.asp = 0; this.aspTarget = 0; this.burst = 0;
+    // the consonant articulators: each where it closes (in sections; -1 not yet), its width now and where it is going
+    // (9: open, no say); the velum; the folds voicing (a gate); turbulence at a constriction and at the glottis
+    this.arts = [0, 1, 2].map(() => ({ index: -1, diam: 9, target: 9 }));
+    this.noiseAt = -1; this.gap = 0; this.burstAt = -1;
+    this.velumNow = 0.01; this.velumTarget = 0.01;
+    this.vg = 1; this.voicedTarget = 1; this.fric = 0; this.fricTarget = 0; this.asp = 0; this.aspTarget = 0; this.burst = 0; this.burstNow = 0;
     // a syllable's gestures: the one under way, those to come, and what the note's end will do
     this.gesture = null; this.gLeft = 0; this.queue = []; this.ending = false; this.vowel2 = null; this.coda = [];
     this.fHp = 0; this.fHpX = 0;
@@ -133,15 +136,23 @@ class VoiceCore {
   /** The pitch (Hz), how loud (0..1), and whether the note glides from the last one (legato) or starts afresh. */
   noteOn(hz, intensity, legato, syllable) {
     this.targetHz = hz;
-    if (!legato && syllable) {
-      // a syllable: the tongue to its vowel (there already, from silence) and its first consonants under way
-      const fromSilence = this.amp < 0.02;
+    if (syllable) {
+      // a syllable (legato too: the voice sings on through its consonants): the tongue to its vowel and its first
+      // consonants under way. From silence (nothing sounding, not even a breath out) the mouth is set at once; if it
+      // is open from the last note, a consonant that closes it is formed first, silently, the folds still, before it
+      // sounds (as a singer closes the mouth in the gap between notes), so a na is not an a-na
+      const fromSilence = !legato && this.amp === 0 && this.exhale < 1e-3 && this.air < 1e-3;
       this.setShape(syllable.vowel, fromSilence);
       this.vowel2 = syllable.vowel2 || null; this.coda = syllable.coda || []; this.ending = false;
       this.queue = syllable.onset.slice();
+      const first = this.queue[0];
+      if (first && !fromSilence && !legato && first.index >= 0 && first.diameter < 0.3) {
+        this.queue.unshift({ ...first, voiced: false, voicing: 0, noise: 0, aspirate: 0, dur: 0.03 });
+        this.vg = Math.min(this.vg, this.amp < 0.05 ? 0 : this.vg);
+      }
       if (this.queue.length) {
         this.nextGesture();
-        if (fromSilence) this.cDiam = this.cTarget; // the mouth is shaped before the sound starts
+        if (fromSilence) for (const a of this.arts) a.diam = a.target; // the mouth is shaped before the sound starts
       } else this.clearGesture();
     }
     if (!legato) {
@@ -210,8 +221,8 @@ class VoiceCore {
     const n = this.n, R = this.R, L = this.L, jR = this.jR, jL = this.jL;
     const r0 = this.refl, r1 = this.newRefl;
     // turbulence made just past the constriction, going both ways
-    if (turbulence && this.cIndex >= 0) {
-      const k = Math.min(n - 1, Math.max(1, Math.round(this.cIndex) + 1));
+    if (turbulence && this.noiseAt >= 0) {
+      const k = Math.min(n - 1, Math.max(1, Math.round(this.noiseAt) + 1));
       R[k] += turbulence / 2; L[k] += turbulence / 2;
     }
     // the glottis end reflects most of the wave back; the lips reflect it inverted
@@ -246,20 +257,27 @@ class VoiceCore {
     for (let i = 0; i < m; i++) { nR[i] = njR[i] * 0.985; nL[i] = njL[i + 1] * 0.985; }
     // what leaves the lips and the nostrils is the airflow, the pressure wave times the opening's area (none from a
     // shut mouth, little from the small nostrils), against an open mouth's
-    return (R[n - 1] * this.A[n - 1] + nR[m - 1] * this.nA[m - 1]) / 2.25;
+    // (the lips' area glides through the block, as the reflections do: stepping it would click as the lips open)
+    const lipA = this.lipFrom + (this.lipTo - this.lipFrom) * frac;
+    return (R[n - 1] * lipA + nR[m - 1] * this.nA[m - 1]) / 2.25;
   }
 
   /** The block's areas and reflections: the diameters moved toward the shape at the speed a tongue moves. */
   updateTract(seconds) {
     const n = this.n, d = this.diameter, t = this.target, v = this.vdiam, A = this.A;
     // the tongue's body moves toward the vowel at its own pace; a constriction (the tip, the lips) is quicker
-    const k = 1 - Math.exp(-seconds / 0.035), kc = 1 - Math.exp(-seconds / 0.007), kv = 1 - Math.exp(-seconds / 0.015);
+    const k = 1 - Math.exp(-seconds / 0.035), kc = 1 - Math.exp(-seconds / 0.01), kv = 1 - Math.exp(-seconds / 0.015);
     for (let i = 0; i < n; i++) v[i] += (t[i] - v[i]) * k;
-    this.cDiam += (this.cTarget - this.cDiam) * kc;
     this.velumNow += (this.velumTarget - this.velumNow) * kv;
     for (let i = 0; i < n; i++) d[i] = v[i];
-    if (this.cIndex >= 0 && this.cDiam < 8) {
-      const c = this.cIndex, cd = Math.max(0, this.cDiam);
+    // each articulator closes the tract where it is; the narrowest gap is where the air hisses
+    this.gap = 0; this.noiseAt = -1;
+    for (const a of this.arts) {
+      a.diam += (a.target - a.diam) * kc;
+      if (a.index < 0 || a.diam >= 8) continue;
+      const c = a.index, cd = Math.max(0, a.diam);
+      const gap = cd < 0.005 ? 0 : Math.max(0, Math.min(1, (0.5 - cd) / 0.5));
+      if (gap > this.gap) { this.gap = gap; this.noiseAt = c; }
       if (c >= this.lipStart) for (let i = this.lipStart; i < n; i++) d[i] = Math.min(d[i], cd);
       else {
         // a constriction's shape along the tract, as Pink Trombone's: wide at the back of the mouth, narrow at the front
@@ -272,8 +290,9 @@ class VoiceCore {
         }
       }
     }
-    if (this.cLips < 8) for (let i = this.lipStart; i < n; i++) d[i] = Math.min(d[i], this.cLips);
+    if (this.burst > this.gap && this.burstAt >= 0) this.noiseAt = this.burstAt; // a closure let go bursts where it was
     for (let i = 0; i < n; i++) A[i] = d[i] * d[i];
+    this.lipFrom = this.lipTo === undefined ? A[n - 1] : this.lipTo; this.lipTo = A[n - 1];
     this.nA[0] = this.velumNow * this.velumNow; // the velum's opening, as an area at the nose's mouth
     this.nRefl[1] = (this.nA[0] - this.nA[1]) / (this.nA[0] + this.nA[1]); // and so how much of the wave it lets into the nose
     const r0 = this.refl, r1 = this.newRefl;
@@ -281,21 +300,47 @@ class VoiceCore {
     for (let i = 1; i < n; i++) r1[i] = A[i - 1] + A[i] < 1e-9 ? 0 : (A[i - 1] - A[i]) / (A[i - 1] + A[i]);
   }
 
-  /** Starts a gesture of a syllable's consonants (or holds one: a hum, a hiss). A closure let go bursts. */
-  applyGesture(g) {
-    const wasShut = this.cTarget <= 0.02;
-    this.gesture = g; this.gLeft = g.dur;
-    if (g.index >= 0) { this.cIndex = (g.index * this.n) / 44; this.cTarget = g.diameter; } else this.cTarget = 9;
-    this.cLips = typeof g.lips === 'number' ? g.lips : 9;
-    this.velumTarget = g.velum >= 0 ? g.velum : this.velum;
-    this.voicedTarget = g.voiced ? 1 : 0; this.fricTarget = g.noise || 0; this.aspTarget = g.aspirate || 0;
-    if (wasShut && this.cTarget > 0.02) this.burst = 1;
+  /** Which articulator closes at a place on the 44-section grid: the lips, the tongue's tip and blade, or its back. */
+  artFor(index44) {
+    return this.arts[index44 >= 39 ? 2 : index44 >= 26 ? 1 : 0];
   }
 
-  /** Back to the vowel: the constriction let go (a closure bursts), the velum as the vowel has it, the folds voicing. */
+  /**
+   * Sends an articulator toward a width. One that was shut and now opens bursts where it was, if air had built up
+   * behind it: not for a nasal, the air going out through the nose all along.
+   */
+  moveArt(a, target) {
+    if (a.target <= 0.02 && target > 0.02 && a.index >= 0 && this.velumNow < 0.1) {
+      this.burst = this.gesture && this.gesture.voiced ? 0.5 : 1; // less pressure builds behind a b d g than a p t k
+      this.burstAt = a.index;
+    }
+    a.target = target;
+  }
+
+  /** Starts a gesture of a syllable's consonants (or holds one: a hum, a hiss); the articulators it does not use let go. */
+  applyGesture(g) {
+    this.gesture = g; this.gLeft = g.dur;
+    const targets = [9, 9, 9];
+    if (g.index >= 0) {
+      const a = this.artFor(g.index);
+      a.index = (g.index * this.n) / 44;
+      targets[this.arts.indexOf(a)] = g.diameter;
+    }
+    if (typeof g.lips === 'number') {
+      const lips = this.arts[2];
+      if (lips.index < 0 || targets[2] === 9) lips.index = this.lipStart;
+      targets[2] = Math.min(targets[2], g.lips);
+    }
+    this.arts.forEach((a, k) => this.moveArt(a, targets[k]));
+    this.velumTarget = g.velum >= 0 ? g.velum : this.velum;
+    this.voicedTarget = g.voiced ? (typeof g.voicing === 'number' ? g.voicing : 1) : 0;
+    this.fricTarget = g.noise || 0; this.aspTarget = g.aspirate || 0;
+  }
+
+  /** Back to the vowel: every articulator let go (a closure bursts), the velum as the vowel has it, the folds voicing. */
   clearGesture() {
-    if (this.cTarget <= 0.02) this.burst = 1;
-    this.gesture = null; this.cTarget = 9; this.cLips = 9; this.velumTarget = this.velum;
+    for (const a of this.arts) this.moveArt(a, 9);
+    this.gesture = null; this.velumTarget = this.velum;
     this.voicedTarget = 1; this.fricTarget = 0; this.aspTarget = 0;
   }
 
@@ -320,7 +365,7 @@ class VoiceCore {
     const ampK = 1 - Math.exp(-1 / (sr * (rising ? (this.attack * this.attackScale) / 3 : this.release / 5)));
     const airK = 1 - Math.exp(-1 / (sr * (rising ? 0.01 : this.release / 5))); // the air comes at once
     const hzK = 1 - Math.exp(-1 / (sr * Math.max(0.002, this.glide)));
-    const gateK = 1 - Math.exp(-1 / (sr * 0.005)), burstD = Math.exp(-1 / (sr * 0.008));
+    const gateK = 1 - Math.exp(-1 / (sr * 0.005)), burstD = Math.exp(-1 / (sr * 0.008)), burstK = 1 - Math.exp(-1 / (sr * 0.0008));
     const fHpA = Math.exp((-2 * Math.PI * 1000) / sr);
     const fast = Math.exp(-1 / (sr * 0.04)), medium = Math.exp(-1 / (sr * 0.08)), slow = Math.exp(-1 / (sr * 0.1));
     for (let i = 0; i < len; i++) {
@@ -334,6 +379,7 @@ class VoiceCore {
       this.fric += (this.fricTarget - this.fric) * gateK;
       this.asp += (this.aspTarget - this.asp) * gateK;
       this.burst *= burstD;
+      this.burstNow += (this.burst - this.burstNow) * burstK; // even a burst takes a moment to rise
       this.hz *= Math.pow(this.targetHz / this.hz, hzK);
       // vibrato fading in after the note starts and deepening as it is held, its rate and depth never quite even;
       // and a slow wander of a few cents
@@ -376,11 +422,10 @@ class VoiceCore {
       const g = voiced + aspiration;
       // turbulence at the constriction: air through a narrow gap (none through a shut one), and a closure's burst
       let turbulence = 0;
-      if (this.cIndex >= 0 && this.air > 1e-4) {
+      if (this.noiseAt >= 0 && this.air > 1e-4) {
         const white2 = this.random() * 2 - 1;
         this.fHp = fHpA * (this.fHp + white2 - this.fHpX); this.fHpX = white2;
-        const gap = this.cDiam < 0.005 ? 0 : Math.max(0, Math.min(1, (0.5 - this.cDiam) / 0.5));
-        turbulence = this.fHp * this.air * (gap * (0.2 + this.fric) * FRIC_LEVEL + this.burst * BURST_LEVEL);
+        turbulence = this.fHp * this.air * (this.gap * (0.2 + this.fric) * FRIC_LEVEL + this.burstNow * BURST_LEVEL);
       }
       // two steps of the tract a sample
       const frac = i / len;
