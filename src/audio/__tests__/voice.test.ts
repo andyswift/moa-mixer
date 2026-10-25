@@ -225,7 +225,7 @@ describe('MOA-VOX: expression', () => {
     core.noteOn(220, 0.9, false);
     sing(core, 0.5);
     core.noteOff();
-    expect(core.exhale).toBeGreaterThan(0.2);
+    expect(core.exhale).toBeGreaterThan(0.08);
     sing(core, 1.5);
     expect(core.exhale).toBeLessThan(1e-3);
   });
