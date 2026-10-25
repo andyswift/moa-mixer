@@ -7,6 +7,8 @@ import { FOLD_NAME, FOLD_SOURCE } from './foldWorklet';
 import { LADDER_NAME, LADDER_SOURCE } from './ladderWorklet';
 import { SAMPLER_NAME, SAMPLER_SOURCE } from './samplerWorklet';
 import { STRING_NAME, STRING_SOURCE } from './stringWorklet';
+import { VOICE_NAME, VOICE_SOURCE } from './voiceWorklet';
+import type { VoxView } from '../domain/devices/voxSinger';
 import { DRUM_NAME, KIT_SOURCE } from './kitWorklet';
 import { TONE_NAME, TONE_SOURCE } from './toneWorklet';
 import { GRANULAR_NAME, GRANULAR_SOURCE } from './granularWorklet';
@@ -75,6 +77,7 @@ export class AudioEngine {
   private readonly duoViews = new Map<string, DuoView>();
   private readonly m2600Views = new Map<string, M2600View>();
   private readonly stringViews = new Map<string, StringView>();
+  private readonly voiceViews = new Map<string, VoxView>();
   private readonly samplerViews = new Map<string, SamplerView>();
   private readonly meters = new Map<string, { analyser: AnalyserNode; buffer: Float32Array<ArrayBuffer> }>();
 
@@ -170,6 +173,11 @@ export class AudioEngine {
   /** The latest mode amplitudes of a string or drum node; undefined until audio has started. */
   readString(deviceId: string, nodeId: string): StringView | undefined {
     return this.stringViews.get(`${deviceId}/${nodeId}`);
+  }
+
+  /** The latest tract shape, pitch and loudness of a voice node; undefined until audio has started. */
+  readVoice(deviceId: string, nodeId: string): VoxView | undefined {
+    return this.voiceViews.get(`${deviceId}/${nodeId}`);
   }
 
   /** The latest lamps and envelope levels of a 2600 node; undefined until audio has started. */
@@ -307,6 +315,15 @@ export class AudioEngine {
             processorOptions: { config: JSON.parse(n.options.config ?? '{}') as unknown },
           });
           node.port.onmessage = (e: MessageEvent<StringView>) => this.stringViews.set(`${deviceId}/${n.id}`, e.data);
+          nodes.set(n.id, node);
+          break;
+        }
+        case 'voice': {
+          const node = new AudioWorkletNode(ctx, VOICE_NAME, {
+            numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [1], parameterData: n.params,
+            processorOptions: { config: JSON.parse(n.options.config ?? '{}') as unknown },
+          });
+          node.port.onmessage = (e: MessageEvent<VoxView>) => this.voiceViews.set(`${deviceId}/${n.id}`, e.data);
           nodes.set(n.id, node);
           break;
         }
@@ -781,7 +798,7 @@ registerProcessor('${FOLLOWER_NAME}', MoaFollower);
 `;
 
 /** Every processor, as the one script the audio worklet loads. Top-level names must not clash between them. */
-export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE, KIT_SOURCE, SAMPLER_SOURCE, TONE_SOURCE].join('\n');
+export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE, KIT_SOURCE, SAMPLER_SOURCE, TONE_SOURCE, VOICE_SOURCE].join('\n');
 
 /** The processors are one worklet module, loaded from an in-memory script. */
 function workletModuleUrl(): string {

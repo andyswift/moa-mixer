@@ -908,7 +908,7 @@ export function controlCard(d: M2600Synth, title: string, ids: readonly string[]
       const buttons = options.map((o) => {
         const btn = el('button', 'm26-seg-btn', o.toUpperCase());
         btn.type = 'button';
-        btn.addEventListener('click', () => (c.kind === 'choice' ? c.set(o) : c.set(o === 'on')));
+        btn.addEventListener('click', () => (c.kind === 'choice' ? c.set(o) : c.kind === 'toggle' ? c.set(o === 'on') : undefined));
         group.append(btn);
         return [o, btn] as const;
       });

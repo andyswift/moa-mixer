@@ -145,7 +145,7 @@ export function mountKeyboardBed(synth: Playable, customCheek?: HTMLElement): HT
 
   // Computer keyboard: the home row plays the octave from middle C.
   window.addEventListener('keydown', (e) => {
-    if (activeBed !== bed || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.target instanceof HTMLSelectElement) return;
+    if (activeBed !== bed || e.repeat || e.metaKey || e.ctrlKey || e.altKey || typing(e.target)) return;
     const i = LETTERS.indexOf(e.key.toLowerCase());
     if (i >= 0) press(LETTER_START + i);
   });
@@ -156,4 +156,11 @@ export function mountKeyboardBed(synth: Playable, customCheek?: HTMLElement): HT
 
   bed.append(customCheek ?? cheek, keys);
   return bed;
+}
+
+/** Whether a key goes to a field being typed in (a choice, some text), not to the keyboard. */
+function typing(target: EventTarget | null): boolean {
+  return target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement
+    || (target instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button'].includes(target.type))
+    || (target instanceof HTMLElement && target.isContentEditable);
 }

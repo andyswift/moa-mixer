@@ -18,7 +18,7 @@ import type { PageId } from '../songs/control';
  *
  * The stage has a look per song (`setLook`): plain (a warm, bare room), or disco (the lights down, a mirror ball
  * scattering reflections across the back wall, coloured beams swaying to the beat, pools of light flashing on the kick,
- * and haze).
+ * and haze). A song may also put a singer at the front (`setSinger`), singing what MOA-VOX sings.
  */
 
 /** Whose stage spot a page is. */
@@ -195,6 +195,33 @@ function discoBack(): string {
     <circle cx="${bx - 8}" cy="${by - 9}" r="5" fill="#fff" fill-opacity="0.8"/>`;
 }
 
+// ---- the singer at the front ----
+
+/** The lead singer: trousers, a jacket, a microphone held to the mouth, a free arm to raise; dressed by the song (`SINGER_LOOKS`). */
+const LEAD_SINGER = `<g id="ld-all">
+  <path id="ld-legs" d="M50 330 L56 250 L76 250 L74 330 Z M86 330 L84 250 L104 250 L110 330 Z" fill="#1d2230"/>
+  <rect x="48" y="326" width="30" height="8" rx="3" fill="#141518"/><rect x="82" y="326" width="30" height="8" rx="3" fill="#141518"/>
+  <g id="ld-upper">
+    <path class="ld-jacket" d="M40 112 Q80 98 120 112 L126 256 L34 256 Z" fill="#2e3550"/>
+    <path d="M70 108 L80 160 L90 108 Z" fill="#f1eee6"/><path id="ld-tie" d="M77 116 L80 150 L83 116 Z" fill="#e8742c"/>
+    <g id="ld-free"><path class="ld-jacket" d="M42 116 Q22 170 38 220 L52 216 Q40 170 56 124 Z" fill="#2e3550"/><circle class="ld-skin" cx="45" cy="222" r="9" fill="#6b4226"/></g>
+    <g id="ld-head"><rect class="ld-skin" x="70" y="86" width="20" height="20" fill="#6b4226"/><circle class="ld-skin" cx="80" cy="66" r="28" fill="#6b4226"/>
+      <path id="ld-hair" d="M52 60 Q52 34 80 34 Q108 34 108 60 Q100 46 80 46 Q60 46 52 60 Z" fill="#141010"/>
+      <circle cx="70" cy="64" r="2.8" fill="#141010"/><circle cx="90" cy="64" r="2.8" fill="#141010"/>
+      <ellipse id="ld-mouth" cx="80" cy="80" rx="7" ry="1.5" fill="#4a1c18"/></g>
+    <path class="ld-jacket" d="M118 118 Q132 104 104 86 L96 94 Q114 108 106 120 Z" fill="#2e3550"/>
+    <rect x="94" y="78" width="9" height="20" rx="3" fill="#2a2b2e" transform="rotate(-30 98 88)"/><circle cx="94" cy="78" r="7" fill="#7f848b"/>
+  </g>
+</g>`;
+/** Who sings at the front: a crooner with a quiff, a cardigan and an open collar. */
+export type SingerLook = 'crooner';
+const SINGER_LOOKS: Record<SingerLook, { skin: string; hair: string; hairColour: string; jacket: string; legs: string; tie: boolean }> = {
+  crooner: {
+    skin: '#e8b896', hair: 'M52 62 Q46 30 70 22 Q96 10 112 30 Q114 46 106 54 Q102 42 90 40 Q74 38 62 46 Q56 52 52 62 Z', hairColour: '#3a2618',
+    jacket: '#6b5b45', legs: '#2b2b30', tie: false,
+  },
+};
+
 /** Where each character stands on the stage (its 280 or 340 by 420 drawing's top left). */
 const SPOTS: Record<Player, [number, number]> = { guitar: [36, 82], kit: [336, 46], bass: [645, 82], bass2: [935, 82] };
 
@@ -267,6 +294,10 @@ export class BandStage {
   private last = 0;
   private readonly shake = { guitar: shaker(1.3), bass2: shaker(4.1) };
   private look: StageLook = 'plain';
+  /** Who sings at the front, if anyone. */
+  private singer?: SingerLook;
+  /** How much the singer is singing now (0..1, falling away), and his last note. */
+  private voice = { lead: 0, leadPitch: 64 };
 
   constructor() {
     const svg = document.createElementNS(NS, 'svg');
@@ -286,7 +317,8 @@ export class BandStage {
       <g id="spot-kit" transform="${at('kit')}"><g transform="${mirror(170)}"><g id="dr-all">${DRUMMER}</g></g></g>
       <g id="spot-bass" transform="${at('bass')}"><g transform="${mirror(140)}"><g id="db-all">${DUB}</g></g></g>
       <g id="spot-bass2" transform="${at('bass2')}"><g transform="${mirror(140)}"><g id="fb-all">${FREE}</g></g></g>
-      <rect id="disco-front" display="none" width="${W}" height="${H}" fill="url(#disco-haze)" pointer-events="none"/>`;
+      <rect id="disco-front" display="none" width="${W}" height="${H}" fill="url(#disco-haze)" pointer-events="none"/>
+      <g id="singer-lead" display="none" transform="translate(560 165)">${LEAD_SINGER}</g>`;
     for (const g of Array.from(svg.querySelectorAll<SVGGElement>('g[id]'))) this.parts.set(g.id, g);
     this.element = svg;
   }
@@ -301,6 +333,21 @@ export class BandStage {
     attr('stage-spots', 'display', disco ? 'none' : 'inline');
     attr('disco-back', 'display', disco ? 'inline' : 'none');
     attr('disco-front', 'display', disco ? 'inline' : 'none');
+  }
+
+  /** Puts a singer at the front, dressed as the song has him (or none). */
+  setSinger(look: SingerLook | undefined): void {
+    this.singer = look;
+    this.element.querySelector('#singer-lead')?.setAttribute('display', look ? 'inline' : 'none');
+    if (!look) return;
+    const s = SINGER_LOOKS[look];
+    for (const e of Array.from(this.element.querySelectorAll('.ld-skin'))) e.setAttribute('fill', s.skin);
+    for (const e of Array.from(this.element.querySelectorAll('.ld-jacket'))) e.setAttribute('fill', s.jacket);
+    const hair = this.element.querySelector('#ld-hair');
+    hair?.setAttribute('d', s.hair);
+    hair?.setAttribute('fill', s.hairColour);
+    this.element.querySelector('#ld-legs')?.setAttribute('fill', s.legs);
+    this.element.querySelector('#ld-tie')?.setAttribute('display', s.tie ? 'inline' : 'none');
   }
 
   /** A note the song player sent, due at `at` (wall-clock ms, as `epochNow`). Note-offs are ignored. */
@@ -338,6 +385,7 @@ export class BandStage {
   }
 
   private play(p: Pending): void {
+    if (p.page === 'vox') { this.voice.lead = Math.max(this.voice.lead, 0.5 + 0.5 * p.velocity); this.voice.leadPitch = p.note; }
     if (p.page in this.activity) {
       const who = p.page as Player;
       this.activity[who] = Math.min(1, this.activity[who] * 0.6 + 0.25 + 0.5 * p.velocity);
@@ -476,6 +524,19 @@ export class BandStage {
       this.eyes('fb', 1 + 0.4 * grin);
     }
     if (this.look === 'disco') this.disco(t, mood, onBeat);
+    if (this.singer) this.sing(dt, mood, onBeat);
+  }
+
+  /** The singer: bobbing to the beat, head back on the high notes, swaying slowly, his free arm swept out as he holds a note. */
+  private sing(dt: number, mood: StageMood, onBeat: number): void {
+    this.voice.lead *= Math.exp(-dt / 0.35);
+    const beat = mood.beat, playing = mood.playing ? 1 : 0;
+    this.set('ld-upper', `translate(0 ${(3 * onBeat * playing).toFixed(2)})`);
+    const high = Math.max(0, Math.min(1, (this.voice.leadPitch - 64) / 8));
+    this.set('ld-head', `rotate(${(-10 * high * this.voice.lead + 3 * Math.sin(Math.PI * beat) * playing).toFixed(2)} 80 100)`);
+    this.set('ld-free', `rotate(${(playing * this.voice.lead * (35 + 25 * Math.sin((Math.PI * beat) / 4))).toFixed(2)} 48 118)`);
+    this.set('ld-all', `rotate(${(2.5 * Math.sin((Math.PI * beat) / 4) * playing).toFixed(2)} 80 330)`);
+    this.element.querySelector('#ld-mouth')?.setAttribute('ry', (1.5 + 9 * this.voice.lead).toFixed(2));
   }
 
   /** The disco lights: the ball turning, its reflections drifting, the beams swaying and brightening on the beat, the pools on the kick. */

@@ -1,0 +1,26 @@
+/* ---- MOA-VOX: the vocal tract, the vowels and the controls ---- */
+.vox-wrap { margin-bottom: 16px; }
+.vox-wrap .keybed { margin: 0; border-radius: 0 0 8px 8px; }
+.vox-panel { border-top-color: #d9628a; border-radius: 8px 8px 0 0; }
+.vox-stage { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; }
+.vox-canvas { flex: 1 1 520px; min-width: 0; height: 240px; border-radius: 6px; background: #16171a; }
+.vox-readouts { flex: 0 1 180px; display: flex; flex-direction: column; gap: 10px; }
+.vox-read { padding: 10px 12px; border: 1px solid #3a3d42; border-radius: 6px; background: #1f2124; }
+.vox-read-label { font-family: 'Barlow Condensed', system-ui, sans-serif; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: #a9adb3; }
+.vox-read-value { margin-top: 4px; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 18px; color: #f1eee6; white-space: nowrap; }
+.vox-vowels { display: flex; flex-wrap: wrap; gap: 8px; }
+.vox-vowel { min-width: 64px; height: 44px; padding: 0 14px; border: 1px solid #3a3d42; border-radius: 6px; background: #232528; color: #f1eee6; font-family: 'Barlow Condensed', system-ui, sans-serif; font-weight: 700; font-size: 20px; letter-spacing: 0.08em; cursor: pointer; }
+.vox-vowel:hover { border-color: #6b6f76; }
+.vox-vowel.on { border-color: #d9628a; box-shadow: inset 0 -3px 0 #d9628a; }
+.vox-vowel:focus-visible { outline: 3px solid #ffd25e; outline-offset: 3px; }
+.vox-lyrics { display: flex; flex-direction: column; gap: 8px; }
+.vox-lyrics-label { font-family: 'Barlow Condensed', system-ui, sans-serif; font-weight: 600; font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: #a9adb3; }
+.vox-lyrics-input { height: 40px; padding: 0 12px; border: 1px solid #3a3d42; border-radius: 6px; background: #16171a; color: #f1eee6; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 15px; }
+.vox-lyrics-input:focus-visible { outline: 3px solid #ffd25e; outline-offset: 2px; }
+.vox-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.vox-preset { height: 32px; padding: 0 10px; border: 1px solid #3a3d42; border-radius: 6px; background: #232528; color: #f1eee6; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; cursor: pointer; }
+.vox-preset:hover { border-color: #6b6f76; }
+.vox-preset:focus-visible { outline: 3px solid #ffd25e; outline-offset: 2px; }
+.vox-syllables { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; }
+.vox-syllable { padding: 4px 8px; border-radius: 4px; background: #1f2124; color: #a9adb3; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 14px; }
+.vox-syllable.on { background: #d9628a; color: #16171a; }

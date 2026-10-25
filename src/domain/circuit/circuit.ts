@@ -40,6 +40,9 @@
 // detune (cents, an audio-rate CV input), res (0..1) and drive (0..1); see `ladderWorklet.ts`.
 // 'string' is a MOA-BASS or MOA-GUITAR string: a bank of modes (`stringWorklet.ts`), no input, mono out. Params level and tone;
 // `send` messages configure it, pluck it and mute it, and its `config` option keeps the latest configuration.
+// 'voice' is MOA-VOX's singing voice (`voiceWorklet.ts`): vocal folds, a vocal tract and a nose, no input, mono out.
+// Param level; `send` messages configure it (shape, tract length, tension, breath, vibrato, glide, envelope, bend) and
+// sing or stop a note, and its `config` option keeps the latest configuration.
 // 'drum' is a MOA-KIT drum or cymbal: a bank of modes (`kitWorklet.ts`), no input, mono out. Param level; `send`
 // messages configure it, hit it and damp it, and its `config` option keeps the latest configuration.
 // 'sampler' is the MOA-60's sample voices (`samplerWorklet.ts`), no input, stereo out. Param level; `send` messages
@@ -51,7 +54,7 @@
 // 'df' is the MOA-DF2 filter box: two multimode filters, two envelopes, a sample-and-hold, a delay and a mixer in
 // one worklet; stereo in, stereo out. Its params are listed in `dfWorklet.ts`. `gate(id, target, on)` drives its
 // envelope gates: 'keys' (the held keys) or 'open1' / 'open2' (the OPEN buttons).
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df' | 'duo' | 'm2600' | 'fold' | 'ladder' | 'string' | 'drum' | 'sampler' | 'tone';
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df' | 'duo' | 'm2600' | 'fold' | 'ladder' | 'string' | 'drum' | 'sampler' | 'tone' | 'voice';
 
 export interface CircuitNode {
   readonly id: string;
@@ -162,9 +165,9 @@ export class Circuit {
     this.emit({ type: 'play', nodeId, n1, n2, gate, retrig });
   }
 
-  /** Sends a message to a 2600, string, sampler or tone node's worklet as it is (the AR's manual button, patch cords, plucks, sounds, notes). */
+  /** Sends a message to a 2600, string, drum, sampler, tone or voice node's worklet as it is (the AR's manual button, patch cords, plucks, sounds, notes). */
   send(nodeId: string, data: unknown): void {
-    this.expectKind(nodeId, 'm2600', 'string', 'drum', 'sampler', 'tone');
+    this.expectKind(nodeId, 'm2600', 'string', 'drum', 'sampler', 'tone', 'voice');
     this.emit({ type: 'message', nodeId, data });
   }
 

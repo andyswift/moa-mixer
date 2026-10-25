@@ -1,13 +1,16 @@
 import { GAUGES, SCALES, midiToHz, tensionFor } from '../../domain/devices/bassPhysics';
+import { fitEndings } from '../../domain/devices/voxPhonemes';
 import { seeded, withDynamics } from '../feel';
 import { note } from '../generators';
-import type { Automation, NoteEvent, Song } from '../types';
+import type { Automation, NoteEvent, Song, SungLine } from '../types';
 
 /**
- * An original jangle-pop instrumental for two basses, a guitar and a drum kit (working title): bright and quick, the
- * chords changing nearly every bar. The free bass sings the tune, high on the neck and up front in the mix; the guitar
- * accompanies it, picking across open-string chords (the open B and E ringing on top of every shape); the dub bass
- * holds the roots and walks into each chord; the kit drives. 132 bpm, A major, all in 4/4.
+ * An original jangle-pop song for two basses, a guitar, a drum kit and a singer (working title): bright and quick, the
+ * chords changing nearly every bar. MOA-VOX sings, a baritone crooner, lazy behind the beat, scooping into long held
+ * notes that turn up and over at the ends of lines (Oslo in November, a form to sign, the Solomon Islands' sun); the
+ * guitar picks across open-string chords (the open B and E ringing on top of every shape); the free bass runs a
+ * melodic line under the singer; the dub bass holds the roots and walks into each chord; the kit drives. 132 bpm, A
+ * major, all in 4/4.
  *
  * Played, not sequenced: the guitar picks from a handful of figures bar by bar (space in them, dyads let ring, muted
  * scratches between, a run into each new section, now and then a note left out), the kit's hats, ghost notes, kicks
@@ -161,28 +164,71 @@ const OCTAVES_M: [number, number, number][][] = [
   [[0, 66, 4], [4, 62, 4]], // D (then the stop)
 ];
 
-// ---- the tune (the free bass), a bar a chord: [eighth, note, length in eighths] ----
+// ---- the song (MOA-VOX, a crooner): [beat in the line, note, length in beats, '_' to hold the syllable before] ----
 
-const VERSE_TUNE: [number, number, number][][] = [
-  [[0, 61, 2], [2, 64, 1], [3, 66, 1], [4, 64, 3], [7, 61, 1]], // A
-  [[0, 61, 1.5], [1.5, 59, 0.5], [2, 57, 2], [4, 54, 2], [6, 57, 1], [7, 59, 1]], // F#m
-  [[0, 62, 3], [3, 61, 1], [4, 57, 2], [6, 54, 1], [7, 57, 1]], // D
-  [[0, 59, 4], [4, 56, 1], [5, 57, 1], [6, 59, 1], [7, 61, 1]], // E
-  [[0, 64, 2], [2, 66, 1], [3, 64, 1], [4, 61, 2], [6, 59, 1], [7, 57, 1]], // A
-  [[0, 56, 2], [2, 59, 1], [3, 61, 1], [4, 64, 4]], // C#m
-  [[0, 62, 1.5], [1.5, 61, 0.5], [2, 57, 1], [3, 54, 1], [4, 57, 2], [6, 59, 2]], // D
-  [[0, 59, 5], [6, 61, 1], [7, 62, 1]], // E, a breath, into the next
+type Sung = [number, number, number, '_'?][];
+/** The verse, a line every four bars: long notes, held, the second and fourth lines turning up and over at their ends. */
+const VERSE_SONG: Sung[] = [
+  [[0.5, 57, 1.5], [2, 61, 1.5], [4, 59, 1], [5, 57, 1], [6, 54, 2], [8, 52, 6]],
+  [[0.5, 57, 1.5], [2, 59, 1.5], [4, 61, 2], [6, 59, 1], [8, 57, 4.1], [12, 64, 2.1, '_'], [14, 61, 1.8, '_']],
+  [[0.5, 57, 1], [1.5, 59, 1.5], [3, 61, 1], [4, 64, 1.5], [5.5, 62, 1.5], [8, 61, 6]],
+  [[0.5, 59, 1], [1.5, 57, 1.5], [3, 56, 1], [4, 54, 2], [8, 57, 4.1], [12, 52, 3.5, '_']],
 ];
-const CHORUS_TUNE: [number, number, number][][] = [
-  [[0, 66, 3], [3, 64, 1], [4, 62, 4]], // D
-  [[0, 64, 2], [2, 66, 2], [4, 64, 2], [6, 59, 2]], // E
-  [[0, 64, 3], [3, 61, 1], [4, 59, 2], [6, 56, 2]], // C#m
-  [[0, 57, 2], [2, 59, 2], [4, 61, 4]], // F#m
-  [[0, 66, 3], [3, 64, 1], [4, 62, 2], [6, 64, 2]], // D
-  [[0, 66, 4], [4, 64, 2], [6, 62, 2]], // E
-  [[0, 61, 8]], // A, held
-  [[0, 64, 1], [1, 61, 1], [2, 59, 1], [3, 57, 1], [4, 52, 3]], // A, down out of it
+/** The words, written as sung (`voxPhonemes.ts`), a syllable to each note that is not a hold. */
+const VERSE_WORDS = [
+  ['ahz loh in noh vem buhr', 'gray ahn ev ree street', 'ai sain uh fohrm uh gen', 'aend ai dreem uhv suhn'],
+  ['suhn ahn sah loh muhn saendz', 'heer ai aem aet wuhrk', 'bahs wahnts it bai frai day', 'ai wahnt too see suhn'],
 ];
+/** The chorus, a line every two bars, up to the F sharp on "sun". */
+const CHORUS_SONG: Sung[] = [
+  [[0, 62, 1.5], [1.5, 64, 1], [2.5, 62, 1.5], [4, 64, 1], [5, 66, 3]],
+  [[0, 64, 1.5], [1.5, 61, 1.5], [3, 59, 1], [4, 57, 1], [5, 54, 3]],
+  [[0, 62, 1], [1, 64, 1], [2, 62, 1], [3, 66, 1.5], [4.5, 64, 1], [5.5, 64, 2.5]],
+  [[0, 61, 1], [1, 62, 1], [2, 61, 1], [3, 59, 1.5], [4.5, 57, 1], [5.5, 57, 2.5]],
+];
+const CHORUS_WORDS = ['oh sah loh muhn suhn', 'shain ahn ahz loh too', 'aim fahr too payl too stay', 'aend fahr too pohr too goh'];
+/** The same words as they read. */
+const VERSE_LINES = [
+  ['Oslo in November', 'grey on every street', 'I sign a form again', 'and I dream of sun'],
+  ['Sun on Solomon sands', 'here I am at work', 'Boss wants it by Friday', 'I want to see sun'],
+];
+const CHORUS_LINES = ['Oh, Solomon sun', 'shine on Oslo too', 'I’m far too pale to stay', 'and far too poor to go'];
+
+/** The words as they read, a line at a time, timed as the singer sings them. */
+function words(): SungLine[] {
+  const out: SungLine[] = [];
+  for (const block of BLOCKS) {
+    if (block.section === 'V') VERSE_LINES[block.n]!.forEach((text, k) => out.push({ from: block.start + 16 * k, to: block.start + 16 * (k + 1), text }));
+    else if (block.section === 'C') CHORUS_LINES.forEach((text, k) => out.push({ from: block.start + 8 * k, to: block.start + 8 * (k + 1), text }));
+    else if (block.section === 'O') for (const k of [0, 1]) out.push({ from: block.start + 16 * k, to: block.start + 16 * k + 12, text: 'Oslo…' });
+  }
+  return out;
+}
+/** The outro: the city's name, twice, let ring. */
+const OUTRO_SONG: Sung = [[0.5, 57, 1.5], [2, 61, 6]];
+
+/**
+ * The singer's notes and his line of lyrics, made together so they match one to one: a syllable to a note, an _ to a
+ * held one (sung legato from the note before, which it overlaps). He sits behind the beat, a crooner's lazy phrasing.
+ */
+function singer(): { notes: NoteEvent[]; lyrics: string } {
+  const notes: NoteEvent[] = [], words: string[] = [];
+  const lazy = 0.12;
+  const sing = (from: number, line: Sung, text: string, vel: number) => {
+    const syllables = text.split(' ');
+    let k = 0;
+    for (const [beat, m, len, hold] of line) {
+      notes.push(note(from + beat + lazy, len, m, hold ? vel - 4 : vel));
+      words.push(hold ? '_' : syllables[k++]!);
+    }
+  };
+  for (const block of BLOCKS) {
+    if (block.section === 'V') VERSE_SONG.forEach((line, k) => sing(block.start + 16 * k, line, VERSE_WORDS[block.n]![k]!, 88));
+    else if (block.section === 'C') CHORUS_SONG.forEach((line, k) => sing(block.start + 8 * k, line, CHORUS_WORDS[k]!, 96));
+    else if (block.section === 'O') for (const k of [0, 1]) sing(block.start + 16 * k, OUTRO_SONG, 'ahz loh', 84);
+  }
+  return { notes, lyrics: words.join(' ') };
+}
 
 function guitar(): NoteEvent[] {
   const out: NoteEvent[] = [];
@@ -246,24 +292,33 @@ function dubBass(): NoteEvent[] {
   return out;
 }
 
+/**
+ * The free bass, under the singer: a melodic line through each chord, quarters in the verses (eighths, climbing, in
+ * the choruses), each bar stepping into the next chord; half notes where the band drops back; never picked hard (a
+ * bass picked hard by the bridge goes sharp).
+ */
 function freeBass(): NoteEvent[] {
-  // the tune: up front, and never picked hard (a bass picked hard by the bridge goes sharp)
   const out: NoteEvent[] = [];
-  const sing = (bar: Bar, phrase: [number, number, number][]) => {
-    for (const [e, p, len] of phrase) play(out, bar, e, p, len, e === 0 ? 96 : len >= 2 ? 92 : 86);
-  };
+  /** Steps through the chord: root, third, fifth, octave, ninth. */
+  const LINES = { verse: [0, 2, 3, 2], chorus: [[3, 2, 4, 3, 1, 2, 0], [3, 4, 3, 2, 3, 1, 2]] };
   for (const bar of BARS) {
-    const { section, i } = bar;
+    const { section, i, n } = bar;
     const c = CHORDS[chordOf(bar)];
-    if (section === 'V') sing(bar, VERSE_TUNE[i % 8]!);
-    else if (section === 'C') sing(bar, CHORUS_TUNE[i]!);
-    else if (section === 'O' && i < 4) sing(bar, VERSE_TUNE[i % 2]!);
-    else if (section === 'M') {
-      // the guitar has the tune: quarter notes under it, root, fifth, octave, fifth; then the stop
+    const tones = [c.root, c.root + c.third, c.root + 7, c.root + 12, inKey(c.root + 14)];
+    const next = CHORDS[nextChord(bar)];
+    const step = next === c ? tones[2]! : inKey(next.root - 1);
+    if (section === 'V' && n === 1 && i < 4) {
+      for (const e of [0, 4]) play(out, bar, e, tones[e ? 2 : 0]!, 3.6, 76);
+    } else if (section === 'V' || (section === 'O' && i < 6) || section === 'intro' && i >= 4) {
+      LINES.verse.forEach((k, q) => play(out, bar, q * 2, q === 3 ? step : tones[k]!, 1.8, q === 0 ? 84 : 76));
+    } else if (section === 'C') {
+      LINES.chorus[i % 2]!.forEach((k, e) => play(out, bar, e, tones[k]!, 0.9, e === 0 ? 88 : e % 2 ? 76 : 82));
+      play(out, bar, 7, step, 0.9, 80);
+    } else if (section === 'M') {
       if (i === 7) play(out, bar, 0, c.root, 2, 92);
-      else for (const [e, step, len] of [[0, 0, 2], [2, 7, 2], [4, 12, 2], [6, 7, 1.5]] as const) play(out, bar, e, c.root + step, len, e === 0 ? 86 : 78);
+      else for (const [e, s2, len] of [[0, 0, 2], [2, 7, 2], [4, 12, 2], [6, 7, 1.5]] as const) play(out, bar, e, c.root + s2, len, e === 0 ? 86 : 78);
     } else if (section === 'end' && i === 0) {
-      play(out, bar, 0, 61, 15, 88); // C#, over the last chord
+      play(out, bar, 0, c.root + 7, 15, 84);
     }
   }
   return out;
@@ -355,8 +410,7 @@ function automation(): Automation[] {
     return { page, device, control, points };
   };
   return [
-    // the tune in front, not on top (3 dB came down after a listen); in the Bridge the guitar has it instead
-    per('mixer', 'mixer', 'ch2.fader', { M: 0.3, rest: 0.4 }),
+    // the singer has the tune; in the Bridge the guitar takes it
     per('mixer', 'mixer', 'ch3.fader', { M: 0.3, rest: 0.19 }),
     // the guitar: a light chorus on the accompaniment, more and an echo for the Bridge's octaves
     per('guitar', 'guitar', 'chorus.mix', { M: 0.6, rest: 0.35 }),
@@ -367,6 +421,7 @@ function automation(): Automation[] {
 export function pierLights(): Song {
   // the dub bass on flatwounds, each string pulled to the tension that tunes it (as in Odd Hours)
   const flat = (name: keyof typeof GAUGES) => Math.round(tensionFor({ ...GAUGES[name], winding: 'flat' }, SCALES.long, midiToHz(GAUGES[name].note)) * 10) / 10;
+  const voice = singer();
   return {
     id: 'pier-lights',
     title: 'Pier Lights',
@@ -376,9 +431,15 @@ export function pierLights(): Song {
     bars: BARS.length,
     beatsPerBar: 4,
     sleeve: { art: 'garden', colors: ['#1a1c22', '#f2a7c3', '#ffd25e', '#7fc8a9'] },
-    band: ['guitar', 'kit', 'bass', 'bass2', 'reverb', 'delay'],
-    inputs: { ch1: 'MOA-BASS', ch2: 'MOA-BASS 2', ch3: 'MOA-GUITAR', line1: 'MOA-KIT' },
+    band: ['guitar', 'kit', 'bass', 'bass2', 'vox', 'reverb', 'delay'],
+    inputs: { ch1: 'MOA-BASS', ch2: 'MOA-BASS 2', ch3: 'MOA-GUITAR', ch4: 'MOA-VOX', line1: 'MOA-KIT' },
     setup: {
+      // the singer: a baritone (a long tract), soft and a little breathy, a wide slow vibrato late into each note, big
+      // scoops, a glide from note to note
+      vox: { vox: { controls: {
+        lyrics: voice.lyrics, size: 18, tension: 0.55, breath: 0.3, roughness: 0.3, ring: 0.45,
+        'vibrato.depth': 45, 'vibrato.rate': 4.8, 'vibrato.delay': 0.45, scoop: 70, glide: 0.12, onset: 0.4, attack: 0.08, release: 0.35, level: 0.9,
+      } } },
       guitar: { guitar: { controls: {
         // the bridge and middle single coils, clean and bright, a light chorus: jangle
         'pickup.select': 'bridge+middle', 'pickup.type': 'single', tone: 10, 'pluck.style': 'pick', 'pluck.position': 0.08, 'pluck.strength': 0.5,
@@ -404,7 +465,9 @@ export function pierLights(): Song {
       mixer: { mixer: { controls: {
         // as Odd Hours' places; the accompaniment down (the guitar 3 dB, the dub bass 2, the kit 1); the tune where it was
         'ch1.fader': 0.52, 'ch1.pan': 0.15, 'ch1.aux1': 0.05,
-        'ch2.fader': 0.4, 'ch2.pan': 0.5, 'ch2.aux1': 0.18, 'ch2.aux2': 0.14,
+        // the singer in front, a plate's worth of reverb and a little echo; the free bass under him now
+        'ch4.fader': 1.1, 'ch4.pan': 0, 'ch4.aux1': 0.28, 'ch4.aux2': 0.12,
+        'ch2.fader': 0.3, 'ch2.pan': 0.5, 'ch2.aux1': 0.12, 'ch2.aux2': 0.08,
         'ch3.fader': 0.19, 'ch3.pan': -0.5, 'ch3.aux1': 0.18, 'ch3.aux2': 0.12,
         'line1.fader': 1.3, 'line1.aux1': 0.1,
         'ret1.fader': 0.8, 'ret2.fader': 0.7,
@@ -415,12 +478,15 @@ export function pierLights(): Song {
       kit: withDynamics(kit(), level),
       bass: withDynamics(dubBass(), level),
       // the tune swells with the band, half as much (a singer rides over it), and never so soft it thins out
-      bass2: withDynamics(freeBass(), (beat) => 0.5 + 0.5 * level(beat), 100),
+      bass2: withDynamics(freeBass(), level, 100),
+      // the singer swells with the band, half as much (he rides over it)
+      vox: withDynamics(fitEndings(voice.notes, voice.lyrics, 132), (beat) => 0.5 + 0.5 * level(beat), 127),
     },
     automation: automation(),
     sections: BLOCKS.map((block, k) => ({ name: NAMES[k]!, from: block.start, to: block.start + barsOf(block).length * 4, meter: '4/4', heat: HEAT[k]! })),
+    words: words(),
     // the band swings the sixteenths a little, together
     swung: [{ from: 0, to: BARS.length * 4, amount: 54, grid: 16 }],
-    humanise: { timing: { kit: 4, bass: 6, bass2: 7, guitar: 6 }, velocity: 0.05, layback: { kit: { 38: 3 } } },
+    humanise: { timing: { kit: 4, bass: 6, bass2: 7, guitar: 6, vox: 8 }, velocity: 0.05, layback: { kit: { 38: 3 } } },
   };
 }
