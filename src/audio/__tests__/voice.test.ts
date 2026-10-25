@@ -241,4 +241,24 @@ describe('MOA-VOX: expression', () => {
     expect(v.control('breath').value).toBe(0);
     expect(sent.at(-1)!.expression).toBeCloseTo(64 / 127, 9);
   });
+
+  it('breathes as a voice does: the default about 22 dB of tone over noise (clear), full breath about 10 (very breathy)', () => {
+    const run = (breath: number) => {
+      const core = quiet(new VoiceCore(SR, 17));
+      core.breath = breath;
+      core.noteOn(220, 0.8, false);
+      return sing(core, 1).subarray(SR / 2);
+    };
+    const clean = run(0);
+    const hnr = (breath: number) => {
+      const x = run(breath);
+      let tone = 0, noise = 0;
+      for (let i = 0; i < x.length; i++) { tone += clean[i]! ** 2; noise += (x[i]! - clean[i]!) ** 2; }
+      return 10 * Math.log10(tone / noise);
+    };
+    expect(hnr(0.25)).toBeGreaterThan(19);
+    expect(hnr(0.25)).toBeLessThan(26);
+    expect(hnr(1)).toBeGreaterThan(7);
+    expect(hnr(1)).toBeLessThan(14);
+  });
 });

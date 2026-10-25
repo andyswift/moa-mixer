@@ -25,6 +25,8 @@ export const VOICE_SOURCE = `
 const VOICE_C = 350;
 /** How far the ring narrows (or widens) the tube above the folds across its range, as a fraction of its width. */
 const RING_NARROW = 0.8;
+/** The aspiration noise's level: the default breath (0.25) about 22 dB under the tone (a clear voice), full breath about 10. */
+const NOISE_LEVEL = 0.42;
 
 class VoiceCore {
   constructor(sampleRate, lengthCm) {
@@ -49,8 +51,8 @@ class VoiceCore {
     this.shape = { tongueIndex: 14, tongueDiameter: 2.8, lips: 1.5, velum: 0.01 };
     this.setShape(this.shape, true);
     this.updateTract(1); this.updateTract(1); // the areas and reflections, before the first block
-    // aspiration noise: a band-pass, and the output's DC blocker
-    this.bp = [0, 0, 0, 0];
+    // aspiration noise (its filters' state, and the turbulence's slow flutter), and the output's DC blocker
+    this.nHp = 0; this.nHpX = 0; this.nLp = 0; this.flutter = 0;
     this.hpX = 0; this.hpY = 0;
   }
 
@@ -120,7 +122,7 @@ class VoiceCore {
       // tone in slowly, hard ones snap the folds shut (tense for a moment) and start at once
       this.hz = hz; this.sinceOn = 0;
       this.scoopOff = -this.scoop;
-      this.onsetBreath = 1.5 * (1 - this.onset);
+      this.onsetBreath = 1.0 * (1 - this.onset);
       this.onsetTense = 0.4 * this.onset;
       this.attackScale = 0.3 + 2.2 * (1 - this.onset);
     }
@@ -130,7 +132,7 @@ class VoiceCore {
 
   /** The note let go: the tone dies away, with a little breath out after it. */
   noteOff() {
-    if (this.on) this.exhale = 0.35 * this.amp;
+    if (this.on) this.exhale = 0.15 * this.amp;
     this.on = false; this.targetAmp = 0;
   }
 
@@ -211,17 +213,16 @@ class VoiceCore {
     const sr = this.sr;
     this.updateTract(len / sr);
     if (!this.lf) this.setupLF(this.rdFor());
-    // aspiration noise: a band-pass around 1.2 kHz
-    const w0 = (2 * Math.PI * 1200) / sr, alpha = Math.sin(w0) / (2 * 0.7), cw = Math.cos(w0);
-    const a0 = 1 + alpha, nb0 = alpha / a0, nb2 = -alpha / a0, na1 = (-2 * cw) / a0, na2 = (1 - alpha) / a0;
-    const z = this.bp;
+    // aspiration noise: turbulence at the glottis is broadband, so white noise with only its extremes taken off (a
+    // one-pole high-pass at 250 Hz, a low-pass at 4 kHz); the tract shapes it into the vowel, as it does the tone
+    const hpA = Math.exp((-2 * Math.PI * 250) / sr), lpA = Math.exp((-2 * Math.PI * 4000) / sr), flA = Math.exp((-2 * Math.PI * 30) / sr);
     // the attack and release are the times to get there (within a few per cent, and -43 dB)
     const target = this.targetAmp * this.expression;
     const rising = target > this.amp;
     const ampK = 1 - Math.exp(-1 / (sr * (rising ? (this.attack * this.attackScale) / 3 : this.release / 5)));
     const airK = 1 - Math.exp(-1 / (sr * (rising ? 0.01 : this.release / 5))); // the air comes at once
     const hzK = 1 - Math.exp(-1 / (sr * Math.max(0.002, this.glide)));
-    const fast = Math.exp(-1 / (sr * 0.04)), medium = Math.exp(-1 / (sr * 0.08)), slow = Math.exp(-1 / (sr * 0.15));
+    const fast = Math.exp(-1 / (sr * 0.04)), medium = Math.exp(-1 / (sr * 0.08)), slow = Math.exp(-1 / (sr * 0.1));
     for (let i = 0; i < len; i++) {
       this.amp += (target - this.amp) * ampK;
       this.air += (target - this.air) * airK;
@@ -257,10 +258,14 @@ class VoiceCore {
       const loud = this.amp;
       const voiced = loud > 1e-5 ? this.pulse(this.phase) * loud * this.shimmer : 0;
       const white = this.random() * 2 - 1;
-      const noise = nb0 * white + nb2 * z[1] - na1 * z[2] - na2 * z[3];
-      z[1] = z[0]; z[0] = white; z[3] = z[2]; z[2] = noise;
+      this.nHp = hpA * (this.nHp + white - this.nHpX); this.nHpX = white;
+      this.nLp = this.nHp + lpA * (this.nLp - this.nHp);
+      // turbulence is never steady: its level flutters (a random wobble below 30 Hz)
+      this.flutter = flA * this.flutter + (1 - flA) * (this.random() * 2 - 1);
+      const noise = this.nLp * (1 + 0.5 * Math.max(-1, Math.min(1, this.flutter * 8)));
       const open = this.phase < this.lf.te ? Math.sin((Math.PI * this.phase) / this.lf.te) : 0;
-      const aspiration = noise * (this.air * (this.breath + this.onsetBreath) * (0.25 + 0.75 * open) + this.exhale) * 1.4;
+      // the turbulence pulses with the airflow: strong while the glottis is open, little while it is shut
+      const aspiration = noise * (this.air * (this.breath + this.onsetBreath) * (0.1 + 0.9 * open) + this.exhale) * NOISE_LEVEL;
       const g = voiced + aspiration;
       // two steps of the tract a sample
       const frac = i / len;
