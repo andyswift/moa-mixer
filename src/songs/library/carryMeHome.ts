@@ -179,17 +179,17 @@ function voices(): { lead: Part; choir: Part } {
 
 // ---- the band ----
 
-/** The organ: the chord held each bar under the choir, swelling with the song. */
+/** The organ: the chord held each bar under the choir, swelling with the song; soft, and low enough to leave the voices room. */
 function organ(): NoteEvent[] {
   const out: NoteEvent[] = [];
   for (const bar of BARS) {
-    const vel = { intro: 70, V: 62, C: 76, S: 84, end: 88 }[bar.section];
+    const vel = { intro: 60, V: 48, C: 58, S: 64, end: 68 }[bar.section];
     if (bar.section === 'end' && bar.i === 2) continue;
     const len = bar.section === 'end' ? (bar.i === 0 ? 3.9 : 7.4) : 3.9;
     const split = CHORDS[bar.section][bar.i % CHORDS[bar.section].length];
     if (Array.isArray(split)) {
-      for (const [beat, l] of [[0, 1.9], [2, 1.9]] as const) for (const m of voicing(chordAt(bar, beat), bar.key, 60)) out.push(at(bar, beat, l, m, vel));
-    } else for (const m of voicing(chordAt(bar), bar.key, 60)) out.push(at(bar, 0, len, m, vel));
+      for (const [beat, l] of [[0, 1.9], [2, 1.9]] as const) for (const m of voicing(chordAt(bar, beat), bar.key, 55)) out.push(at(bar, beat, l, m, vel));
+    } else for (const m of voicing(chordAt(bar), bar.key, 55)) out.push(at(bar, 0, len, m, vel));
   }
   return out;
 }
@@ -338,10 +338,11 @@ export function carryMeHome(): Song {
         'ch1.fader': 0.55, 'ch1.pan': 0.15, 'ch1.aux1': 0.05,
         'ch2.fader': 0.3, 'ch2.pan': 0.4, 'ch2.aux1': 0.1,
         'ch3.fader': 0.18, 'ch3.pan': -0.5, 'ch3.aux1': 0.15,
-        'ch4.fader': 0.8, 'ch4.pan': 0, 'ch4.aux1': 0.3, 'ch4.aux2': 0.08,
-        'ch5.fader': 0.6, 'ch5.pan': -0.15, 'ch5.aux1': 0.4,
+        // the voices on top (the lead 3.5 dB up, the choir 4 after a listen), the organ well under them (12 dB down)
+        'ch4.fader': 1.2, 'ch4.pan': 0, 'ch4.aux1': 0.3, 'ch4.aux2': 0.08,
+        'ch5.fader': 0.95, 'ch5.pan': -0.15, 'ch5.aux1': 0.4,
         'line1.fader': 1.3, 'line1.aux1': 0.12,
-        'line4.fader': 0.35, 'line4.pan': 0.3, 'line4.aux1': 0.25,
+        'line4.fader': 0.09, 'line4.pan': 0.3, 'line4.aux1': 0.1,
         'ret1.fader': 0.9, 'ret2.fader': 0.6,
       } } },
     },

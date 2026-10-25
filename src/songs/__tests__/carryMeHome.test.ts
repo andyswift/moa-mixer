@@ -46,3 +46,16 @@ describe('Carry Me Home', () => {
     expect(top('Chorus″') - top('Chorus')).toBe(1);
   });
 });
+
+describe('Carry Me Home: the mix', () => {
+  it('puts the voices on top: the organ well under them, and below them in pitch', () => {
+    const song = carryMeHome();
+    const mixer = song.setup.mixer!.mixer!.controls!;
+    const db = (ch: string) => 20 * Math.log10(mixer[`${ch}.fader`] as number);
+    expect(db('line4')).toBeLessThan(db('ch4') - 20); // the organ comes in hot from its page; this leaves the lead clear of it
+    expect(db('line4')).toBeLessThan(db('ch5') - 18);
+    const top = Math.max(...song.tracks.pipe!.map((n) => n.note));
+    const leadMid = song.tracks.vox!.reduce((a, n) => a + n.note, 0) / song.tracks.vox!.length;
+    expect(top).toBeLessThan(leadMid);
+  });
+});
