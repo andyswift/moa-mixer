@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { VoxSinger } from '../../domain/devices/voxSinger';
-import { parseLyrics, parseSyllable, VOWEL_SHAPES } from '../../domain/devices/voxPhonemes';
+import { fitEndings, parseLyrics, parseSyllable, VOWEL_SHAPES } from '../../domain/devices/voxPhonemes';
 import { VOICE_SOURCE } from '../voiceWorklet';
 
 interface Core {
@@ -43,7 +43,7 @@ describe('MOA-VOX: syllables written down', () => {
     expect(show('pa')).toBe('2:ah:0'); // the closure, then the breath after it
     expect(parseSyllable('mm').onset[0]!.dur).toBe(Infinity);
     expect(parseSyllable('hmm').onset[0]!.velum).toBeGreaterThan(0.3);
-    expect(parseSyllable('shh').onset[0]!.noise).toBe(1);
+    expect(parseSyllable('shh').onset[0]!.noise).toBeGreaterThan(1); // sh is the loudest fricative
     expect(parseLyrics('la la, bay-bee').map((s) => s.text)).toEqual(['la', 'la,', 'bay', 'bee']);
     expect(parseLyrics('grandma hello baby').map((s) => s.text)).toEqual(['grand', 'ma', 'hel', 'lo', 'ba', 'by']);
     expect(parseLyrics('la _ _').map((s) => s.hold ?? false)).toEqual([false, true, true]);
@@ -201,5 +201,15 @@ describe('MOA-VOX CHOIR: a backing section', () => {
     expect(a!.diameter.length).toBeLessThan(b!.diameter.length);
     expect(a!.drift).not.toBe(b!.drift);
     for (const x of out) expect(Number.isFinite(x) && Math.abs(x) <= 1).toBe(true);
+  });
+});
+
+describe('MOA-VOX: endings sung inside the note', () => {
+  it('lets a note go early enough for its last consonants before the next note, but sings on into a hold', () => {
+    const notes = [{ t: 0, len: 1 }, { t: 1, len: 1 }, { t: 2, len: 1 }, { t: 3, len: 1 }];
+    const fitted = fitEndings(notes, 'wahnt ah _ ah', 120); // "want" ends on n and t: about a fifth of a second
+    expect(fitted[0]!.len).toBeLessThan(0.7);
+    expect(fitted[1]!.len).toBe(1); // sung on into its hold
+    expect(fitted[3]!.len).toBe(1); // the last: nothing after it to make room for
   });
 });

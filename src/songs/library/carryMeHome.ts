@@ -1,4 +1,5 @@
 import { GAUGES, SCALES, midiToHz, tensionFor } from '../../domain/devices/bassPhysics';
+import { fitEndings } from '../../domain/devices/voxPhonemes';
 import { seeded, withDynamics } from '../feel';
 import { note } from '../generators';
 import type { NoteEvent, Song, SungLine } from '../types';
@@ -372,8 +373,8 @@ export function carryMeHome(): Song {
       } } },
     },
     tracks: {
-      vox: withDynamics(lead.notes, (b) => 0.5 + 0.5 * level(b), 127),
-      choir: withDynamics(choir.notes, (b) => 0.5 + 0.5 * level(b), 127),
+      vox: withDynamics(fitEndings(lead.notes, lyricsOf(lead), 92), (b) => 0.5 + 0.5 * level(b), 127),
+      choir: withDynamics(fitEndings(choir.notes, lyricsOf(choir), 92), (b) => 0.5 + 0.5 * level(b), 127),
       pipe: withDynamics(organ(), level),
       guitar: withDynamics(guitar(), level),
       kit: withDynamics(kit(), level),

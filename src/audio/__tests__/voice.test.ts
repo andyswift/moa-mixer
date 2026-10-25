@@ -252,23 +252,24 @@ describe('MOA-VOX: expression', () => {
     expect(sent.at(-1)!.expression).toBeCloseTo(64 / 127, 9);
   });
 
-  it('breathes as a voice does: the default about 22 dB of tone over noise (clear), full breath about 10 (very breathy)', () => {
-    const run = (breath: number) => {
+  it('breathes as a voice does where the formants are: at 2 to 3 kHz the harmonics 15 dB over the noise (clear), full breath about 3 (very breathy)', () => {
+    const N = 32768;
+    const band = (breath: number) => {
       const core = quiet(new VoiceCore(SR, 17));
       core.breath = breath;
-      core.noteOn(220, 0.8, false);
-      return sing(core, 1).subarray(SR / 2);
+      core.noteOn(125, 0.85, false);
+      const x = sing(core, 1);
+      const re = new Float64Array(N), im = new Float64Array(N);
+      for (let i = 0; i < N; i++) re[i] = x[SR - N + i]! * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / N));
+      fft(re, im);
+      let harm = 0, between = 0;
+      for (let k = Math.round((2000 * N) / SR); k < (3000 * N) / SR; k++) {
+        const f = (k * SR) / N, d = Math.abs(f - Math.round(f / 125) * 125), p = re[k]! ** 2 + im[k]! ** 2;
+        if (d < 15) harm += p; else if (d > 40) between += p;
+      }
+      return 10 * Math.log10(harm / between);
     };
-    const clean = run(0);
-    const hnr = (breath: number) => {
-      const x = run(breath);
-      let tone = 0, noise = 0;
-      for (let i = 0; i < x.length; i++) { tone += clean[i]! ** 2; noise += (x[i]! - clean[i]!) ** 2; }
-      return 10 * Math.log10(tone / noise);
-    };
-    expect(hnr(0.25)).toBeGreaterThan(19);
-    expect(hnr(0.25)).toBeLessThan(26);
-    expect(hnr(1)).toBeGreaterThan(7);
-    expect(hnr(1)).toBeLessThan(14);
+    expect(band(0.25)).toBeGreaterThan(11);
+    expect(band(1)).toBeLessThan(8);
   });
 });

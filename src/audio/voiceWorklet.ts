@@ -32,8 +32,12 @@ export const VOICE_SOURCE = `
 const VOICE_C = 350;
 /** How far the ring narrows (or widens) the tube above the folds across its range, as a fraction of its width. */
 const RING_NARROW = 0.8;
+/** The tract area (at its narrowest) at which the airflow through the folds is halved: a nearly closed mouth. */
+const FLOW_AREA = 0.05;
+/** How loud the breath of an h, or after a p t k, is: about 10 dB under the vowel, as speech has it. */
+const ASP_LEVEL = 1.3;
 /** How loud the turbulence at a constriction is (a fricative, a burst), against the tone. */
-const FRIC_LEVEL = 0.5, BURST_LEVEL = 0.6;
+const FRIC_LEVEL = 4, BURST_LEVEL = 0.2;
 /**
  * The walls' losses, more at high frequencies (the soft walls give, the air rubs): each section's waves pass through a
  * gentle low-pass, this much of the step before. Its small delay makes each section act longer, so the tract is built
@@ -41,8 +45,12 @@ const FRIC_LEVEL = 0.5, BURST_LEVEL = 0.6;
  * squeaky, scratchy voice.
  */
 const WALL = 0.2;
-/** The aspiration noise's level: the default breath (0.25) about 22 dB under the tone (a clear voice), full breath about 10. */
-const NOISE_LEVEL = 0.42;
+/**
+ * The aspiration noise's level, set where the formants live (2 to 3 kHz): the default breath (0.25) about 15 dB under
+ * the harmonics there (a clear voice), full breath about 3 (very breathy). Set by the whole band it was 22 dB, but the
+ * tone's loud low end hid the noise drowning F2 and F3, and with them which vowel and which consonant it was.
+ */
+const NOISE_LEVEL = 0.08;
 
 class VoiceCore {
   constructor(sampleRate, lengthCm, seed) {
@@ -278,14 +286,23 @@ class VoiceCore {
   updateTract(seconds) {
     const n = this.n, d = this.diameter, t = this.target, v = this.vdiam, A = this.A;
     // the tongue's body moves toward the vowel at its own pace; a constriction (the tip, the lips) is quicker
-    const k = 1 - Math.exp(-seconds / 0.035), kc = 1 - Math.exp(-seconds / 0.01), kv = 1 - Math.exp(-seconds / 0.015);
+    // (an articulator closes fast and opens more slowly: the formants' glide out of a consonant, 40 to 60 ms, is where
+    // a listener hears where it was made)
+    const k = 1 - Math.exp(-seconds / 0.035), kc = 1 - Math.exp(-seconds / 0.01), ko = 1 - Math.exp(-seconds / 0.02), kv = 1 - Math.exp(-seconds / 0.015);
     for (let i = 0; i < n; i++) v[i] += (t[i] - v[i]) * k;
     this.velumNow += (this.velumTarget - this.velumNow) * kv;
     for (let i = 0; i < n; i++) d[i] = v[i];
     // each articulator closes the tract where it is; the narrowest gap is where the air hisses
     this.gap = 0; this.noiseAt = -1;
     for (const a of this.arts) {
-      a.diam += (a.target - a.diam) * kc;
+      if (a.index >= 0 && a.target >= 8 && a.diam < 8) {
+        // letting go: back to the vowel's own width there, at the pace the formants glide out of a consonant (where a
+        // listener hears which consonant it was), and only then off. (Aimed at "wide open", it was past the vowel in a
+        // few milliseconds: no glide at all.)
+        const open = this.vowelWidthAt(a.index);
+        a.diam += (open - a.diam) * ko;
+        if (a.diam >= open * 0.97) a.diam = 9;
+      } else a.diam += (a.target - a.diam) * (a.target > a.diam ? ko : kc);
       if (a.index < 0 || a.diam >= 8) continue;
       const c = a.index, cd = Math.max(0, a.diam);
       // (only a fricative's gap hisses; an l, r, w or y is too open for turbulence)
@@ -306,6 +323,14 @@ class VoiceCore {
     if (this.burst > this.gap && this.burstAt >= 0) this.noiseAt = this.burstAt; // a closure let go bursts where it was
     for (let i = 0; i < n; i++) A[i] = d[i] * d[i];
     this.lipFrom = this.lipTo === undefined ? A[n - 1] : this.lipTo; this.lipTo = A[n - 1];
+    // the folds feel the mouth: a narrow point above them lets pressure build behind it, the push across the folds
+    // falls and so does the airflow, to almost nothing behind a closure (a b's voice bar is faint, an l's murmur soft,
+    // and nothing is pumped into a shut tube to burst out as it opens). No say in an open vowel's
+    let narrowest = 9;
+    for (let i = this.larynxEnd; i < n; i++) if (A[i] < narrowest) narrowest = A[i];
+    if (this.velumNow > 0.1) narrowest = Math.max(narrowest, this.velumNow * this.velumNow); // the nose lets the air out
+    this.flowFrom = this.flowTo === undefined ? 1 : this.flowTo;
+    this.flowTo = Math.min(1, (narrowest / (narrowest + FLOW_AREA)) / (1 / (1 + FLOW_AREA)));
     this.nA[0] = this.velumNow * this.velumNow; // the velum's opening, as an area at the nose's mouth
     this.nRefl[1] = (this.nA[0] - this.nA[1]) / (this.nA[0] + this.nA[1]); // and so how much of the wave it lets into the nose
     const r0 = this.refl, r1 = this.newRefl;
@@ -322,10 +347,21 @@ class VoiceCore {
    * Sends an articulator toward a width. One that was shut and now opens bursts where it was, if air had built up
    * behind it: not for a nasal, the air going out through the nose all along.
    */
+  /** How wide the vowel has the tract where an articulator acts (the lips: their narrowest). */
+  vowelWidthAt(c) {
+    const v = this.vdiam;
+    if (c >= this.lipStart) { let m = 9; for (let i = this.lipStart; i < this.n; i++) m = Math.min(m, v[i]); return m; }
+    return v[Math.max(0, Math.min(this.n - 1, Math.round(c)))];
+  }
+
   moveArt(a, target) {
+    // closing from open, it starts from where the vowel has the tract (not from "wide open", which it would take a
+    // while to come in from)
+    if (a.diam >= 8 && target < 8 && a.index >= 0) a.diam = this.vowelWidthAt(a.index);
     if (a.target <= 0.02 && target > 0.02 && a.index >= 0 && this.velumNow < 0.1) {
       this.burst = this.gesture && this.gesture.voiced ? 0.5 : 1; // less pressure builds behind a b d g than a p t k
       this.burstAt = a.index;
+      this.burstTau = [0.022, 0.012, 0.008][this.arts.indexOf(a)]; // longest from the tongue's back, shortest from the lips
     }
     a.target = target;
   }
@@ -378,7 +414,7 @@ class VoiceCore {
     const ampK = 1 - Math.exp(-1 / (sr * (rising ? (this.attack * this.attackScale) / 3 : this.release / 5)));
     const airK = 1 - Math.exp(-1 / (sr * (rising ? 0.01 : this.release / 5))); // the air comes at once
     const hzK = 1 - Math.exp(-1 / (sr * Math.max(0.002, this.glide)));
-    const gateK = 1 - Math.exp(-1 / (sr * 0.005)), burstD = Math.exp(-1 / (sr * 0.008)), burstK = 1 - Math.exp(-1 / (sr * 0.0008));
+    const gateK = 1 - Math.exp(-1 / (sr * 0.005)), burstD = Math.exp(-1 / (sr * (this.burstTau || 0.012))), burstK = 1 - Math.exp(-1 / (sr * 0.0008));
     const fHpA = Math.exp((-2 * Math.PI * 1000) / sr), fLpA = Math.exp((-2 * Math.PI * 8000) / sr);
     const fast = Math.exp(-1 / (sr * 0.04)), medium = Math.exp(-1 / (sr * 0.08)), slow = Math.exp(-1 / (sr * 0.1));
     for (let i = 0; i < len; i++) {
@@ -413,7 +449,8 @@ class VoiceCore {
       // the glottis: the pulse, louder and a little tenser the louder the note, worked out at each of the tract's two
       // steps (its sharp closing edge, taken once a sample, would fold back down as a gritty haze); and turbulence while
       // it is open (more at a breathy onset, and a breath out after the note)
-      const loud = this.amp, k = loud > 1e-5 ? loud * this.vg : 0;
+      const flow = this.flowFrom + (this.flowTo - this.flowFrom) * (i / len);
+      const loud = this.amp, k = loud > 1e-5 ? loud * this.vg * flow : 0;
       const voiced = k ? this.pulse(this.phase) * k * this.shimmer : 0;
       this.advancePhase(f / (2 * sr));
       const voiced2 = k ? this.pulse(this.phase) * k * this.shimmer : 0;
@@ -426,7 +463,7 @@ class VoiceCore {
       const open = this.phase < this.lf.te ? Math.sin((Math.PI * this.phase) / this.lf.te) : 0;
       // the turbulence pulses with the airflow: strong while the glottis is open, little while it is shut
       const shut = 1 - this.vg; // folds held apart (an h, a p t k), the air flows steadily, not in pulses
-      const aspiration = noise * (this.air * (this.breath + this.onsetBreath) * (0.1 + 0.9 * (open * this.vg + shut)) + this.air * this.asp * 1.5 + this.exhale) * NOISE_LEVEL;
+      const aspiration = noise * (this.air * (this.breath + this.onsetBreath) * (0.1 + 0.9 * (open * this.vg + shut)) + this.air * this.asp * ASP_LEVEL + this.exhale) * NOISE_LEVEL;
       const g = voiced + aspiration, g2 = voiced2 + aspiration;
       // turbulence at the constriction: air through a narrow gap (none through a shut one), and a closure's burst
       let turbulence = 0;
@@ -434,7 +471,7 @@ class VoiceCore {
         const white2 = this.random() * 2 - 1;
         this.fHp = fHpA * (this.fHp + white2 - this.fHpX); this.fHpX = white2;
         this.fLp = this.fHp + fLpA * (this.fLp - this.fHp); // and above 8 kHz it fades
-        turbulence = this.fLp * this.air * (this.gap * (0.2 + this.fric) * FRIC_LEVEL + this.burstNow * BURST_LEVEL);
+        turbulence = this.fLp * this.air * (this.gap * Math.max(0, this.fric) * FRIC_LEVEL + this.burstNow * BURST_LEVEL);
       }
       // two steps of the tract a sample
       const frac = i / len;

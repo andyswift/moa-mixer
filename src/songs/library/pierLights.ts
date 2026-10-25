@@ -1,4 +1,5 @@
 import { GAUGES, SCALES, midiToHz, tensionFor } from '../../domain/devices/bassPhysics';
+import { fitEndings } from '../../domain/devices/voxPhonemes';
 import { seeded, withDynamics } from '../feel';
 import { note } from '../generators';
 import type { Automation, NoteEvent, Song, SungLine } from '../types';
@@ -479,7 +480,7 @@ export function pierLights(): Song {
       // the tune swells with the band, half as much (a singer rides over it), and never so soft it thins out
       bass2: withDynamics(freeBass(), level, 100),
       // the singer swells with the band, half as much (he rides over it)
-      vox: withDynamics(voice.notes, (beat) => 0.5 + 0.5 * level(beat), 127),
+      vox: withDynamics(fitEndings(voice.notes, voice.lyrics, 132), (beat) => 0.5 + 0.5 * level(beat), 127),
     },
     automation: automation(),
     sections: BLOCKS.map((block, k) => ({ name: NAMES[k]!, from: block.start, to: block.start + barsOf(block).length * 4, meter: '4/4', heat: HEAT[k]! })),
