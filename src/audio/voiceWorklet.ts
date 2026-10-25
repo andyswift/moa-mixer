@@ -23,6 +23,8 @@ export const VOICE_NAME = 'moa-voice';
 export const VOICE_SOURCE = `
 /** The speed of sound in warm, moist air, m/s. */
 const VOICE_C = 350;
+/** How far the ring narrows (or widens) the tube above the folds across its range, as a fraction of its width. */
+const RING_NARROW = 0.8;
 
 class VoiceCore {
   constructor(sampleRate, lengthCm) {
@@ -36,6 +38,11 @@ class VoiceCore {
     this.vibRate = 5.5; this.vibDepth = 30; this.vibDelay = 0.35; this.vibPhase = 0; this.sinceOn = 0;
     this.bend = 0; // semitones
     this.drift = 0; this.driftTarget = 0; this.driftAt = 0;
+    // expression: how a note starts (0 breathy, 1 a hard glottal attack), the scoop up into it (cents), the cycle-to-
+    // cycle roughness (jitter and shimmer), and the expression pedal (a multiplier on how loud)
+    this.onset = 0.5; this.scoop = 40; this.roughness = 0.3; this.expression = 1;
+    this.air = 0; this.onsetBreath = 0; this.onsetTense = 0; this.attackScale = 1; this.scoopOff = 0; this.exhale = 0;
+    this.jitter = 0; this.shimmer = 1; this.vibRateMul = 1; this.vibDepthMul = 1;
     this.phase = 0; // through the glottal period, 0..1
     this.lf = null;
     this.setLength(lengthCm || 16.5);
@@ -60,6 +67,7 @@ class VoiceCore {
     this.refl = new Float64Array(n + 1); this.newRefl = new Float64Array(n + 1);
     const at = (k) => Math.round((k * n) / 44); // landmarks on Pink Trombone's 44-section grid, scaled
     this.bladeStart = at(10); this.tipStart = at(32); this.lipStart = at(39); this.noseStart = at(17);
+    this.larynxEnd = at(7);
     for (let i = 0; i < n; i++) {
       const d = i < at(7) - 0.5 ? 0.6 : i < at(12) ? 1.1 : 1.5; // the larynx narrow, the pharynx opening out
       this.rest[i] = d; this.diameter[i] = d; this.target[i] = d;
@@ -84,6 +92,11 @@ class VoiceCore {
     this.shape = s;
     const n = this.n, t = this.target;
     for (let i = 0; i < n; i++) t[i] = this.rest[i];
+    // the ring (the singer's formant): the tube just above the folds (about 2.5 cm, a sixth of the throat's area as it
+    // rests) narrowed, so its own resonance near 3 kHz gathers the third to fifth formants into one bright peak;
+    // widened, the ring goes. 0.5 is the tract at rest
+    const ring = (s.ring === undefined ? 0.5 : s.ring) - 0.5;
+    for (let i = 0; i < this.larynxEnd; i++) t[i] *= 1 - RING_NARROW * ring;
     // the tongue's body: a bump along the mouth, centred at tongueIndex, its height from tongueDiameter
     const index = (s.tongueIndex * n) / 44, dia = s.tongueDiameter;
     for (let i = this.bladeStart; i < this.lipStart; i++) {
@@ -102,12 +115,24 @@ class VoiceCore {
   /** The pitch (Hz), how loud (0..1), and whether the note glides from the last one (legato) or starts afresh. */
   noteOn(hz, intensity, legato) {
     this.targetHz = hz;
-    if (!legato) { this.hz = hz; this.sinceOn = 0; } // a new note starts on its pitch, its vibrato to come; legato glides
+    if (!legato) {
+      // a new note: on its pitch but scooped up into it, its vibrato to come; breathy onsets lead with air and let the
+      // tone in slowly, hard ones snap the folds shut (tense for a moment) and start at once
+      this.hz = hz; this.sinceOn = 0;
+      this.scoopOff = -this.scoop;
+      this.onsetBreath = 1.5 * (1 - this.onset);
+      this.onsetTense = 0.4 * this.onset;
+      this.attackScale = 0.3 + 2.2 * (1 - this.onset);
+    }
     this.on = true;
     this.targetAmp = intensity;
   }
 
-  noteOff() { this.on = false; this.targetAmp = 0; }
+  /** The note let go: the tone dies away, with a little breath out after it. */
+  noteOff() {
+    if (this.on) this.exhale = 0.35 * this.amp;
+    this.on = false; this.targetAmp = 0;
+  }
 
   random() { this.seed = (this.seed * 1664525 + 1013904223) >>> 0; return this.seed / 4294967296; }
 
@@ -191,31 +216,51 @@ class VoiceCore {
     const a0 = 1 + alpha, nb0 = alpha / a0, nb2 = -alpha / a0, na1 = (-2 * cw) / a0, na2 = (1 - alpha) / a0;
     const z = this.bp;
     // the attack and release are the times to get there (within a few per cent, and -43 dB)
-    const ampK = 1 - Math.exp(-1 / (sr * (this.targetAmp > this.amp ? this.attack / 3 : this.release / 5)));
+    const target = this.targetAmp * this.expression;
+    const rising = target > this.amp;
+    const ampK = 1 - Math.exp(-1 / (sr * (rising ? (this.attack * this.attackScale) / 3 : this.release / 5)));
+    const airK = 1 - Math.exp(-1 / (sr * (rising ? 0.01 : this.release / 5))); // the air comes at once
     const hzK = 1 - Math.exp(-1 / (sr * Math.max(0.002, this.glide)));
+    const fast = Math.exp(-1 / (sr * 0.04)), medium = Math.exp(-1 / (sr * 0.08)), slow = Math.exp(-1 / (sr * 0.15));
     for (let i = 0; i < len; i++) {
-      this.amp += (this.targetAmp - this.amp) * ampK;
-      if (!this.on && this.amp < 1e-4) this.amp = 0;
+      this.amp += (target - this.amp) * ampK;
+      this.air += (target - this.air) * airK;
+      if (!this.on && this.amp < 1e-4) { this.amp = 0; if (this.air < 1e-4) this.air = 0; }
+      this.onsetBreath *= medium; this.onsetTense *= fast; this.scoopOff *= medium; this.exhale *= slow;
       this.hz *= Math.pow(this.targetHz / this.hz, hzK);
-      // vibrato fading in after the note starts, and a slow wander of a few cents
+      // vibrato fading in after the note starts and deepening as it is held, its rate and depth never quite even;
+      // and a slow wander of a few cents
       this.sinceOn += 1 / sr;
-      const fadeIn = Math.min(1, Math.max(0, (this.sinceOn - this.vibDelay) / 0.4));
-      this.vibPhase += this.vibRate / sr;
-      if (this.vibPhase > 1) this.vibPhase -= 1;
+      const held = this.sinceOn - this.vibDelay;
+      const fadeIn = Math.min(1, Math.max(0, held / 0.4)) * (0.75 + 0.25 * Math.min(1, Math.max(0, held / 1.5)));
+      this.vibPhase += (this.vibRate * this.vibRateMul) / sr;
+      if (this.vibPhase > 1) {
+        this.vibPhase -= 1;
+        this.vibRateMul = 1 + (this.random() - 0.5) * 0.16;
+        this.vibDepthMul = 1 + (this.random() - 0.5) * 0.3;
+      }
       if (--this.driftAt <= 0) { this.driftTarget = (this.random() - 0.5) * 8; this.driftAt = sr * (0.2 + 0.3 * this.random()); }
       this.drift += (this.driftTarget - this.drift) * (4 / sr);
-      const cents = this.vibDepth * fadeIn * Math.sin(2 * Math.PI * this.vibPhase) + this.drift + this.bend * 100;
-      const f = this.hz * Math.pow(2, cents / 1200);
+      const vib = this.vibDepth * this.vibDepthMul * fadeIn * Math.sin(2 * Math.PI * this.vibPhase);
+      const cents = vib + this.drift + this.scoopOff + this.bend * 100;
+      const f = this.hz * Math.pow(2, cents / 1200) * (1 + this.jitter);
       this.phase += f / sr;
-      if (this.phase >= 1) { this.phase -= 1; this.setupLF(this.rdFor()); }
-      // the glottis: the pulse, louder and a little tenser the louder the note, and turbulence while it is open
+      if (this.phase >= 1) {
+        // a new period: its shape for the voice's tension now, and the roughness, its length and height a little off
+        this.phase -= 1;
+        this.setupLF(this.rdFor());
+        this.jitter = (this.random() - 0.5) * 0.012 * this.roughness;
+        this.shimmer = 1 + (this.random() - 0.5) * 0.16 * this.roughness;
+      }
+      // the glottis: the pulse, louder and a little tenser the louder the note, and turbulence while it is open (more
+      // at a breathy onset, and a breath out after the note)
       const loud = this.amp;
-      const voiced = loud > 1e-5 ? this.pulse(this.phase) * loud : 0;
+      const voiced = loud > 1e-5 ? this.pulse(this.phase) * loud * this.shimmer : 0;
       const white = this.random() * 2 - 1;
       const noise = nb0 * white + nb2 * z[1] - na1 * z[2] - na2 * z[3];
       z[1] = z[0]; z[0] = white; z[3] = z[2]; z[2] = noise;
       const open = this.phase < this.lf.te ? Math.sin((Math.PI * this.phase) / this.lf.te) : 0;
-      const aspiration = noise * loud * this.breath * (0.25 + 0.75 * open) * 1.4;
+      const aspiration = noise * (this.air * (this.breath + this.onsetBreath) * (0.25 + 0.75 * open) + this.exhale) * 1.4;
       const g = voiced + aspiration;
       // two steps of the tract a sample
       const frac = i / len;
@@ -232,7 +277,7 @@ class VoiceCore {
 
   /** Rd from the tension and how loud the note is: louder voices are a little tenser. */
   rdFor() {
-    const tense = Math.max(0, Math.min(1, this.tension + 0.15 * (this.amp - 0.7)));
+    const tense = Math.max(0, Math.min(1, this.tension + 0.15 * (this.amp - 0.7) + this.onsetTense));
     return 2.7 - 2.2 * tense;
   }
 
@@ -267,7 +312,7 @@ if (typeof registerProcessor === 'function') {
       const c = this.core;
       if (m.length) c.setLength(m.length);
       if (m.shape) c.setShape(m.shape, false);
-      for (const k of ['tension', 'breath', 'vibRate', 'vibDepth', 'vibDelay', 'glide', 'attack', 'release', 'bend']) if (typeof m[k] === 'number') c[k] = m[k];
+      for (const k of ['tension', 'breath', 'vibRate', 'vibDepth', 'vibDelay', 'glide', 'attack', 'release', 'bend', 'onset', 'scoop', 'roughness', 'expression']) if (typeof m[k] === 'number') c[k] = m[k];
     }
     process(inputs, outputs, params) {
       const out = outputs[0][0];

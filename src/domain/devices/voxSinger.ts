@@ -5,14 +5,21 @@ import { Device } from './device';
 import type { Playable } from './playable';
 
 const MOD_WHEEL_CC = 1;
+const BREATH_CC = 2;
+const EXPRESSION_CC = 11;
+const VOWEL_CC = 74;
 const BEND_SEMITONES = 2;
 
-/** A vocal tract's shape: where the tongue's body is (on a 44-section grid, throat to teeth), how high, the lips' opening, the velum's. */
+/**
+ * A vocal tract's shape: where the tongue's body is (on a 44-section grid, throat to teeth), how high, the lips'
+ * opening, the velum's, and the ring (how narrow the tube just above the folds is: 0.5 as it rests).
+ */
 export interface TractShape {
   tongueIndex: number;
   tongueDiameter: number;
   lips: number;
   velum: number;
+  ring?: number;
 }
 
 /**
@@ -50,7 +57,8 @@ export interface VoxView {
  * MOA-VOX: a singing voice, physically modelled (`voiceWorklet.ts`): vocal folds (an LF glottal pulse with a tension
  * and a breath), a vocal tract of cylinders shaped by a tongue and lips into vowels, and a nose behind the velum. One
  * voice: a singer sings one note at a time, so a key pressed while another is held is sung legato, gliding to it, and
- * letting it go glides back to the one still held. The bend wheel bends the pitch, the mod wheel adds vibrato.
+ * letting it go glides back to the one still held. The bend wheel bends the pitch, the mod wheel adds vibrato; a
+ * breath controller (CC 2) gives it air, the expression pedal (CC 11) how loud, and CC 74 moves the vowel.
  */
 export class VoxSinger extends Device implements Playable {
   readonly name: string;
@@ -72,12 +80,16 @@ export class VoxSinger extends Device implements Playable {
       .connect('voice', 'master');
     this.outputList.push({ name: 'out', nodeId: 'master' });
 
-    const shape = () => this.configure({ shape: vowelShape(this.value('vowel'), this.value('nasal')) });
+    const shape = () => this.configure({ shape: this.shape });
     this.num('vowel', 'Vowel', 0, VOWELS.length - 1, 2, '', shape);
     this.num('nasal', 'Nasal', 0, 1, 0, '', shape);
+    this.num('ring', 'Ring', 0, 1, 0.5, '', shape);
     this.num('size', 'Tract', 13, 19, 17, 'cm', (v) => this.configure({ length: v }));
     this.num('tension', 'Tension', 0, 1, 0.6, '', (v) => this.configure({ tension: v }));
     this.num('breath', 'Breath', 0, 1, 0.25, '', (v) => this.configure({ breath: v }));
+    this.num('roughness', 'Rough', 0, 1, 0.3, '', (v) => this.configure({ roughness: v }));
+    this.num('onset', 'Onset', 0, 1, 0.5, '', (v) => this.configure({ onset: v }));
+    this.num('scoop', 'Scoop', 0, 150, 40, 'ct', (v) => this.configure({ scoop: v }));
     this.num('vibrato.depth', 'Vibrato', 0, 100, 30, 'ct', (v) => this.applyVibrato(v));
     this.num('vibrato.rate', 'Rate', 3, 8, 5.5, 'Hz', (v) => this.configure({ vibRate: v }));
     this.num('vibrato.delay', 'Delay', 0, 1.5, 0.35, 's', (v) => this.configure({ vibDelay: v }));
@@ -110,7 +122,7 @@ export class VoxSinger extends Device implements Playable {
 
   /** The tract's shape the knobs ask for now. */
   get shape(): TractShape {
-    return vowelShape(this.value('vowel'), this.value('nasal'));
+    return { ...vowelShape(this.value('vowel'), this.value('nasal')), ring: this.value('ring') };
   }
 
   // ---- playing ----
@@ -186,6 +198,9 @@ export class VoxSinger extends Device implements Playable {
         break;
       case 'cc':
         if (event.controller === MOD_WHEEL_CC) this.setModWheel(event.value / 127);
+        else if (event.controller === BREATH_CC) (this.control('breath') as NumberControl).set(event.value / 127);
+        else if (event.controller === EXPRESSION_CC) this.configure({ expression: event.value / 127 });
+        else if (event.controller === VOWEL_CC) (this.control('vowel') as NumberControl).set(((VOWELS.length - 1) * event.value) / 127);
         break;
     }
   }

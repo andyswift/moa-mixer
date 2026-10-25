@@ -54,10 +54,10 @@ export function renderVoxPanel(v: VoxSinger, engine: AudioEngine): HTMLElement {
     return b;
   });
 
-  const voice = renderSection(v, { title: 'Vowel', color: PINK, grow: 3, faders: ['vowel', 'nasal', { id: 'size', label: 'Tract' }] });
-  const source = renderSection(v, { title: 'Folds', color: ORANGE, grow: 3, faders: ['tension', 'breath', 'level'] });
+  const voice = renderSection(v, { title: 'Vowel', color: PINK, grow: 4, faders: ['vowel', 'nasal', 'ring', { id: 'size', label: 'Tract' }] });
+  const source = renderSection(v, { title: 'Folds', color: ORANGE, grow: 4, faders: ['tension', 'breath', 'roughness', 'level'] });
   const vibrato = renderSection(v, { title: 'Vibrato', color: BLUE, grow: 3, faders: [{ id: 'vibrato.depth', label: 'Depth' }, { id: 'vibrato.rate', label: 'Rate' }, { id: 'vibrato.delay', label: 'Delay' }] });
-  const envelope = renderSection(v, { title: 'Phrasing', color: GREEN, grow: 3, faders: ['glide', 'attack', 'release'] });
+  const envelope = renderSection(v, { title: 'Phrasing', color: GREEN, grow: 5, faders: ['onset', 'scoop', 'glide', 'attack', 'release'] });
   const row = el('div', 'synth-row');
   row.append(voice, source, vibrato, envelope);
   panel.append(header, stage, vowels, row);
