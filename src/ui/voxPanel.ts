@@ -1,7 +1,7 @@
 import type { AudioEngine } from '../audio/engine';
 import { VOICE_SOURCE } from '../audio/voiceWorklet';
 import { noteOf } from '../domain/devices/bassPhysics';
-import type { NumberControl } from '../domain/devices/controls';
+import type { NumberControl, TextControl } from '../domain/devices/controls';
 import { VOWELS, type VoxSinger, type VoxView } from '../domain/devices/voxSinger';
 import { BLUE, GREEN, ORANGE, PINK, renderSection } from './synthPanel';
 import { el } from './widgets';
@@ -60,7 +60,45 @@ export function renderVoxPanel(v: VoxSinger, engine: AudioEngine): HTMLElement {
   const envelope = renderSection(v, { title: 'Phrasing', color: GREEN, grow: 5, faders: ['onset', 'scoop', 'glide', 'attack', 'release'] });
   const row = el('div', 'synth-row');
   row.append(voice, source, vibrato, envelope);
-  panel.append(header, stage, vowels, row);
+  // ---- the lyrics: a line of syllables, each new note singing the next; a few lines to start from
+  const lyricsControl = v.control('lyrics') as TextControl;
+  const lyrics = el('div', 'vox-lyrics');
+  const label = el('label', 'vox-lyrics-label', 'Lyrics');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'vox-lyrics-input';
+  input.id = 'vox-lyrics';
+  input.placeholder = 'Empty: sing the Vowel knob. Or syllables: la la, doo-bee, ooh, mm, shh';
+  input.spellcheck = false;
+  input.value = lyricsControl.value;
+  label.htmlFor = input.id;
+  input.addEventListener('input', () => lyricsControl.set(input.value));
+  const presets = el('div', 'vox-presets');
+  for (const line of ['ooh', 'aah', 'la la la', 'na na na', 'doo doo doo', 'mm', 'bay-bee', 'hey on', 'shh']) {
+    const b = el('button', 'vox-preset', line);
+    b.type = 'button';
+    b.addEventListener('click', () => { lyricsControl.set(line); input.value = line; });
+    presets.append(b);
+  }
+  const clear = el('button', 'vox-preset', 'No lyrics');
+  clear.type = 'button';
+  clear.addEventListener('click', () => { lyricsControl.set(''); input.value = ''; });
+  presets.append(clear);
+  const syllables = el('div', 'vox-syllables');
+  syllables.setAttribute('aria-live', 'off');
+  const showSyllables = () => {
+    syllables.replaceChildren(...v.lyrics.map((s, k) => {
+      const chip = el('span', 'vox-syllable', s.text);
+      chip.classList.toggle('on', k === v.lyricIndex);
+      return chip;
+    }));
+  };
+  lyricsControl.onChange(showSyllables);
+  v.onNoteChange(showSyllables);
+  showSyllables();
+  lyrics.append(label, input, presets, syllables);
+
+  panel.append(header, stage, vowels, lyrics, row);
 
   // ---- drawing, every frame: the live voice once the audio runs, before then the shape the knobs ask for
   const preview = new VoiceCore(48000, 17);

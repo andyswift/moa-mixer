@@ -100,7 +100,34 @@ export class ToggleControl extends Observable {
   }
 }
 
-export type Control = NumberControl | ChoiceControl | ToggleControl;
+/** Free text (a line of lyrics). */
+export class TextControl extends Observable {
+  readonly kind = 'text' as const;
+  private current: string;
+
+  constructor(
+    readonly id: string,
+    readonly label: string,
+    initial: string,
+    private readonly apply: (v: string) => void,
+  ) {
+    super();
+    this.current = initial;
+    this.apply(initial);
+  }
+
+  get value(): string {
+    return this.current;
+  }
+
+  set(v: string): void {
+    this.current = v;
+    this.apply(v);
+    this.notify();
+  }
+}
+
+export type Control = NumberControl | ChoiceControl | ToggleControl | TextControl;
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));

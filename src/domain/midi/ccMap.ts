@@ -29,7 +29,7 @@ export function applyCcValue(control: Control, value: number): void {
   } else if (control.kind === 'choice') {
     const index = Math.min(control.options.length - 1, Math.floor(t * control.options.length));
     control.set(control.options[index]!);
-  } else {
+  } else if (control.kind === 'toggle') {
     control.set(value >= 64);
-  }
+  } // text is not a thing a knob can turn
 }

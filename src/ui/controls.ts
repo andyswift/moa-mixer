@@ -46,6 +46,12 @@ export function renderControl(c: Control): HTMLElement {
     for (const o of c.options) select.add(new Option(o, o, false, o === c.value));
     select.addEventListener('change', () => c.set(select.value));
     wrap.append(select);
+  } else if (c.kind === 'text') {
+    const text = document.createElement('input');
+    text.type = 'text';
+    text.value = c.value;
+    text.addEventListener('change', () => c.set(text.value));
+    wrap.append(text);
   } else {
     const box = document.createElement('input');
     box.type = 'checkbox';

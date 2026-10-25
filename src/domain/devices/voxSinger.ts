@@ -1,8 +1,9 @@
 import type { MidiEvent } from '../midi/events';
 import { midiToHz } from './bassPhysics';
-import { NumberControl } from './controls';
+import { NumberControl, TextControl } from './controls';
 import { Device } from './device';
 import type { Playable } from './playable';
+import { parseLyrics, VOWEL_SHAPES, type Syllable } from './voxPhonemes';
 
 const MOD_WHEEL_CC = 1;
 const BREATH_CC = 2;
@@ -59,6 +60,10 @@ export interface VoxView {
  * voice: a singer sings one note at a time, so a key pressed while another is held is sung legato, gliding to it, and
  * letting it go glides back to the one still held. The bend wheel bends the pitch, the mod wheel adds vibrato; a
  * breath controller (CC 2) gives it air, the expression pedal (CC 11) how loud, and CC 74 moves the vowel.
+ *
+ * With a line of lyrics (syllables, `voxPhonemes.ts`), each new note sings the next syllable, round and round: its
+ * consonants, its vowel (the Vowel knob is then unused), and as the note is let go its ending. A legato note carries
+ * on the vowel, as a singer holds a syllable over several notes.
  */
 export class VoxSinger extends Device implements Playable {
   readonly name: string;
@@ -70,6 +75,10 @@ export class VoxSinger extends Device implements Playable {
   private readonly noteListeners = new Set<() => void>();
   private readonly performanceListeners = new Set<() => void>();
   private settings: Record<string, unknown> = {};
+  private syllables: Syllable[] = [];
+  private syllableAt = 0;
+  /** The syllable sung last (an index into the line), -1 before the first. */
+  lyricIndex = -1;
 
   constructor(name = 'MOA-VOX') {
     super();
@@ -97,6 +106,7 @@ export class VoxSinger extends Device implements Playable {
     this.num('attack', 'Attack', 0.01, 1, 0.08, 's', (v) => this.configure({ attack: v }), 'log');
     this.num('release', 'Release', 0.02, 2, 0.25, 's', (v) => this.configure({ release: v }), 'log');
     this.num('level', 'Level', 0, 2, 0.8, '', (v) => c.setParam('voice', 'level', v));
+    this.controlList.push(new TextControl('lyrics', 'Lyrics', '', (v) => { this.syllables = parseLyrics(v); this.resetLyrics(); }));
   }
 
   private num(id: string, label: string, min: number, max: number, init: number, unit: string, apply: (v: number) => void, curve?: 'linear' | 'log'): void {
@@ -151,7 +161,31 @@ export class VoxSinger extends Device implements Playable {
 
   private sing(note: number, legato: boolean): void {
     const velocity = this.velocities.get(note) ?? 100;
-    this.circuit.send('voice', { type: 'note', hz: midiToHz(note), intensity: 0.35 + 0.65 * (velocity / 127), legato });
+    let syllable: object | undefined;
+    if (!legato && this.syllables.length) {
+      const s = this.syllables[this.syllableAt % this.syllables.length]!;
+      this.lyricIndex = this.syllableAt % this.syllables.length;
+      this.syllableAt++;
+      syllable = { onset: s.onset, vowel: this.vowelShape(s.vowel), vowel2: s.vowel2 ? this.vowelShape(s.vowel2) : undefined, coda: s.coda };
+    }
+    this.circuit.send('voice', { type: 'note', hz: midiToHz(note), intensity: 0.35 + 0.65 * (velocity / 127), legato, syllable });
+  }
+
+  /** A syllable's vowel as a tract shape, with the voice's nasality and ring. */
+  private vowelShape(name: string): TractShape {
+    return { ...VOWEL_SHAPES[name]!, velum: 0.01 + 0.39 * this.value('nasal'), ring: this.value('ring') };
+  }
+
+  /** Back to the start of the line of lyrics. */
+  resetLyrics(): void {
+    this.syllableAt = 0;
+    this.lyricIndex = -1;
+    this.notifyNotes();
+  }
+
+  /** The line of lyrics as syllables. */
+  get lyrics(): readonly Syllable[] {
+    return this.syllables;
   }
 
   onNoteChange(fn: () => void): () => void {
