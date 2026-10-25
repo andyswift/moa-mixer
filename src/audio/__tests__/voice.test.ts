@@ -81,9 +81,17 @@ describe('MOA-VOX: the vocal tract', () => {
     }
   });
 
+  it('damps its top end as a real tract does: no squeaking, no fizz above 5 kHz', () => {
+    const peak = (mag: number[], lo: number, hi: number) => Math.max(...mag.slice(Math.round((lo * 8192) / SR), Math.round((hi * 8192) / SR)));
+    for (const v of VOWELS) {
+      const mag = spectrum(v.shape);
+      expect(20 * Math.log10(peak(mag, 5000, 12000) / peak(mag, 100, 1500)), v.name).toBeLessThan(-6);
+    }
+  });
+
   it('is as long as asked: a shorter tract has fewer sections and every resonance higher (a smaller voice)', () => {
     const long = new VoiceCore(SR, 17), short = new VoiceCore(SR, 14);
-    expect(long.n).toBe(Math.round(0.17 / (350 / (2 * SR))));
+    expect(long.n).toBe(Math.round(0.17 / (350 / (2 * SR)) / 1.2)); // sections made longer by the walls' losses
     expect(short.n).toBeLessThan(long.n);
     const fl = formants(VOWELS[2]!.shape, 17), fs = formants(VOWELS[2]!.shape, 14);
     expect(fs[0]!).toBeGreaterThan(fl[0]! * 1.1);

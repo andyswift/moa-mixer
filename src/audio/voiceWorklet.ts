@@ -34,6 +34,13 @@ const VOICE_C = 350;
 const RING_NARROW = 0.8;
 /** How loud the turbulence at a constriction is (a fricative, a burst), against the tone. */
 const FRIC_LEVEL = 0.5, BURST_LEVEL = 0.6;
+/**
+ * The walls' losses, more at high frequencies (the soft walls give, the air rubs): each section's waves pass through a
+ * gentle low-pass, this much of the step before. Its small delay makes each section act longer, so the tract is built
+ * of that many fewer sections for its length. Without it the tube's upper formants ring and the top end rises: a
+ * squeaky, scratchy voice.
+ */
+const WALL = 0.2;
 /** The aspiration noise's level: the default breath (0.25) about 22 dB under the tone (a clear voice), full breath about 10. */
 const NOISE_LEVEL = 0.42;
 
@@ -64,7 +71,7 @@ class VoiceCore {
     this.vg = 1; this.voicedTarget = 1; this.fric = 0; this.fricTarget = 0; this.asp = 0; this.aspTarget = 0; this.burst = 0; this.burstNow = 0;
     // a syllable's gestures: the one under way, those to come, and what the note's end will do
     this.gesture = null; this.gLeft = 0; this.queue = []; this.ending = false; this.vowel2 = null; this.coda = [];
-    this.fHp = 0; this.fHpX = 0;
+    this.fHp = 0; this.fHpX = 0; this.fLp = 0;
     this.setLength(lengthCm || 16.5);
     this.shape = { tongueIndex: 14, tongueDiameter: 2.8, lips: 1.5, velum: 0.01 };
     this.setShape(this.shape, true);
@@ -77,10 +84,10 @@ class VoiceCore {
   /** The tract's length, cm: the number of sections (each half a sample of travel). */
   setLength(cm) {
     const step = VOICE_C / (2 * this.sr);
-    const n = Math.max(24, Math.min(80, Math.round(cm / 100 / step)));
+    const n = Math.max(24, Math.min(80, Math.round(cm / 100 / step / (1 + WALL))));
     if (n === this.n) return;
     this.n = n;
-    this.R = new Float64Array(n); this.L = new Float64Array(n);
+    this.R = new Float64Array(n); this.L = new Float64Array(n); this.pR = new Float64Array(n); this.pL = new Float64Array(n);
     this.jR = new Float64Array(n + 1); this.jL = new Float64Array(n + 1);
     this.diameter = new Float64Array(n); this.target = new Float64Array(n); this.rest = new Float64Array(n); this.vdiam = new Float64Array(n);
     this.A = new Float64Array(n);
@@ -244,7 +251,12 @@ class VoiceCore {
       jR[J] = p - L[J];
       this.njR[0] = p - this.nL[0];
     }
-    for (let i = 0; i < n; i++) { R[i] = jR[i] * 0.999; L[i] = jL[i + 1] * 0.999; }
+    const pR = this.pR, pL = this.pL;
+    for (let i = 0; i < n; i++) {
+      const r = jR[i], l = jL[i + 1];
+      R[i] = 0.999 * ((1 - WALL) * r + WALL * pR[i]); L[i] = 0.999 * ((1 - WALL) * l + WALL * pL[i]);
+      pR[i] = r; pL[i] = l;
+    }
     // the nose
     const m = this.nm, nR = this.nR, nL = this.nL, njR = this.njR, njL = this.njL, nr = this.nRefl;
     njL[m] = nR[m - 1] * -0.85;
@@ -276,7 +288,8 @@ class VoiceCore {
       a.diam += (a.target - a.diam) * kc;
       if (a.index < 0 || a.diam >= 8) continue;
       const c = a.index, cd = Math.max(0, a.diam);
-      const gap = cd < 0.005 ? 0 : Math.max(0, Math.min(1, (0.5 - cd) / 0.5));
+      // (only a fricative's gap hisses; an l, r, w or y is too open for turbulence)
+      const gap = cd < 0.005 ? 0 : Math.max(0, Math.min(1, (0.3 - cd) / 0.3));
       if (gap > this.gap) { this.gap = gap; this.noiseAt = c; }
       if (c >= this.lipStart) for (let i = this.lipStart; i < n; i++) d[i] = Math.min(d[i], cd);
       else {
@@ -366,7 +379,7 @@ class VoiceCore {
     const airK = 1 - Math.exp(-1 / (sr * (rising ? 0.01 : this.release / 5))); // the air comes at once
     const hzK = 1 - Math.exp(-1 / (sr * Math.max(0.002, this.glide)));
     const gateK = 1 - Math.exp(-1 / (sr * 0.005)), burstD = Math.exp(-1 / (sr * 0.008)), burstK = 1 - Math.exp(-1 / (sr * 0.0008));
-    const fHpA = Math.exp((-2 * Math.PI * 1000) / sr);
+    const fHpA = Math.exp((-2 * Math.PI * 1000) / sr), fLpA = Math.exp((-2 * Math.PI * 8000) / sr);
     const fast = Math.exp(-1 / (sr * 0.04)), medium = Math.exp(-1 / (sr * 0.08)), slow = Math.exp(-1 / (sr * 0.1));
     for (let i = 0; i < len; i++) {
       this.amp += (target - this.amp) * ampK;
@@ -397,18 +410,13 @@ class VoiceCore {
       const vib = this.vibDepth * this.vibDepthMul * fadeIn * Math.sin(2 * Math.PI * this.vibPhase);
       const cents = vib + this.drift + this.scoopOff + this.bend * 100;
       const f = this.hz * Math.pow(2, cents / 1200) * (1 + this.jitter);
-      this.phase += f / sr;
-      if (this.phase >= 1) {
-        // a new period: its shape for the voice's tension now, and the roughness, its length and height a little off
-        this.phase -= 1;
-        this.setupLF(this.rdFor());
-        this.jitter = (this.random() - 0.5) * 0.012 * this.roughness;
-        this.shimmer = 1 + (this.random() - 0.5) * 0.16 * this.roughness;
-      }
-      // the glottis: the pulse, louder and a little tenser the louder the note, and turbulence while it is open (more
-      // at a breathy onset, and a breath out after the note)
-      const loud = this.amp;
-      const voiced = loud > 1e-5 ? this.pulse(this.phase) * loud * this.shimmer * this.vg : 0;
+      // the glottis: the pulse, louder and a little tenser the louder the note, worked out at each of the tract's two
+      // steps (its sharp closing edge, taken once a sample, would fold back down as a gritty haze); and turbulence while
+      // it is open (more at a breathy onset, and a breath out after the note)
+      const loud = this.amp, k = loud > 1e-5 ? loud * this.vg : 0;
+      const voiced = k ? this.pulse(this.phase) * k * this.shimmer : 0;
+      this.advancePhase(f / (2 * sr));
+      const voiced2 = k ? this.pulse(this.phase) * k * this.shimmer : 0;
       const white = this.random() * 2 - 1;
       this.nHp = hpA * (this.nHp + white - this.nHpX); this.nHpX = white;
       this.nLp = this.nHp + lpA * (this.nLp - this.nHp);
@@ -419,24 +427,37 @@ class VoiceCore {
       // the turbulence pulses with the airflow: strong while the glottis is open, little while it is shut
       const shut = 1 - this.vg; // folds held apart (an h, a p t k), the air flows steadily, not in pulses
       const aspiration = noise * (this.air * (this.breath + this.onsetBreath) * (0.1 + 0.9 * (open * this.vg + shut)) + this.air * this.asp * 1.5 + this.exhale) * NOISE_LEVEL;
-      const g = voiced + aspiration;
+      const g = voiced + aspiration, g2 = voiced2 + aspiration;
       // turbulence at the constriction: air through a narrow gap (none through a shut one), and a closure's burst
       let turbulence = 0;
       if (this.noiseAt >= 0 && this.air > 1e-4) {
         const white2 = this.random() * 2 - 1;
         this.fHp = fHpA * (this.fHp + white2 - this.fHpX); this.fHpX = white2;
-        turbulence = this.fHp * this.air * (this.gap * (0.2 + this.fric) * FRIC_LEVEL + this.burstNow * BURST_LEVEL);
+        this.fLp = this.fHp + fLpA * (this.fLp - this.fHp); // and above 8 kHz it fades
+        turbulence = this.fLp * this.air * (this.gap * (0.2 + this.fric) * FRIC_LEVEL + this.burstNow * BURST_LEVEL);
       }
       // two steps of the tract a sample
       const frac = i / len;
       let o = this.step(g, frac, turbulence);
-      o += this.step(g, frac + 0.5 / len, turbulence);
+      o += this.step(g2, frac + 0.5 / len, turbulence);
+      this.advancePhase(f / (2 * sr));
       o *= 0.5;
       // the DC blocker, then the level and a soft limit
       const y = o - this.hpX + 0.995 * this.hpY;
       this.hpX = o; this.hpY = y;
       const v = y * 1.8 * p.level;
       out[i] = v > 3 ? 1 : v < -3 ? -1 : v * (27 + v * v) / (27 + 9 * v * v);
+    }
+  }
+
+  /** Moves through the glottal period; a new period takes its shape for the tension now, and the roughness, its length and height a little off. */
+  advancePhase(dp) {
+    this.phase += dp;
+    if (this.phase >= 1) {
+      this.phase -= 1;
+      this.setupLF(this.rdFor());
+      this.jitter = (this.random() - 0.5) * 0.012 * this.roughness;
+      this.shimmer = 1 + (this.random() - 0.5) * 0.16 * this.roughness;
     }
   }
 
