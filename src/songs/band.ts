@@ -1,4 +1,4 @@
-import { BAND_PAGES, ON_DEMAND_PAGES, type PageId, type PageState, sendControl, watchStatus } from './control';
+import { BAND_PAGES, type PageId, type PageState, sendControl, watchStatus } from './control';
 
 /** Page ids whose files and folders are named differently (an id can't start with a digit). */
 const PATHS: Partial<Record<PageId, string>> = { m2600: '2600', bass2: 'bass', guitar2: 'guitar', choir: 'vox' };
@@ -27,7 +27,7 @@ export class Band {
   private stopWatching?: () => void;
   private mounted = false;
 
-  constructor(private readonly host: HTMLElement, base: readonly PageId[] = BAND_PAGES) {
+  constructor(private readonly host: HTMLElement, private readonly base: readonly PageId[] = BAND_PAGES) {
     this.pages = [...base];
     for (const p of this.pages) this.states.set(p, 'missing');
   }
@@ -51,9 +51,11 @@ export class Band {
    * engine). Call it before `start`.
    */
   setEffects(wanted: readonly PageId[]): void {
-    const want = new Set(wanted.filter((p) => ON_DEMAND_PAGES.includes(p)));
+    // any page a record uses that the room does not always hold (on the band page, which holds only the mixer, even an
+    // instrument the records page always has, such as MOA-PIPE)
+    const want = new Set(wanted.filter((p) => !this.base.includes(p)));
     for (const p of [...this.pages]) {
-      if (!ON_DEMAND_PAGES.includes(p) || want.has(p)) continue;
+      if (this.base.includes(p) || want.has(p)) continue;
       this.frames.get(p)?.remove();
       this.frames.delete(p);
       this.states.delete(p);

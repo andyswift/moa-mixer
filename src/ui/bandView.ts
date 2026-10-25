@@ -24,8 +24,9 @@ export interface SetSong {
   captions: Record<string, string>;
   /** How the stage is dressed for it (plain if not said). */
   look?: StageLook;
-  /** What a player's card says they play, where it differs from the usual. */
+  /** What a player's card says they play, and about them, where it differs from the usual. */
   gear?: Partial<Record<Player, string>>;
+  about?: Partial<Record<Player, string>>;
 }
 
 /** A pedal on a card: lit while the song has it on (read from the song's automation at the beat, or its setup). */
@@ -122,7 +123,7 @@ export function renderBandPage(root: HTMLElement, set: SetSong[], band: Band, pl
   // ---- the players
   const cards = el('section', 'band-cards');
   cards.setAttribute('aria-label', 'The players');
-  const abouts: { text: string; el: HTMLElement }[] = [];
+  const abouts: { page: Player; text: string; el: HTMLElement }[] = [];
   const gear: { page: Player; text: string; el: HTMLElement }[] = [];
   const meters = new Map<Player, HTMLElement>();
   const chipEls: { chip: Chip; el: HTMLElement }[] = [];
@@ -150,7 +151,7 @@ export function renderBandPage(root: HTMLElement, set: SetSong[], band: Band, pl
     open.addEventListener('click', () => toggleRack(c.page));
     openButtons.set(c.page, open);
     const about = el('p', 'band-card-about');
-    abouts.push({ text: c.about, el: about });
+    abouts.push({ page: c.page, text: c.about, el: about });
     const plays = el('p', 'band-card-text');
     gear.push({ page: c.page, text: c.instrument, el: plays });
     card.append(head, plays, about, chips, level, open);
@@ -216,7 +217,7 @@ export function renderBandPage(root: HTMLElement, set: SetSong[], band: Band, pl
       return cell;
     });
     timeline.append(playhead);
-    for (const a of abouts) a.el.textContent = a.text.replace('{lead}', entry.lead);
+    for (const a of abouts) a.el.textContent = entry.about?.[a.page] ?? a.text.replace('{lead}', entry.lead);
     for (const g of gear) g.el.textContent = entry.gear?.[g.page] ?? g.text;
     stage.setLook(entry.look ?? 'plain');
   }

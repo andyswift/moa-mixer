@@ -49,6 +49,9 @@ describe('MOA-VOX: syllables written down', () => {
     expect(parseLyrics('la _ _').map((s) => s.hold ?? false)).toEqual([false, true, true]);
     expect(show('grand')).toBe('2:ae:2');
     expect(show('by')).toBe('1:ee:0');
+    expect(show('lift')).toBe('1:ih:3'); // f, then t's closure and its breath
+    expect(show('up')).toBe('0:uh:2');
+    expect(show('mi')).toBe('1:ee:0');
     expect(parseLyrics('astra').map((s) => s.text)).toEqual(['as', 'tra']); // st cannot keep the r: s t r is split s | tr
   });
 });

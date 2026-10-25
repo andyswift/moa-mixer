@@ -60,7 +60,7 @@ export const CONSONANTS: Record<string, Gesture[]> = {
   h: [gesture({ index: -1, diameter: 0, voiced: false, aspirate: 1, dur: 0.07 })],
 };
 
-/** The vowels' shapes (as the Vowel knob's five; uh, the tract at rest; and ae), by name. */
+/** The vowels' shapes (as the Vowel knob's five; uh, the tract at rest; ae and ih), by name. */
 export const VOWEL_SHAPES: Record<string, Omit<TractShape, 'velum'>> = {
   oo: { tongueIndex: 25, tongueDiameter: 2.25, lips: 0.5 },
   oh: { tongueIndex: 19, tongueDiameter: 2.4, lips: 0.7 },
@@ -68,13 +68,14 @@ export const VOWEL_SHAPES: Record<string, Omit<TractShape, 'velum'>> = {
   eh: { tongueIndex: 28, tongueDiameter: 3.3, lips: 1.3 },
   ee: { tongueIndex: 35.5, tongueDiameter: 2.5, lips: 0.7 },
   uh: { tongueIndex: 20, tongueDiameter: 3, lips: 1.2 },
-  // the a of "grand": between ah and eh
+  // the a of "grand": between ah and eh; the i of "lift": between ee and eh
   ae: { tongueIndex: 19.5, tongueDiameter: 2.75, lips: 1.4 },
+  ih: { tongueIndex: 31.75, tongueDiameter: 2.9, lips: 1 },
 };
 
 /** How vowels are written: each to its vowel, and for a diphthong the vowel it glides to as the note ends. */
 const VOWEL_SPELLINGS: [string, string, string?][] = [
-  ['ooh', 'oo'], ['aah', 'ah'], ['oo', 'oo'], ['ee', 'ee'], ['aa', 'ah'], ['ah', 'ah'], ['eh', 'eh'], ['oh', 'oh'], ['uh', 'uh'],
+  ['ooh', 'oo'], ['aah', 'ah'], ['oo', 'oo'], ['ee', 'ee'], ['aa', 'ah'], ['ah', 'ah'], ['eh', 'eh'], ['oh', 'oh'], ['uh', 'uh'], ['ae', 'ae'], ['ih', 'ih'],
   ['ay', 'eh', 'ee'], ['ai', 'ah', 'ee'], ['oy', 'oh', 'ee'], ['ow', 'ah', 'oo'],
   ['a', 'ah'], ['e', 'eh'], ['i', 'ee'], ['o', 'oh'], ['u', 'oo'],
 ];
@@ -137,8 +138,8 @@ export function syllabify(word: string): string[] {
 }
 
 /**
- * Reads a syllable as it is written: consonants, a vowel, consonants ("la", "doo", "bay", "on", "shh", "mm"). An a
- * closing on consonants (grand, hand) is sung between ah and eh, as such an a is. With no vowel, a nasal is hummed and
+ * Reads a syllable as it is written: consonants, a vowel, consonants ("la", "doo", "bay", "on", "shh", "mm"). A
+ * single a, i or u closing on consonants is sung short (grand, lift, up). With no vowel, a nasal is hummed and
  * a fricative hissed for the whole note; anything else unknown is sung as ah.
  */
 export function parseSyllable(text: string): Syllable {
@@ -158,7 +159,9 @@ export function parseSyllable(text: string): Syllable {
     return { text, onset: gestures(onset), vowel: 'ah', coda: [] };
   }
   const vt = tokens[v] as Extract<Token, { kind: 'v' }>;
-  const vowel = vt.spelled === 'a' && coda.length ? 'ae' : vt.vowel;
+  // a single a, i or u closing on consonants is short: the a of grand, the i of lift, the u of up
+  const short: Record<string, string> = { a: 'ae', i: 'ih', u: 'uh' };
+  const vowel = coda.length && short[vt.spelled] ? short[vt.spelled]! : vt.vowel;
   return { text, onset: gestures(onset), vowel, vowel2: vt.vowel2, coda: gestures(coda) };
 }
 

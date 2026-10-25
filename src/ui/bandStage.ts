@@ -18,13 +18,15 @@ import type { PageId } from '../songs/control';
  *
  * The stage has a look per song (`setLook`): plain (a warm, bare room), or disco (the lights down, a mirror ball
  * scattering reflections across the back wall, coloured beams swaying to the beat, pools of light flashing on the kick,
- * and haze).
+ * and haze), or gospel (a warm church light and a stained-glass window, three backing singers in robes on a riser
+ * behind the band, swaying together and clapping on 2 and 4 when it lifts, and a lead singer at the front with a
+ * microphone, all of them singing what MOA-VOX and its choir sing).
  */
 
 /** Whose stage spot a page is. */
 export type Player = 'guitar' | 'kit' | 'bass' | 'bass2';
 /** How the stage is dressed for a song. */
-export type StageLook = 'plain' | 'disco';
+export type StageLook = 'plain' | 'disco' | 'gospel';
 
 const W = 1240, H = 520;
 const NS = 'http://www.w3.org/2000/svg';
@@ -195,6 +197,57 @@ function discoBack(): string {
     <circle cx="${bx - 8}" cy="${by - 9}" r="5" fill="#fff" fill-opacity="0.8"/>`;
 }
 
+// ---- the singers (gospel): three in robes on a riser at the back, the lead at the front ----
+
+/** The backing singers: where each stands (their 140 by 260 drawing's top left), skin, hair. */
+const CHOIR_AT: { x: number; skin: string; hair: string; afro: boolean }[] = [
+  { x: 448, skin: '#8d5524', hair: '#1d1410', afro: true },
+  { x: 578, skin: '#e0ac69', hair: '#4a2c17', afro: false },
+  { x: 708, skin: '#c68642', hair: '#241812', afro: true },
+];
+/** A backing singer: a robe and its gold stole, sleeves that clap, a head whose mouth opens as the choir sings. */
+function choirSinger(k: number): string {
+  const c = CHOIR_AT[k]!;
+  const hair = c.afro ? `<circle cx="70" cy="44" r="34" fill="${c.hair}"/>` : `<path d="M42 50 Q42 20 70 20 Q98 20 98 50 L98 70 L90 52 Q70 40 50 52 L42 70 Z" fill="${c.hair}"/>`;
+  return `<g id="ch${k}-all">
+    <path d="M36 96 Q70 84 104 96 L128 262 L12 262 Z" fill="#5b2a86"/>
+    <path d="M58 92 L52 262 L64 262 L68 96 Z M82 92 L88 262 L76 262 L72 96 Z" fill="#ffd25e"/>
+    <g id="ch${k}-larm"><path d="M40 100 Q24 140 40 176 L52 172 Q42 140 52 106 Z" fill="#4e2374"/><circle cx="46" cy="176" r="8" fill="${c.skin}"/></g>
+    <g id="ch${k}-rarm"><path d="M100 100 Q116 140 100 176 L88 172 Q98 140 88 106 Z" fill="#4e2374"/><circle cx="94" cy="176" r="8" fill="${c.skin}"/></g>
+    <g id="ch${k}-head">${hair}<rect x="62" y="74" width="16" height="16" fill="${c.skin}"/><circle cx="70" cy="56" r="24" fill="${c.skin}"/>
+      <circle cx="61" cy="52" r="2.5" fill="#1b1410"/><circle cx="79" cy="52" r="2.5" fill="#1b1410"/>
+      <ellipse id="ch${k}-mouth" cx="70" cy="67" rx="6" ry="1.5" fill="#4a1c18"/></g>
+  </g>`;
+}
+/** The lead singer: a suit, a microphone held to the mouth, a free arm to raise. */
+const LEAD_SINGER = `<g id="ld-all">
+  <path d="M50 330 L56 250 L76 250 L74 330 Z M86 330 L84 250 L104 250 L110 330 Z" fill="#1d2230"/>
+  <rect x="48" y="326" width="30" height="8" rx="3" fill="#141518"/><rect x="82" y="326" width="30" height="8" rx="3" fill="#141518"/>
+  <g id="ld-upper">
+    <path d="M40 112 Q80 98 120 112 L126 256 L34 256 Z" fill="#2e3550"/>
+    <path d="M70 108 L80 160 L90 108 Z" fill="#f1eee6"/><path d="M77 116 L80 150 L83 116 Z" fill="#e8742c"/>
+    <g id="ld-free"><path d="M42 116 Q22 170 38 220 L52 216 Q40 170 56 124 Z" fill="#2e3550"/><circle cx="45" cy="222" r="9" fill="#6b4226"/></g>
+    <g id="ld-head"><rect x="70" y="86" width="20" height="20" fill="#6b4226"/><circle cx="80" cy="66" r="28" fill="#6b4226"/>
+      <path d="M52 60 Q52 34 80 34 Q108 34 108 60 Q100 46 80 46 Q60 46 52 60 Z" fill="#141010"/>
+      <circle cx="70" cy="64" r="2.8" fill="#141010"/><circle cx="90" cy="64" r="2.8" fill="#141010"/>
+      <ellipse id="ld-mouth" cx="80" cy="80" rx="7" ry="1.5" fill="#4a1c18"/></g>
+    <path d="M118 118 Q132 104 104 86 L96 94 Q114 108 106 120 Z" fill="#2e3550"/>
+    <rect x="94" y="78" width="9" height="20" rx="3" fill="#2a2b2e" transform="rotate(-30 98 88)"/><circle cx="94" cy="78" r="7" fill="#7f848b"/>
+  </g>
+</g>`;
+/** The gospel look's back: a warm wall's stained-glass window, the riser, and the choir on it. */
+function gospelBack(): string {
+  const panes = ['#e8742c', '#ffd25e', '#4a9be0', '#d9628a', '#4fb286', '#ffd25e', '#e8742c', '#4a9be0'];
+  const cx = 620, cy = 150, r = 120;
+  const slices = panes.map((c, k) => {
+    const a0 = Math.PI + (k * Math.PI) / panes.length, a1 = Math.PI + ((k + 1) * Math.PI) / panes.length;
+    return `<path d="M${cx} ${cy} L${(cx + r * Math.cos(a0)).toFixed(1)} ${(cy + r * Math.sin(a0)).toFixed(1)} A${r} ${r} 0 0 1 ${(cx + r * Math.cos(a1)).toFixed(1)} ${(cy + r * Math.sin(a1)).toFixed(1)} Z" fill="${c}" fill-opacity="0.35" stroke="#2a1d12" stroke-width="3"/>`;
+  }).join('');
+  return `<g id="gospel-window">${slices}<rect x="${cx - r}" y="${cy}" width="${2 * r}" height="40" fill="#ffd25e" fill-opacity="0.18" stroke="#2a1d12" stroke-width="3"/></g>
+    <rect x="420" y="250" width="440" height="22" fill="#4a3424"/><rect x="420" y="250" width="440" height="3" fill="#6b4a32"/>
+    ${CHOIR_AT.map((c, k) => `<g transform="translate(${c.x} 0)">${choirSinger(k)}</g>`).join('')}`;
+}
+
 /** Where each character stands on the stage (its 280 or 340 by 420 drawing's top left). */
 const SPOTS: Record<Player, [number, number]> = { guitar: [36, 82], kit: [336, 46], bass: [645, 82], bass2: [935, 82] };
 
@@ -267,6 +320,8 @@ export class BandStage {
   private last = 0;
   private readonly shake = { guitar: shaker(1.3), bass2: shaker(4.1) };
   private look: StageLook = 'plain';
+  /** How much each singer is singing now (0..1, falling away): the lead, the choir. */
+  private voice = { lead: 0, choir: 0, leadPitch: 64 };
 
   constructor() {
     const svg = document.createElementNS(NS, 'svg');
@@ -279,6 +334,7 @@ export class BandStage {
       <rect id="stage-wall" width="${W}" height="${H}" fill="#1d1e22"/>
       <rect id="stage-floor" y="${H - 120}" width="${W}" height="120" fill="#2a2723"/><rect y="${H - 120}" width="${W}" height="2" fill="#3b362f"/>
       <g id="disco-back" display="none">${discoBack()}</g>
+      <g id="gospel-back" display="none">${gospelBack()}</g>
       <g id="stage-spots"><ellipse cx="176" cy="${H - 34}" rx="130" ry="30" fill="#ffd25e" fill-opacity="0.08"/><ellipse cx="506" cy="${H - 44}" rx="150" ry="34" fill="#ffd25e" fill-opacity="0.08"/>
       <ellipse cx="785" cy="${H - 34}" rx="120" ry="30" fill="#ffd25e" fill-opacity="0.08"/><ellipse cx="1075" cy="${H - 34}" rx="120" ry="30" fill="#ffd25e" fill-opacity="0.08"/></g>
       <rect x="356" y="${H - 74}" width="300" height="34" fill="#34302a"/><rect x="356" y="${H - 74}" width="300" height="2" fill="#4a443b"/>
@@ -286,7 +342,8 @@ export class BandStage {
       <g id="spot-kit" transform="${at('kit')}"><g transform="${mirror(170)}"><g id="dr-all">${DRUMMER}</g></g></g>
       <g id="spot-bass" transform="${at('bass')}"><g transform="${mirror(140)}"><g id="db-all">${DUB}</g></g></g>
       <g id="spot-bass2" transform="${at('bass2')}"><g transform="${mirror(140)}"><g id="fb-all">${FREE}</g></g></g>
-      <rect id="disco-front" display="none" width="${W}" height="${H}" fill="url(#disco-haze)" pointer-events="none"/>`;
+      <rect id="disco-front" display="none" width="${W}" height="${H}" fill="url(#disco-haze)" pointer-events="none"/>
+      <g id="gospel-front" display="none" transform="translate(560 165)">${LEAD_SINGER}</g>`;
     for (const g of Array.from(svg.querySelectorAll<SVGGElement>('g[id]'))) this.parts.set(g.id, g);
     this.element = svg;
   }
@@ -294,10 +351,12 @@ export class BandStage {
   /** Dresses the stage for a song: the lights down and the disco up, or the plain room. */
   setLook(look: StageLook): void {
     this.look = look;
-    const disco = look === 'disco';
+    const disco = look === 'disco', gospel = look === 'gospel';
     const attr = (id: string, name: string, value: string) => this.element.querySelector(`#${id}`)?.setAttribute(name, value);
-    attr('stage-wall', 'fill', disco ? '#0c0b11' : '#1d1e22');
-    attr('stage-floor', 'fill', disco ? '#17151c' : '#2a2723');
+    attr('stage-wall', 'fill', disco ? '#0c0b11' : gospel ? '#2a1d12' : '#1d1e22');
+    attr('stage-floor', 'fill', disco ? '#17151c' : gospel ? '#3a2a1c' : '#2a2723');
+    attr('gospel-back', 'display', gospel ? 'inline' : 'none');
+    attr('gospel-front', 'display', gospel ? 'inline' : 'none');
     attr('stage-spots', 'display', disco ? 'none' : 'inline');
     attr('disco-back', 'display', disco ? 'inline' : 'none');
     attr('disco-front', 'display', disco ? 'inline' : 'none');
@@ -338,6 +397,8 @@ export class BandStage {
   }
 
   private play(p: Pending): void {
+    if (p.page === 'vox') { this.voice.lead = Math.max(this.voice.lead, 0.5 + 0.5 * p.velocity); this.voice.leadPitch = p.note; }
+    if (p.page === 'choir') this.voice.choir = Math.max(this.voice.choir, 0.5 + 0.5 * p.velocity);
     if (p.page in this.activity) {
       const who = p.page as Player;
       this.activity[who] = Math.min(1, this.activity[who] * 0.6 + 0.25 + 0.5 * p.velocity);
@@ -476,6 +537,36 @@ export class BandStage {
       this.eyes('fb', 1 + 0.4 * grin);
     }
     if (this.look === 'disco') this.disco(t, mood, onBeat);
+    if (this.look === 'gospel') this.gospel(dt, mood, onBeat);
+  }
+
+  /**
+   * The singers: the choir swaying together (a step side to side every two beats), clapping on 2 and 4 when the song
+   * lifts, mouths open as they sing; the lead bobbing, head back on the high notes, the free arm up in the shout.
+   */
+  private gospel(dt: number, mood: StageMood, onBeat: number): void {
+    const fall = Math.exp(-dt / 0.35);
+    this.voice.lead *= fall;
+    this.voice.choir *= fall;
+    const beat = mood.beat, playing = mood.playing ? 1 : 0;
+    const lift = playing * Math.min(1, Math.max(0, (mood.heat - 0.45) / 0.2)); // the choruses and the shout
+    const back = beat - Math.floor(beat / 2) * 2; // 0..2 through each pair of beats: the clap falls at 1
+    const clap = lift * Math.exp(-Math.abs(back - 1) * 7);
+    for (let k = 0; k < CHOIR_AT.length; k++) {
+      const sway = playing * 7 * Math.sin(Math.PI * beat + k * 0.2);
+      this.set(`ch${k}-all`, `translate(${sway.toFixed(2)} ${(-2 * onBeat * playing).toFixed(2)}) rotate(${(sway * 0.3).toFixed(2)} 70 262)`);
+      this.set(`ch${k}-head`, `rotate(${(sway * 0.4).toFixed(2)} 70 80)`);
+      // clapping: the forearms swing in to meet in front
+      this.set(`ch${k}-larm`, `rotate(${(-48 * clap - 6 * lift).toFixed(2)} 46 104)`);
+      this.set(`ch${k}-rarm`, `rotate(${(48 * clap + 6 * lift).toFixed(2)} 94 104)`);
+      this.element.querySelector(`#ch${k}-mouth`)?.setAttribute('ry', (1.5 + 7 * this.voice.choir).toFixed(2));
+    }
+    const shout = playing * Math.min(1, Math.max(0, (mood.heat - 0.65) / 0.1));
+    this.set('ld-upper', `translate(0 ${(3 * onBeat * playing).toFixed(2)})`);
+    const high = Math.max(0, Math.min(1, (this.voice.leadPitch - 64) / 8));
+    this.set('ld-head', `rotate(${(-10 * high * this.voice.lead + 3 * Math.sin(Math.PI * beat) * playing).toFixed(2)} 80 100)`);
+    this.set('ld-free', `rotate(${(70 * shout + 25 * this.voice.lead * (1 - shout)).toFixed(2)} 48 118)`);
+    this.element.querySelector('#ld-mouth')?.setAttribute('ry', (1.5 + 9 * this.voice.lead).toFixed(2));
   }
 
   /** The disco lights: the ball turning, its reflections drifting, the beams swaying and brightening on the beat, the pools on the kick. */

@@ -1,3 +1,4 @@
+import { carryMeHome } from '../songs/library/carryMeHome';
 import { coldMirrorBall } from '../songs/library/coldMirrorBall';
 import { oddHours } from '../songs/library/oddHours';
 import { pierLights } from '../songs/library/pierLights';
@@ -70,6 +71,24 @@ export function bandSet(): SetSong[] {
         'Chorus″': 'the last chorus, everything in',
         Outro: 'A and F#m, the arpeggios ringing out',
         End: 'the last chord, left to ring',
+      },
+    },
+    {
+      song: carryMeHome(),
+      style: 'gospel',
+      lead: 'Shout',
+      look: 'gospel',
+      gear: { guitar: 'MOA-GUITAR · single coils · clean', bass2: 'MOA-BASS · roundwounds · fingers' },
+      about: { bass2: 'A nutter. Runs up into every line the singers start.' },
+      captions: {
+        Intro: 'the organ and the band, the choir on ooh',
+        Verse: 'the lead sings, the choir under him on chord pads',
+        Chorus: 'the choir sings the words in three parts, the lead answers in the gaps: oh yeah, yes Lord',
+        'Verse′': 'the second verse, the choir humming',
+        'Chorus′': 'the chorus again',
+        Shout: 'call and response over the amen chords: the lead calls, the choir answers, the kit building to every beat',
+        'Chorus″': 'up a semitone: the last chorus',
+        Amen: 'a-men, held',
       },
     },
   ];
