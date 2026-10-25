@@ -121,6 +121,11 @@ export class Patch {
     return new Patch().add('vox', new VoxSinger('MOA-VOX')).setOutput('vox', 'out');
   }
 
+  /** MOA-VOX as a backing section (`?as=choir`): three singers, soprano, alto and tenor. */
+  static choir(): Patch {
+    return new Patch().add('vox', new VoxSinger('MOA-VOX CHOIR', 3)).setOutput('vox', 'out');
+  }
+
   /** The MOA-UNICORN page: the children's keyboard, straight to the speakers. */
   static unicorn(clock = new MidiClock()): Patch {
     return new Patch().add('uni', new UnicornSynth(clock)).setOutput('uni', 'out');

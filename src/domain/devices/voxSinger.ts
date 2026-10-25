@@ -64,6 +64,11 @@ export interface VoxView {
  * With a line of lyrics (syllables, `voxPhonemes.ts`), each note sings the next syllable, round and round: its
  * consonants, its vowel (the Vowel knob is then unused), and as the note is let go its ending. Legato, the voice
  * sings on through the consonants without starting again; an _ in the lyrics holds the vowel over a note.
+ *
+ * With `voices` above one it is a backing section (MOA-VOX CHOIR): that many singers, their tracts from a soprano's
+ * (2.5 cm shorter) to the Tract knob's length, each its own way of drifting and breathing. Each note goes to the free
+ * singer whose last note was nearest (so each keeps a part, as the soprano the top line), a chord's notes (struck
+ * within 40 ms) sing the same syllable, and a note is never sung legato from another singer's.
  */
 export class VoxSinger extends Device implements Playable {
   readonly name: string;
@@ -75,14 +80,21 @@ export class VoxSinger extends Device implements Playable {
   private readonly noteListeners = new Set<() => void>();
   private readonly performanceListeners = new Set<() => void>();
   private settings: Record<string, unknown> = {};
+  /** The note each singer of a section holds (undefined: free), the last each sang, and when a syllable was last taken. */
+  private singing: (number | undefined)[] = [];
+  private lastPitch: number[] = [];
+  private syllableTakenAt = -Infinity;
+  private chordSyllable: object | undefined;
   private syllables: Syllable[] = [];
   private syllableAt = 0;
   /** The syllable sung last (an index into the line), -1 before the first. */
   lyricIndex = -1;
 
-  constructor(name = 'MOA-VOX') {
+  constructor(name = 'MOA-VOX', readonly voices = 1, private readonly now: () => number = () => performance.now()) {
     super();
     this.name = name;
+    this.singing = Array.from({ length: voices }, () => undefined);
+    this.lastPitch = Array.from({ length: voices }, (_, k) => 67 - (7 * k) / Math.max(1, voices - 1)); // the soprano from G4, down to the tenor from C4
     const c = this.circuit;
     c.add('voice', 'voice', { level: 0.8 }, { config: '{}' })
       .add('master', 'gain', { gain: 1 })
@@ -93,7 +105,10 @@ export class VoxSinger extends Device implements Playable {
     this.num('vowel', 'Vowel', 0, VOWELS.length - 1, 2, '', shape);
     this.num('nasal', 'Nasal', 0, 1, 0, '', shape);
     this.num('ring', 'Ring', 0, 1, 0.5, '', shape);
-    this.num('size', 'Tract', 13, 19, 17, 'cm', (v) => this.configure({ length: v }));
+    this.num('size', 'Tract', 13, 19, 17, 'cm', (v) => this.configure({
+      // the soprano's tract the shortest, the tenor's the knob's length
+      voices, length: v, lengths: Array.from({ length: voices }, (_, k) => v - (2.5 * (voices - 1 - k)) / Math.max(1, voices - 1)),
+    }));
     this.num('tension', 'Tension', 0, 1, 0.6, '', (v) => this.configure({ tension: v }));
     this.num('breath', 'Breath', 0, 1, 0.25, '', (v) => this.configure({ breath: v }));
     this.num('roughness', 'Rough', 0, 1, 0.3, '', (v) => this.configure({ roughness: v }));
@@ -142,6 +157,7 @@ export class VoxSinger extends Device implements Playable {
   }
 
   keyDown(note: number, velocity = 100): void {
+    if (this.voices > 1) return this.sectionDown(note, velocity);
     const legato = this.held.length > 0;
     this.held = [...this.held.filter((n) => n !== note), note];
     this.velocities.set(note, velocity);
@@ -149,7 +165,32 @@ export class VoxSinger extends Device implements Playable {
     this.notifyNotes();
   }
 
+  /** A section's note: to the free singer whose last note was nearest (or, all busy, the one nearest), a chord's syllable shared. */
+  private sectionDown(note: number, velocity: number): void {
+    if (this.singing.includes(note)) this.sectionUp(note);
+    const free = this.singing.map((n, k) => (n === undefined ? k : -1)).filter((k) => k >= 0);
+    const pool = free.length ? free : this.singing.map((_, k) => k);
+    const voice = pool.reduce((a, b) => (Math.abs(this.lastPitch[b]! - note) < Math.abs(this.lastPitch[a]! - note) ? b : a));
+    this.singing[voice] = note;
+    this.lastPitch[voice] = note;
+    this.held = [...this.held.filter((n) => n !== note), note];
+    const now = this.now();
+    if (now - this.syllableTakenAt > 40) { this.chordSyllable = this.nextSyllable(); this.syllableTakenAt = now; }
+    this.circuit.send('voice', { type: 'note', voice, hz: midiToHz(note), intensity: 0.35 + 0.65 * (velocity / 127), legato: false, syllable: this.chordSyllable });
+    this.notifyNotes();
+  }
+
+  private sectionUp(note: number): void {
+    const voice = this.singing.indexOf(note);
+    if (voice < 0) return;
+    this.singing[voice] = undefined;
+    this.held = this.held.filter((n) => n !== note);
+    this.circuit.send('voice', { type: 'off', voice });
+    this.notifyNotes();
+  }
+
   keyUp(note: number): void {
+    if (this.voices > 1) return this.sectionUp(note);
     if (!this.held.includes(note)) return;
     const wasSinging = this.held.at(-1) === note;
     this.held = this.held.filter((n) => n !== note);
@@ -161,14 +202,17 @@ export class VoxSinger extends Device implements Playable {
 
   private sing(note: number, legato: boolean, newSyllable = true): void {
     const velocity = this.velocities.get(note) ?? 100;
-    let syllable: object | undefined;
-    if (newSyllable && this.syllables.length) {
-      const s = this.syllables[this.syllableAt % this.syllables.length]!;
-      this.lyricIndex = this.syllableAt % this.syllables.length;
-      this.syllableAt++;
-      if (!s.hold) syllable = { onset: s.onset, vowel: this.vowelShape(s.vowel), vowel2: s.vowel2 ? this.vowelShape(s.vowel2) : undefined, coda: s.coda };
-    }
+    const syllable = newSyllable ? this.nextSyllable() : undefined;
     this.circuit.send('voice', { type: 'note', hz: midiToHz(note), intensity: 0.35 + 0.65 * (velocity / 127), legato, syllable });
+  }
+
+  /** The next syllable of the line as the voice sings it (undefined: no lyrics, or a hold). */
+  private nextSyllable(): object | undefined {
+    if (!this.syllables.length) return undefined;
+    const s = this.syllables[this.syllableAt % this.syllables.length]!;
+    this.lyricIndex = this.syllableAt % this.syllables.length;
+    this.syllableAt++;
+    return s.hold ? undefined : { onset: s.onset, vowel: this.vowelShape(s.vowel), vowel2: s.vowel2 ? this.vowelShape(s.vowel2) : undefined, coda: s.coda };
   }
 
   /** A syllable's vowel as a tract shape, with the voice's nasality and ring. */

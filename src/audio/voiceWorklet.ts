@@ -45,9 +45,9 @@ const WALL = 0.2;
 const NOISE_LEVEL = 0.42;
 
 class VoiceCore {
-  constructor(sampleRate, lengthCm) {
+  constructor(sampleRate, lengthCm, seed) {
     this.sr = sampleRate;
-    this.seed = 12345;
+    this.seed = seed || 12345;
     // the voice
     this.on = false;
     this.hz = 220; this.targetHz = 220; this.glide = 0.06;
@@ -473,6 +473,57 @@ class VoiceCore {
   }
 }
 
+/**
+ * One singer or several (a backing trio): a VoiceCore each, their own tract lengths (a soprano's shorter than a
+ * tenor's), their own randomness (each drifts, wobbles and breathes its own way) and vibrato rates a little apart, so
+ * they sound like people singing together rather than one voice copied. A setting goes to them all; a note to one.
+ */
+class VoiceChoir {
+  constructor(sampleRate, cfg) {
+    const count = Math.max(1, cfg.voices || 1);
+    this.cores = [];
+    for (let k = 0; k < count; k++) {
+      const core = new VoiceCore(sampleRate, (cfg.lengths && cfg.lengths[k]) || cfg.length, 12345 + 7919 * k);
+      if (cfg.shape) core.setShape(cfg.shape, true);
+      this.cores.push(core);
+    }
+    this.mix = new Float32Array(128);
+    this.apply(cfg);
+  }
+
+  apply(m) {
+    this.cores.forEach((c, k) => {
+      const length = (m.lengths && m.lengths[k]) || m.length;
+      if (length) c.setLength(length);
+      if (m.shape) c.setShape(m.shape, false);
+      for (const key of ['tension', 'breath', 'vibDepth', 'vibDelay', 'glide', 'attack', 'release', 'bend', 'onset', 'scoop', 'roughness', 'expression']) if (typeof m[key] === 'number') c[key] = m[key];
+      if (typeof m.vibRate === 'number') c.vibRate = m.vibRate * (1 + 0.07 * (k - (this.cores.length - 1) / 2));
+    });
+  }
+
+  noteOn(voice, hz, intensity, legato, syllable) { (this.cores[voice || 0] || this.cores[0]).noteOn(hz, intensity, legato, syllable); }
+  noteOff(voice) { (this.cores[voice || 0] || this.cores[0]).noteOff(); }
+
+  /** Every singer into the output, together a little quieter than they are apart (as a section balances). */
+  process(out, len, p) {
+    if (this.cores.length === 1) return this.cores[0].process(out, len, p);
+    if (this.mix.length < len) this.mix = new Float32Array(len);
+    const mix = this.mix, g = 1 / Math.sqrt(this.cores.length);
+    out.fill(0, 0, len);
+    for (const c of this.cores) {
+      c.process(mix, len, p);
+      for (let i = 0; i < len; i++) out[i] += mix[i] * g;
+    }
+  }
+
+  /** The first singer's tract (for drawing), and how loud each is. */
+  view() {
+    const v = this.cores[0].view();
+    v.amps = this.cores.map((c) => c.amp);
+    return v;
+  }
+}
+
 if (typeof registerProcessor === 'function') {
   class MoaVoice extends AudioWorkletProcessor {
     static get parameterDescriptors() {
@@ -481,33 +532,25 @@ if (typeof registerProcessor === 'function') {
     constructor(options) {
       super();
       const cfg = (options && options.processorOptions && options.processorOptions.config) || {};
-      this.core = new VoiceCore(sampleRate, cfg.length);
-      if (cfg.shape) this.core.setShape(cfg.shape, true);
-      this.apply(cfg);
+      this.choir = new VoiceChoir(sampleRate, cfg);
       this.p = {};
       this.since = 0;
       this.port.onmessage = (e) => {
         const m = e.data;
         if (!m) return;
-        if (m.type === 'configure') this.apply(m);
-        else if (m.type === 'note') this.core.noteOn(m.hz, m.intensity, m.legato, m.syllable);
-        else if (m.type === 'off') this.core.noteOff();
+        if (m.type === 'configure') this.choir.apply(m);
+        else if (m.type === 'note') this.choir.noteOn(m.voice, m.hz, m.intensity, m.legato, m.syllable);
+        else if (m.type === 'off') this.choir.noteOff(m.voice);
       };
-    }
-    apply(m) {
-      const c = this.core;
-      if (m.length) c.setLength(m.length);
-      if (m.shape) c.setShape(m.shape, false);
-      for (const k of ['tension', 'breath', 'vibRate', 'vibDepth', 'vibDelay', 'glide', 'attack', 'release', 'bend', 'onset', 'scoop', 'roughness', 'expression']) if (typeof m[k] === 'number') c[k] = m[k];
     }
     process(inputs, outputs, params) {
       const out = outputs[0][0];
       this.p.level = params.level[0];
-      this.core.process(out, out.length, this.p);
+      this.choir.process(out, out.length, this.p);
       this.since += out.length;
       if (this.since >= sampleRate / 30) {
         this.since = 0;
-        this.port.postMessage(this.core.view());
+        this.port.postMessage(this.choir.view());
       }
       return true;
     }

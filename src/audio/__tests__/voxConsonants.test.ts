@@ -152,3 +152,51 @@ describe('MOA-VOX: the singer with lyrics', () => {
     expect(v.lyricIndex).toBe(0);
   });
 });
+
+describe('MOA-VOX CHOIR: a backing section', () => {
+  type Sent = { type: string; voice?: number; hz?: number; syllable?: { vowel: { tongueIndex: number } } };
+  const section = () => {
+    let t = 0;
+    const v = new VoxSinger('MOA-VOX CHOIR', 3, () => t);
+    const sent: Sent[] = [];
+    v.circuit.onChange((c) => { if (c.type === 'message') sent.push(c.data as Sent); });
+    return { v, sent, at: (ms: number) => { t = ms; } };
+  };
+
+  it('gives each note of a chord to a different singer, each keeping its part (the soprano the top line)', () => {
+    const { v, sent, at } = section();
+    const voiceOf = (note: number) => sent.filter((m) => m.type === 'note' && Math.round(m.hz!) === Math.round(440 * 2 ** ((note - 69) / 12))).at(-1)!.voice;
+    for (const n of [60, 64, 67]) v.keyDown(n);
+    expect([voiceOf(67), voiceOf(64), voiceOf(60)]).toEqual([0, 1, 2]);
+    for (const n of [60, 64, 67]) v.keyUp(n);
+    at(500);
+    for (const n of [69, 65, 62]) v.keyDown(n); // the next chord, struck in another order
+    expect([voiceOf(69), voiceOf(65), voiceOf(62)]).toEqual([0, 1, 2]);
+  });
+
+  it('sings one syllable to a chord, the next to the next chord', () => {
+    const { v, sent, at } = section();
+    (v.control('lyrics') as { set(x: string): void }).set('ooh ah');
+    at(0); v.keyDown(60); at(10); v.keyDown(64); at(20); v.keyDown(67);
+    for (const n of [60, 64, 67]) v.keyUp(n);
+    at(600); v.keyDown(62); v.keyDown(65);
+    const vowels = sent.filter((m) => m.type === 'note').map((m) => m.syllable!.vowel.tongueIndex);
+    expect(vowels).toEqual([...Array(3).fill(VOWEL_SHAPES.oo!.tongueIndex), ...Array(2).fill(VOWEL_SHAPES.ah!.tongueIndex)]);
+  });
+
+  it('tunes its singers apart: a soprano\'s short tract to the tenor\'s, each with its own randomness', () => {
+    const { v } = section();
+    const config = JSON.parse(v.circuit.node('voice').options.config!) as { voices: number; lengths: number[] };
+    expect(config.voices).toBe(3);
+    expect(config.lengths).toEqual([14.5, 15.75, 17]);
+    const { VoiceChoir } = new Function(`${VOICE_SOURCE}; return { VoiceChoir };`)() as { VoiceChoir: new (sr: number, cfg: object) => { cores: Core[]; noteOn(v: number, hz: number, i: number, l: boolean): void; process(o: Float32Array, n: number, p: { level: number }): void } };
+    const choir = new VoiceChoir(SR, config);
+    [0, 1, 2].forEach((k) => choir.noteOn(k, 220, 0.9, false));
+    const out = new Float32Array(SR / 2);
+    for (let at = 0; at < out.length; at += 128) choir.process(out.subarray(at, at + 128), 128, { level: 0.8 });
+    const [a, b] = choir.cores as unknown as { drift: number; diameter: Float64Array }[];
+    expect(a!.diameter.length).toBeLessThan(b!.diameter.length);
+    expect(a!.drift).not.toBe(b!.drift);
+    for (const x of out) expect(Number.isFinite(x) && Math.abs(x) <= 1).toBe(true);
+  });
+});

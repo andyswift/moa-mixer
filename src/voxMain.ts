@@ -9,9 +9,11 @@ import { mountKeyboardBed } from './ui/keyboard';
 import { renderVoxPanel } from './ui/voxPanel';
 
 // MOA-VOX: a physically modelled singing voice on its own page. Its sound is also published on the audio bus as
-// "MOA-VOX", where the mixer page can take it into a channel.
+// "MOA-VOX", where the mixer page can take it into a channel. Opened as `?as=choir` it is a backing section, three
+// singers: page id choir (its own song notes and settings), published as "MOA-VOX CHOIR".
+const choir = new URLSearchParams(location.search).get('as') === 'choir';
 const clock = new MidiClock();
-const patch = Patch.vox();
+const patch = choir ? Patch.choir() : Patch.vox();
 const engine = new AudioEngine(patch);
 const vox = patch.device<VoxSinger>('vox');
 
@@ -20,8 +22,8 @@ wrap.className = 'vox-wrap';
 wrap.append(renderVoxPanel(vox, engine), mountKeyboardBed(vox));
 
 const page = mountInstrumentPage({
-  id: 'vox', patch, engine, clock, self: '/vox/', panel: wrap,
-  ports: [{ device: 'vox', jack: 'out', name: 'MOA-VOX' }],
+  id: choir ? 'choir' : 'vox', patch, engine, clock, self: '/vox/', panel: wrap,
+  ports: [{ device: 'vox', jack: 'out', name: choir ? 'MOA-VOX CHOIR' : 'MOA-VOX' }],
   onMidi: (event) => vox.handleMidi(event),
 });
 

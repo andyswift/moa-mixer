@@ -22,7 +22,7 @@ export function renderVoxPanel(v: VoxSinger, engine: AudioEngine): HTMLElement {
   const panel = el('div', 'synth-panel vox-panel');
   const header = el('div', 'synth-header');
   const brand = el('div', 'synth-brand');
-  brand.append(el('div', 'synth-name', 'MOA-VOX'), el('div', 'synth-subtitle', 'A physically modelled singing voice'));
+  brand.append(el('div', 'synth-name', v.name), el('div', 'synth-subtitle', v.voices > 1 ? `${v.voices} physically modelled singers` : 'A physically modelled singing voice'));
   header.append(brand);
 
   // ---- the tract
