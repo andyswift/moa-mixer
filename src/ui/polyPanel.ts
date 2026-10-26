@@ -1,4 +1,6 @@
 import type { ChoiceControl, NumberControl, ToggleControl } from '../domain/devices/controls';
+import { ARP_RATES } from '../domain/devices/arpeggiator';
+import { CHORD_SHAPES, CHORD_TYPES } from '../domain/devices/chords';
 import { LFO_DIVISIONS, POLY_VOICES, type PolySynth } from '../domain/devices/polySynth';
 import { STEPS, fromSlider, toSlider } from './controls';
 import { type DialModel, controlDial, renderDial } from './dial';
@@ -14,6 +16,7 @@ const YELLOW = '#dcb43c';
 const GREEN = '#4fb286';
 const PINK = '#d9628a';
 const PURPLE = '#a98ae0';
+const TEAL = '#3cb8b0';
 
 const GLYPH = {
   saw: 'M1 9 L8 2 L8 9 L15 2 L15 9',
@@ -25,6 +28,10 @@ const GLYPH = {
   poly: 'M1 8 L19 8 M1 5 L19 5 M1 2 L19 2',
   mono: 'M1 5 L19 5',
   unison: 'M1 4 L19 4 M1 6 L19 6',
+  arpUp: 'M1 9 L5 9 L5 6 L10 6 L10 3 L15 3 L15 1 L19 1',
+  arpDown: 'M1 1 L5 1 L5 4 L10 4 L10 7 L15 7 L15 9 L19 9',
+  arpUpDown: 'M1 9 L5 9 L5 5 L9 5 L9 1 L12 1 L12 5 L16 5 L16 9 L19 9',
+  arpOrder: 'M1 5 L5 5 L5 2 L9 2 L9 8 L13 8 L13 4 L19 4',
 } as const;
 
 export interface Option {
@@ -52,6 +59,25 @@ const MODES: Option[] = [
   { value: 'unison', text: 'Unison', glyph: GLYPH.unison, aria: 'unison' },
 ];
 
+const ARP_MODES: Option[] = [
+  { value: 'up', text: 'Up', glyph: GLYPH.arpUp, aria: 'up' },
+  { value: 'down', text: 'Down', glyph: GLYPH.arpDown, aria: 'down' },
+  { value: 'updown', text: 'Up/Dn', glyph: GLYPH.arpUpDown, aria: 'up and down' },
+  { value: 'order', text: 'Order', glyph: GLYPH.arpOrder, aria: 'as played' },
+  { value: 'random', text: 'Rand', glyph: GLYPH.rnd, aria: 'random' },
+];
+const ARP_OCTAVES: Option[] = ['1', '2', '3', '4'].map((o) => ({ value: o, text: `${o} Oct`, glyph: '', aria: `${o} octave${o === '1' ? '' : 's'}` }));
+const ARP_GROUPS: Option[] = [
+  { value: '1', text: 'Single', glyph: '', aria: 'single notes' },
+  { value: '2', text: 'Double', glyph: '', aria: 'two notes a step' },
+  { value: '3', text: 'Triple', glyph: '', aria: 'three notes a step' },
+];
+const CHORD_NAMES: Record<string, string> = {
+  off: 'Off', maj: 'Maj', min: 'Min', '7': '7', m7: 'm7', maj7: 'Maj7', sus4: 'Sus4', '5th': '5th', oct: 'Oct', memory: 'Memory',
+};
+const CHORDS: Option[] = CHORD_TYPES.map((value) => ({ value, text: CHORD_NAMES[value]!, glyph: '', aria: CHORD_NAMES[value]! }));
+const NOTE_NAMES = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+
 function number(d: PolySynth, id: string): NumberControl {
   const c = d.control(id);
   if (c.kind !== 'number') throw new Error(`${id} is not a number control`);
@@ -74,7 +100,7 @@ const glyph = (d: string, w = 20, h = 10) =>
   `<svg aria-hidden="true" width="${w}" height="${h}" viewBox="0 0 20 10"><path d="${d}" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"></path></svg>`;
 
 /** A button that steps through the options, with an LED row beside it showing (and picking) the current one. */
-export function renderSelector(c: ChoiceControl, title: string, stepLabel: string, options: Option[]): HTMLElement {
+export function renderSelector(c: ChoiceControl, title: string, stepLabel: string, options: Option[], columns = 1): HTMLElement {
   const wrap = el('div', 'poly-selector');
   const stepper = el('div', 'poly-step-wrap');
   const step = el('button', 'poly-key');
@@ -85,11 +111,12 @@ export function renderSelector(c: ChoiceControl, title: string, stepLabel: strin
   stepper.append(step, el('div', 'poly-mini-label', title));
 
   const list = el('div', 'poly-options');
+  if (columns > 1) list.style.cssText = `display: grid; grid-template-columns: repeat(${columns}, auto); gap: 3px 4px;`;
   const buttons = options.map((o) => {
     const b = el('button', 'poly-option');
     b.type = 'button';
     b.setAttribute('aria-label', `${title}: ${o.aria}`);
-    b.innerHTML = `<span class="poly-led" aria-hidden="true"></span>${glyph(o.glyph)}<span>${o.text}</span>`;
+    b.innerHTML = `<span class="poly-led" aria-hidden="true"></span>${o.glyph ? glyph(o.glyph) : ''}<span>${o.text}</span>`;
     b.addEventListener('click', () => c.set(o.value));
     list.append(b);
     return b;
@@ -103,11 +130,11 @@ export function renderSelector(c: ChoiceControl, title: string, stepLabel: strin
   return wrap;
 }
 
-function renderSyncButton(c: ToggleControl): HTMLElement {
+function renderToggleButton(c: ToggleControl, text: string, aria: string): HTMLElement {
   const b = el('button', 'poly-sync');
   b.type = 'button';
-  b.setAttribute('aria-label', 'LFO tempo sync');
-  b.innerHTML = '<span class="poly-led" aria-hidden="true"></span><span>Sync</span>';
+  b.setAttribute('aria-label', aria);
+  b.innerHTML = `<span class="poly-led" aria-hidden="true"></span><span>${text}</span>`;
   b.addEventListener('click', () => c.set(!c.value));
   const paint = () => b.setAttribute('aria-pressed', String(c.value));
   c.onChange(paint);
@@ -136,6 +163,59 @@ function rateModel(d: PolySynth): DialModel {
       return sync.value ? 1 / last : 0.02;
     },
   };
+}
+
+/** The arp rate dial steps through the note divisions. */
+function arpRateModel(d: PolySynth): DialModel {
+  const rate = choice(d, 'arp.rate');
+  const last = ARP_RATES.length - 1;
+  return {
+    label: 'Rate',
+    color: TEAL,
+    get: () => ARP_RATES.indexOf(rate.value as (typeof ARP_RATES)[number]) / last,
+    set: (t) => rate.set(ARP_RATES[Math.round(t * last)]!),
+    reset: () => rate.set('1/16'),
+    text: () => rate.value,
+    subscribe: (fn) => rate.onChange(fn),
+    step: 1 / last,
+  };
+}
+
+/** Arp on and latch stacked as two buttons. */
+function renderArpButtons(d: PolySynth): HTMLElement {
+  const wrap = el('div', 'poly-step-wrap');
+  wrap.append(renderToggleButton(toggle(d, 'arp.on'), 'Arp', 'Arpeggiator on'), renderToggleButton(toggle(d, 'arp.latch'), 'Latch', 'Arpeggiator latch'));
+  return wrap;
+}
+
+/** Memory learns the held keys as the chord; the display shows the chord a C would play. */
+function renderChordMemory(d: PolySynth): HTMLElement {
+  const wrap = el('div', 'poly-step-wrap');
+  const learn = el('button', 'poly-key poly-save', 'Memory');
+  learn.type = 'button';
+  learn.setAttribute('aria-label', 'Learn the held keys as the chord memory');
+  const shown = el('div', 'poly-patch-tag');
+  shown.setAttribute('role', 'status');
+  const type = choice(d, 'chord.type');
+  const memory = d.control('chord.memory');
+  let hint = false;
+  const paint = () => {
+    const intervals = type.value === 'memory' ? d.chordMemoryNotes : CHORD_SHAPES[type.value as keyof typeof CHORD_SHAPES];
+    shown.textContent = hint ? 'Hold a chord first' : `on C: ${intervals.map((i) => NOTE_NAMES[i % 12]).join(' ')}`;
+  };
+  learn.addEventListener('click', () => {
+    hint = !d.learnChord();
+    paint();
+    if (hint) window.setTimeout(() => {
+      hint = false;
+      paint();
+    }, 1500);
+  });
+  type.onChange(paint);
+  memory.onChange(paint);
+  paint();
+  wrap.append(learn, shown);
+  return wrap;
 }
 
 interface SectionSpec {
@@ -236,7 +316,7 @@ function sections(tickers: (() => void)[]): SectionSpec[][] {
         body: (d) => [
           renderSelector(choice(d, 'lfo.wave'), 'Wave', 'Step LFO waveform', LFO_WAVES),
           renderDial(rateModel(d), 'LFO'),
-          renderSyncButton(toggle(d, 'lfo.sync')),
+          renderToggleButton(toggle(d, 'lfo.sync'), 'Sync', 'LFO tempo sync'),
         ],
       },
       {
@@ -263,6 +343,26 @@ function sections(tickers: (() => void)[]): SectionSpec[][] {
       {
         title: 'Effects', color: PURPLE, grow: 4.4,
         body: (d) => dials(d, PURPLE, 'Effects', ['fx.chorus', 'fx.delayTime', 'fx.feedback', 'fx.mix']),
+      },
+    ],
+    [
+      {
+        title: 'Arpeggiator', color: TEAL, grow: 7,
+        body: (d) => [
+          renderArpButtons(d),
+          renderSelector(choice(d, 'arp.mode'), 'Mode', 'Step arpeggiator mode', ARP_MODES),
+          renderSelector(choice(d, 'arp.octaves'), 'Range', 'Step arpeggiator octaves', ARP_OCTAVES),
+          renderSelector(choice(d, 'arp.group'), 'Group', 'Step notes per arpeggiator step', ARP_GROUPS),
+          renderDial(arpRateModel(d), 'Arpeggiator'),
+          ...dials(d, TEAL, 'Arpeggiator', ['arp.gate']),
+        ],
+      },
+      {
+        title: 'Chord', color: ORANGE, grow: 3.4,
+        body: (d) => [
+          renderSelector(choice(d, 'chord.type'), 'Chord', 'Step chord type', CHORDS, 2),
+          renderChordMemory(d),
+        ],
       },
     ],
   ];
