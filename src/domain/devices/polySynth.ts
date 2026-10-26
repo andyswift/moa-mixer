@@ -1,5 +1,7 @@
 import { Device } from './device';
-import { ChoiceControl, NumberControl, ToggleControl } from './controls';
+import { ARP_GROUPS, ARP_MODES, ARP_OCTAVES, ARP_RATE_PULSES, ARP_RATES, Arpeggiator, type ArpMode, type ArpRate, arpStepMs } from './arpeggiator';
+import { CHORD_SHAPES, CHORD_TYPES, type ChordType, chordFromNotes, chordNotes, parseChord } from './chords';
+import { ChoiceControl, NumberControl, TextControl, ToggleControl } from './controls';
 import type { Circuit } from '../circuit/circuit';
 import { POLY_BANKS, POLY_INIT, POLY_PRESETS } from './polyPresets';
 import type { Playable } from './playable';
@@ -10,7 +12,7 @@ import { MidiClock } from '../midi/clock';
 import type { MidiEvent } from '../midi/events';
 
 export const POLY_VOICES = 6;
-export const POLY_MIDI_CHANNEL = '2';
+export const POLY_MIDI_CHANNEL = 'omni';
 
 const CENTS_PER_OCTAVE = 1200;
 const A4_NOTE = 69;
@@ -23,6 +25,8 @@ export const LFO_DIVISIONS = ['1/1', '1/2', '1/4', '1/8', '1/16', '1/32'] as con
 /** Voice output level per mode, so a chord, a unison stack and a single mono note sit at similar loudness. */
 const VOICE_LEVEL: Record<VoiceMode, number> = { poly: 0.45, mono: 0.6, unison: 0.34 };
 const PULSE_LEVEL = 0.65; // a pulse is louder than a saw at the same peak
+/** An arpeggiator further behind than this (a sleeping tab) carries on from now instead of catching up. */
+const ARP_RESYNC_MS = 250;
 
 /**
  * Six-voice polyphonic synth, one oscillator per voice:
@@ -30,6 +34,10 @@ const PULSE_LEVEL = 0.65; // a pulse is louder than a saw at the same peak
  * Envelope 1 sweeps each voice's filter, envelope 2 shapes its amplitude; one shared LFO modulates pitch,
  * pulse width, filter and amplitude. Voice modes: poly (allocated), mono (one voice, glide) and unison
  * (all six, detuned). Pitch is a per-voice CV in cents (a constant node), like the mono synth.
+ *
+ * Keys go through chord mode (each key plays a chord shape, fixed or learned from held keys) and then either
+ * straight to the voices or to the arpeggiator, which steps through them at a division of the tempo (or of an
+ * incoming MIDI clock when the transport is synced). The app calls `tick()` every few milliseconds to run it.
  */
 export class PolySynth extends Device implements Playable {
   readonly name: string;
@@ -49,11 +57,33 @@ export class PolySynth extends Device implements Playable {
   private lfoSync = false;
   private lfoDivision: (typeof LFO_DIVISIONS)[number] = '1/8';
   private clockPulses = 0;
+  private readonly arp = new Arpeggiator();
+  private arpOn = false;
+  private arpLatch = false;
+  private arpRate: ArpRate = '1/16';
+  private arpGate = 0.5;
+  private chordType: ChordType = 'off';
+  private chordMemory = [0, 4, 7];
+  /** Notes each held key started, so a chord change while a key is down still releases what it started. */
+  private readonly keyNotes = new Map<number, number[]>();
+  /** How many keys (and the arpeggiator) hold each sounding note: overlapping chords release a shared note last. */
+  private readonly noteHolds = new Map<number, number>();
+  /** Keys feeding the arpeggiator: the held keys, or with latch on the last chord played. */
+  private arpKeys: number[] = [];
+  private arpRunning = false;
+  private arpSounding: number[] = [];
+  private arpNextTime = 0;
+  private arpOffTime?: number;
+  private arpFreePulses = 0;
   private readonly performanceListeners = new Set<() => void>();
   private readonly noteListeners = new Set<() => void>();
   private readonly presetListeners = new Set<() => void>();
 
-  constructor(name = 'Poly', clock = new MidiClock()) {
+  constructor(
+    name = 'Poly',
+    private readonly clock = new MidiClock(),
+    private readonly now: () => number = () => performance.now(),
+  ) {
     super();
     this.name = name;
     this.transport = new Transport(clock);
@@ -71,16 +101,53 @@ export class PolySynth extends Device implements Playable {
   // ---- Playing ----
 
   keyDown(note: number): void {
+    const fresh = this.held.length === 0;
     this.held = this.held.filter((n) => n !== note);
     this.held.push(note);
-    this.apply(this.allocator.noteOn(note));
+    if (this.arpOn) {
+      // Latched, a new chord starts when every key has been let go and one goes down again.
+      if (this.arpLatch && fresh) this.arpKeys = [];
+      this.arpKeys = [...this.arpKeys.filter((n) => n !== note), note];
+      this.startArp();
+    } else {
+      this.playKey(note);
+    }
     this.notifyNotes();
   }
 
   keyUp(note: number): void {
     this.held = this.held.filter((n) => n !== note);
-    this.apply(this.allocator.noteOff(note));
+    if (this.arpOn) {
+      if (!this.arpLatch) this.arpKeys = this.arpKeys.filter((n) => n !== note);
+    } else {
+      for (const n of this.keyNotes.get(note) ?? []) this.unhold(n);
+      this.keyNotes.delete(note);
+    }
     this.notifyNotes();
+  }
+
+  /** Runs the arpeggiator on its own tempo: plays the steps and note-offs that are due. Call every few ms. */
+  tick(now = this.now()): void {
+    if (this.arpOffTime !== undefined && now >= this.arpOffTime) this.arpRelease();
+    if (!this.arpRunning || this.transport.synced) return;
+    if (this.arpNextTime < now - ARP_RESYNC_MS) this.arpNextTime = now;
+    while (this.arpRunning && this.arpNextTime <= now) {
+      this.arpStep(this.arpNextTime);
+      this.arpNextTime += arpStepMs(this.arpRate, this.transport.bpm);
+    }
+  }
+
+  /** Learns the held keys as the chord memory and switches chord mode to it. False if no keys are held. */
+  learnChord(): boolean {
+    if (this.held.length === 0) return false;
+    (this.control('chord.memory') as TextControl).set(chordFromNotes(this.held));
+    (this.control('chord.type') as ChoiceControl).set('memory');
+    return true;
+  }
+
+  /** The chord memory's intervals above the key (semitones). */
+  get chordMemoryNotes(): readonly number[] {
+    return this.chordMemory;
   }
 
   get heldNotes(): readonly number[] {
@@ -127,6 +194,7 @@ export class PolySynth extends Device implements Playable {
     if (event.type === 'clock') {
       // Keep a tempo-synced LFO in step with an incoming clock: once a beat is plenty.
       if (this.lfoSync && this.transport.synced && ++this.clockPulses % 24 === 0) this.applyLfoRate();
+      this.arpClock();
       return;
     }
     if ('channel' in event && !this.transport.acceptsChannel(event.channel)) return;
@@ -161,6 +229,7 @@ export class PolySynth extends Device implements Playable {
       if (c.kind === 'number' && typeof value === 'number') c.set(value);
       else if (c.kind === 'choice' && typeof value === 'string') c.set(value);
       else if (c.kind === 'toggle' && typeof value === 'number') c.set(value > 0);
+      else if (c.kind === 'text' && typeof value === 'string') c.set(value);
       else throw new Error(`Preset "${preset.name}": bad value for ${id}`);
     }
     for (const l of this.presetListeners) l();
@@ -196,6 +265,105 @@ export class PolySynth extends Device implements Playable {
     return () => this.presetListeners.delete(fn);
   }
 
+  // ---- Chords and the arpeggiator ----
+
+  private chordIntervals(): readonly number[] {
+    return this.chordType === 'memory' ? this.chordMemory : CHORD_SHAPES[this.chordType];
+  }
+
+  /** Sounds a key's chord (hold the new notes before letting go of the old, so a repeated key retriggers). */
+  private playKey(key: number): void {
+    const previous = this.keyNotes.get(key) ?? [];
+    const notes = chordNotes(key, this.chordIntervals());
+    for (const n of notes) this.hold(n);
+    for (const n of previous) this.unhold(n);
+    this.keyNotes.set(key, notes);
+  }
+
+  private hold(note: number): void {
+    this.noteHolds.set(note, (this.noteHolds.get(note) ?? 0) + 1);
+    this.apply(this.allocator.noteOn(note));
+  }
+
+  private unhold(note: number): void {
+    const holds = (this.noteHolds.get(note) ?? 0) - 1;
+    if (holds > 0) {
+      this.noteHolds.set(note, holds);
+      return;
+    }
+    this.noteHolds.delete(note);
+    this.apply(this.allocator.noteOff(note));
+  }
+
+  private setArpOn(on: boolean): void {
+    if (on === this.arpOn) return;
+    this.arpOn = on;
+    if (on) {
+      for (const notes of this.keyNotes.values()) for (const n of notes) this.unhold(n);
+      this.keyNotes.clear();
+      this.arpKeys = [...this.held];
+      this.startArp();
+    } else {
+      this.stopArp();
+      for (const key of this.held) this.playKey(key);
+    }
+  }
+
+  private setArpLatch(on: boolean): void {
+    this.arpLatch = on;
+    if (!on) this.arpKeys = this.arpKeys.filter((n) => this.held.includes(n));
+  }
+
+  /** The notes the arpeggiator steps through: every arp key's chord, in the order played, without repeats. */
+  private arpNotes(): number[] {
+    const intervals = this.chordIntervals();
+    return [...new Set(this.arpKeys.flatMap((k) => chordNotes(k, intervals)))];
+  }
+
+  /** Starts a run from the first note; on its own tempo the first step plays at once, synced it waits for the grid. */
+  private startArp(): void {
+    if (this.arpRunning || this.arpKeys.length === 0) return;
+    this.arpRunning = true;
+    this.arp.reset();
+    if (!this.transport.synced) {
+      const now = this.now();
+      this.arpStep(now);
+      this.arpNextTime = now + arpStepMs(this.arpRate, this.transport.bpm);
+    }
+  }
+
+  private stopArp(): void {
+    this.arpRelease();
+    this.arpRunning = false;
+    this.arpKeys = [];
+  }
+
+  /** Plays the next note (or group); with no keys left (and no latch) the run ends here. */
+  private arpStep(time: number): void {
+    this.arpRelease();
+    const notes = this.arp.next(this.arpNotes());
+    if (notes.length === 0) {
+      this.arpRunning = false;
+      return;
+    }
+    this.arpSounding = notes;
+    for (const n of notes) this.hold(n);
+    this.arpOffTime = time + this.arpGate * arpStepMs(this.arpRate, this.transport.bpm);
+  }
+
+  private arpRelease(): void {
+    for (const n of this.arpSounding) this.unhold(n);
+    this.arpSounding = [];
+    this.arpOffTime = undefined;
+  }
+
+  /** Synced to MIDI clock: a step every so many pulses, on the song's grid while the clock runs. */
+  private arpClock(): void {
+    if (!this.arpRunning || !this.transport.synced) return;
+    const pulse = this.clock.running ? this.clock.ticks - 1 : this.arpFreePulses++;
+    if (pulse >= 0 && pulse % ARP_RATE_PULSES[this.arpRate] === 0) this.arpStep(this.now());
+  }
+
   // ---- Voice handling ----
 
   private apply(actions: VoiceAction[]): void {
@@ -225,6 +393,12 @@ export class PolySynth extends Device implements Playable {
   private applyMode(mode: VoiceMode): void {
     this.apply(this.allocator.releaseAll());
     this.held = [];
+    this.keyNotes.clear();
+    this.noteHolds.clear();
+    this.arpKeys = [];
+    this.arpRunning = false;
+    this.arpSounding = [];
+    this.arpOffTime = undefined;
     this.allocator.mode = mode;
     this.eachVoice((v) => this.circuit.setParam(v('out'), 'gain', VOICE_LEVEL[mode]));
     this.applyDetune();
@@ -480,5 +654,34 @@ export class PolySynth extends Device implements Playable {
     num('fx.delayTime', 'Delay time', 0.01, 1, n('fx.delayTime'), 's', (x) => c.setParam('dlyLine', 'delayTime', x), 'log');
     num('fx.feedback', 'Feedback', 0, 0.9, n('fx.feedback'), '', (x) => c.setParam('dlyFb', 'gain', x));
     num('fx.mix', 'Delay mix', 0, 1, n('fx.mix'), '', (x) => c.setParam('dlyWet', 'gain', x));
+
+    // Arpeggiator and chord mode
+    this.controlList.push(
+      new ToggleControl('arp.on', 'Arp', false, (on) => this.setArpOn(on)),
+      new ChoiceControl('arp.mode', 'Mode', ARP_MODES, init['arp.mode'] as string, (m) => {
+        this.arp.mode = m as ArpMode;
+      }),
+      new ChoiceControl('arp.octaves', 'Octaves', ARP_OCTAVES, init['arp.octaves'] as string, (o) => {
+        this.arp.octaves = Number(o);
+      }),
+      new ChoiceControl('arp.group', 'Group', ARP_GROUPS, init['arp.group'] as string, (g) => {
+        this.arp.group = Number(g);
+      }),
+      new ChoiceControl('arp.rate', 'Rate', ARP_RATES, init['arp.rate'] as string, (r) => {
+        this.arpRate = r as ArpRate;
+      }),
+    );
+    num('arp.gate', 'Gate', 5, 100, n('arp.gate'), '%', (x) => {
+      this.arpGate = x / 100;
+    });
+    this.controlList.push(
+      new ToggleControl('arp.latch', 'Latch', false, (on) => this.setArpLatch(on)),
+      new ChoiceControl('chord.type', 'Chord', CHORD_TYPES, init['chord.type'] as string, (t) => {
+        this.chordType = t as ChordType;
+      }),
+      new TextControl('chord.memory', 'Chord memory', init['chord.memory'] as string, (text) => {
+        this.chordMemory = parseChord(text);
+      }),
+    );
   }
 }

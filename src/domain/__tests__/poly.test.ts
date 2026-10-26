@@ -205,8 +205,14 @@ describe('PolySynth performance and MIDI', () => {
     expect(s.circuit.node('lfoPitch').params.gain).toBe(130);
   });
 
-  it('listens on channel 2 by default: notes, bend, CC 1 and program change', () => {
+  it('listens on any channel by default, or only the one chosen: notes, bend, CC 1 and program change', () => {
     const s = new PolySynth();
+    midi(s, [0x90, 62, 100]);
+    midi(s, [0x9f, 64, 100]);
+    expect(s.heldNotes).toEqual([62, 64]);
+    midi(s, [0x80, 62, 0]);
+    midi(s, [0x8f, 64, 0]);
+    s.transport.channel.set('2');
     midi(s, [0x91, 60, 100]);
     expect(s.heldNotes).toEqual([60]);
     midi(s, [0x90, 62, 100]); // channel 1: ignored

@@ -11,6 +11,7 @@ const clock = new MidiClock();
 const patch = Patch.poly(clock);
 const engine = new AudioEngine(patch);
 const poly = patch.device<PolySynth>('poly');
+setInterval(() => poly.tick(), 5); // runs the arpeggiator
 
 const page = mountInstrumentPage({
   id: 'poly', patch, engine, clock, self: '/poly/', panel: renderPolyPanel(poly),

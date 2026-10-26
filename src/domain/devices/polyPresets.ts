@@ -34,6 +34,15 @@ export const POLY_INIT: PresetValues = {
   'fx.delayTime': 0.35,
   'fx.feedback': 0.3,
   'fx.mix': 0,
+  'arp.on': 0,
+  'arp.mode': 'up',
+  'arp.octaves': '1',
+  'arp.group': '1',
+  'arp.rate': '1/16',
+  'arp.gate': 50,
+  'arp.latch': 0,
+  'chord.type': 'off',
+  'chord.memory': '0,4,7',
 };
 
 const p = (name: string, values: PresetValues): SynthPreset => ({ name, values });
