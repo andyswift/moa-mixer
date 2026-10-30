@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { RIG_MACRO_MODELS } from '../../../domain/devices/rigParams';
 import { PLAITS_SOURCE } from '../index';
 
 /**
@@ -14,7 +15,7 @@ const MODULE_A0 = 55 / 47872.34;
 
 interface EngineI { reset(): void; render(p: Params, out: Float32Array, aux: Float32Array, size: number): boolean }
 interface Params { trigger: number; note: number; timbre: number; morph: number; harmonics: number; accent: number }
-const lib = new Function(`${PLAITS_SOURCE}; return { plSetSampleRate, PlVirtualAnalogEngine, PlWaveshapingEngine, PlFMEngine, PlGrainEngine, PlAdditiveEngine, PlWavetableEngine, PlChordEngine };`)() as {
+const lib = new Function(`${PLAITS_SOURCE}; return { plSetSampleRate, PlVirtualAnalogEngine, PlWaveshapingEngine, PlFMEngine, PlGrainEngine, PlAdditiveEngine, PlWavetableEngine, PlChordEngine, PlSpeechEngine, PlSwarmEngine, PlNoiseEngine, PlParticleEngine, PlStringEngine, PlModalEngine, PlBassDrumEngine, PlSnareDrumEngine, PlHiHatEngine, plRandomSeed };`)() as {
   plSetSampleRate(sr: number, a0?: number): void;
   [engine: string]: unknown;
 };
@@ -55,6 +56,13 @@ function compare(got: Float32Array, want: Float32Array) {
   return { relative: Math.sqrt(e / Math.max(s, 1e-12)), max, rms: Math.sqrt(s / want.length) };
 }
 
+/**
+ * The blocks to compare, where not all of them: SPEECH from block 83 on plays a word's frame past the end of the
+ * phoneme table in the original (undefined behaviour: it reads whatever memory follows); the port goes back to
+ * the vowels there instead, so only the blocks before are compared, and the rest must be finite.
+ */
+const COMPARE_BLOCKS: Record<string, number> = { speech: 83 };
+
 const ENGINES: [fixture: string, cls: string, tolerance: number][] = [
   ['va', 'PlVirtualAnalogEngine', 3e-3],
   ['waveshaping', 'PlWaveshapingEngine', 3e-3],
@@ -63,6 +71,15 @@ const ENGINES: [fixture: string, cls: string, tolerance: number][] = [
   ['additive', 'PlAdditiveEngine', 3e-3],
   ['wavetable', 'PlWavetableEngine', 3e-3],
   ['chord', 'PlChordEngine', 3e-3],
+  ['speech', 'PlSpeechEngine', 3e-3],
+  ['swarm', 'PlSwarmEngine', 3e-3],
+  ['noise', 'PlNoiseEngine', 3e-3],
+  ['particle', 'PlParticleEngine', 3e-3],
+  ['string', 'PlStringEngine', 3e-3],
+  ['modal', 'PlModalEngine', 3e-3],
+  ['bass_drum', 'PlBassDrumEngine', 3e-3],
+  ['snare_drum', 'PlSnareDrumEngine', 3e-3],
+  ['hi_hat', 'PlHiHatEngine', 3e-3],
 ];
 
 describe('Plaits engines, against the module', () => {
@@ -71,14 +88,25 @@ describe('Plaits engines, against the module', () => {
       const Engine = lib[cls] as new () => EngineI;
       const engine = new Engine();
       engine.reset(); // as the module does after Init
+      (lib.plRandomSeed as (s: number) => void)(0x21); // the shared generator, from the start as in the reference
       const got = render(engine);
       const want = reference(fixture);
+      const n = (COMPARE_BLOCKS[fixture] ?? BLOCKS) * BLOCK;
       for (const ch of ['out', 'aux'] as const) {
-        const c = compare(got[ch], want[ch]);
+        expect(got[ch].every(Number.isFinite), `${fixture} ${ch} stays finite`).toBe(true);
+        const c = compare(got[ch].subarray(0, n), want[ch].subarray(0, n));
         console.log(fixture, ch, JSON.stringify(c));
         expect(c.rms, `${fixture} ${ch} is not silent`).toBeGreaterThan(0.01);
         expect(c.relative, `${fixture} ${ch}: relative error`).toBeLessThan(tolerance);
       }
     });
   }
+
+  it('has one engine for each of OSC 3\'s models, in the same order', () => {
+    const engines = new Function(`${PLAITS_SOURCE}; return PL_ENGINES;`)() as [new () => unknown][];
+    expect(engines).toHaveLength(RIG_MACRO_MODELS.length);
+    expect(engines).toHaveLength(ENGINES.length);
+    engines.forEach(([E], i) => expect((E as { name: string }).name, RIG_MACRO_MODELS[i]).toBe(ENGINES[i]![1]));
+  });
 });
+

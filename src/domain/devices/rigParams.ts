@@ -33,7 +33,13 @@ const OCTAVES = ['-2', '-1', '0', '+1', '+2'] as const;
 
 /** OSC 3's wavetables, built in code by the worklet (see `rigWorklet.ts`): four in the PPG manner and two vocal ones. */
 /** OSC 3's MACRO models: Plaits' engines (ported from Mutable Instruments' code), in the module's order. */
-export const RIG_MACRO_MODELS = ['VA', 'WAVESHAPE', 'FM', 'GRAIN', 'ADDITIVE', 'WAVETABLE', 'CHORDS'] as const;
+export const RIG_MACRO_MODELS = ['VA', 'WAVESHAPE', 'FM', 'GRAIN', 'ADDITIVE', 'WAVETABLE', 'CHORDS', 'SPEECH', 'SWARM', 'NOISE', 'PARTICLE', 'STRING', 'MODAL', 'BASS DRUM', 'SNARE', 'HI-HAT'] as const;
+/** What each model's AUX output is (OUT/AUX blends to it): the module's second output, different for each. */
+export const RIG_MACRO_AUX: Readonly<Record<(typeof RIG_MACRO_MODELS)[number], string>> = {
+  VA: 'SYNC', WAVESHAPE: 'SINE', FM: 'SUB', GRAIN: 'Z OSC', ADDITIVE: 'ORGAN', WAVETABLE: 'LO-FI', CHORDS: 'ROOT',
+  SPEECH: 'EXCITE', SWARM: 'SINES', NOISE: 'BANDS', PARTICLE: 'RAW', STRING: 'EXCITE', MODAL: 'EXCITE',
+  'BASS DRUM': 'SYNTH', SNARE: 'SYNTH', 'HI-HAT': 'RING',
+};
 export const RIG_OSC3_MODES = ['WAVETABLE', 'MACRO'] as const;
 export const RIG_TABLES = ['PPG RESO', 'PPG SYNC', 'PPG DIGI', 'PPG PULSE', 'VOX AEIOU', 'VOX CHOIR'] as const;
 

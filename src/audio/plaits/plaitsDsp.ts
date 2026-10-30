@@ -657,10 +657,12 @@ class PlHysteresisQuantizer {
     this.scale = symmetric ? numSteps - 1 : numSteps; this.offset = symmetric ? 0 : -0.5;
     this.quantizedValue = 0;
   }
+  // in single precision, as on the module: a value right at a threshold falls the same side
   process(value, base = 0) {
-    value = value * this.scale + this.offset + base;
+    const f = Math.fround;
+    value = f(f(f(f(value) * this.scale) + this.offset) + base);
     const sign = value > this.quantizedValue ? -1 : 1;
-    const q = plConstrain((value + sign * this.hysteresis + 0.5) | 0, 0, this.numSteps - 1);
+    const q = plConstrain(f(f(value + f(sign * f(this.hysteresis))) + 0.5) | 0, 0, this.numSteps - 1);
     this.quantizedValue = q;
     return q;
   }
@@ -753,6 +755,486 @@ class PlWavetableOscillator {
     }
     this.lp = lp; this.phase = phase;
     this.frequency = fv; this.amplitude = av; this.waveform = wv;
+  }
+}
+
+// ---- stmlib/utils/random.h: one generator shared by everything, as on the module (the tests seed it)
+let PL_RNG = 0x21;
+function plRandomSeed(seed) { PL_RNG = seed >>> 0; }
+function plRandomWord() { PL_RNG = (Math.imul(PL_RNG, 1664525) + 1013904223) >>> 0; return PL_RNG; }
+function plRandomSample() { return (plRandomWord() >>> 16) << 16 >> 16; }
+function plRandomFloat() { return plRandomWord() / 4294967296; }
+
+// ---- stmlib/dsp/filter.h: the state-variable filter (Svf)
+class PlSvf {
+  constructor() { this.setFQ(PL_FREQ_DIRTY, 0.01, 100); this.s1 = 0; this.s2 = 0; }
+  reset() { this.s1 = 0; this.s2 = 0; }
+  copyFrom(f) { this.g = f.g; this.r = f.r; this.h = f.h; }
+  setGRH(g, r, h) { this.g = g; this.r = r; this.h = h; }
+  setGR(g, r) { this.g = g; this.r = r; this.h = 1 / (1 + r * g + g * g); }
+  setGQ(g, resonance) { this.g = g; this.r = 1 / resonance; this.h = 1 / (1 + this.r * g + g * g); }
+  setFQ(approximation, f, resonance) {
+    this.g = plTan(approximation, f); this.r = 1 / resonance;
+    this.h = 1 / (1 + this.r * this.g + this.g * this.g);
+  }
+  // one sample; the mode picks the output
+  process(mode, x) {
+    const g = this.g, r = this.r;
+    const hp = (x - r * this.s1 - g * this.s1 - this.s2) * this.h;
+    const bp = g * hp + this.s1;
+    this.s1 = g * hp + bp;
+    const lp = g * bp + this.s2;
+    this.s2 = g * bp + lp;
+    return mode === PL_LOW_PASS ? lp : mode === PL_BAND_PASS ? bp : mode === PL_BAND_PASS_NORMALIZED ? bp * r : hp;
+  }
+  processBuffer(mode, input, out, size) { for (let i = 0; i < size; i++) out[i] = this.process(mode, input[i]); }
+  processAdd(mode, input, out, size, gain) { for (let i = 0; i < size; i++) out[i] += gain * this.process(mode, input[i]); }
+  // adds one mode's output into two buffers, with a gain each
+  processAdd2(mode, input, out1, out2, size, gain1, gain2) {
+    for (let i = 0; i < size; i++) { const v = this.process(mode, input[i]); out1[i] += v * gain1; out2[i] += v * gain2; }
+  }
+  processMultimode(input, out, size, mode) {
+    const hpG = mode < 0.5 ? -mode * 2 : -2 + mode * 2, lpG = mode < 0.5 ? 1 - mode * 2 : 0, bpG = mode < 0.5 ? 0 : mode * 2 - 1;
+    const g = this.g, r = this.r, h = this.h;
+    let s1 = this.s1, s2 = this.s2;
+    for (let i = 0; i < size; i++) {
+      const hp = (input[i] - r * s1 - g * s1 - s2) * h, bp = g * hp + s1;
+      s1 = g * hp + bp;
+      const lp = g * bp + s2;
+      s2 = g * bp + lp;
+      out[i] = hpG * hp + bpG * bp + lpG * lp;
+    }
+    this.s1 = s1; this.s2 = s2;
+  }
+  processMultimodeLPtoHP(input, out, size, mode) {
+    const hpG = Math.min(-mode * 2 + 1, 0), bpG = 1 - 2 * Math.abs(mode - 0.5), lpG = Math.max(1 - mode * 2, 0);
+    const g = this.g, r = this.r, h = this.h;
+    let s1 = this.s1, s2 = this.s2;
+    for (let i = 0; i < size; i++) {
+      const hp = (input[i] - r * s1 - g * s1 - s2) * h, bp = g * hp + s1;
+      s1 = g * hp + bp;
+      const lp = g * bp + s2;
+      s2 = g * bp + lp;
+      out[i] = hpG * hp + bpG * bp + lpG * lp;
+    }
+    this.s1 = s1; this.s2 = s2;
+  }
+}
+
+// ---- stmlib/dsp/cosine_oscillator.h (the approximate one): a slow cosine for the FX engine's LFOs
+class PlCosineOscillator {
+  constructor(frequency) {
+    let sign = 16;
+    frequency -= 0.25;
+    if (frequency < 0) frequency = -frequency;
+    else if (frequency > 0.5) frequency -= 0.5;
+    else sign = -16;
+    this.iir = sign * frequency * (1 - 2 * frequency);
+    this.y1 = this.iir * 0.25; this.y0 = 0.5;
+  }
+  value() { return this.y1 + 0.5; }
+  next() { const t = this.y0; this.y0 = this.iir * this.y0 - this.y1; this.y1 = t; return t + 0.5; }
+}
+
+// ---- plaits/dsp/fx/fx_engine.h: delay memory for small reverbs and diffusers, stored at 12 bits as on the module
+// \`lines\`: each delay line's length, in order (FxEngine's Reserve list); a line is { base, length }
+class PlFxEngine {
+  constructor(size, lines) {
+    this.size = size; this.mask = size - 1;
+    this.buffer = new Int16Array(size);
+    let base = 0;
+    this.lines = lines.map((length) => { const d = { base, length }; base += length + 1; return d; });
+    this.writePtr = 0;
+    this.lfo = [new PlCosineOscillator(0), new PlCosineOscillator(0)];
+    this.acc = 0; this.previousRead = 0; this.lfoValue = [0, 0];
+  }
+  setLFOFrequency(index, frequency) { this.lfo[index] = new PlCosineOscillator(frequency * 32); }
+  clear() { this.buffer.fill(0); this.writePtr = 0; }
+  static compress(v) { const x = Math.trunc(v * 4096); return x < -32768 ? -32768 : x > 32767 ? 32767 : x; }
+  start() {
+    if (--this.writePtr < 0) this.writePtr += this.size;
+    this.acc = 0; this.previousRead = 0;
+    if ((this.writePtr & 31) === 0) { this.lfoValue[0] = this.lfo[0].next(); this.lfoValue[1] = this.lfo[1].next(); }
+    else { this.lfoValue[0] = this.lfo[0].value(); this.lfoValue[1] = this.lfo[1].value(); }
+  }
+  load(v) { this.acc = v; }
+  readValue(v, scale = 1) { this.acc += v * scale; }
+  // reads a line at an offset (-1: its tail)
+  read(d, offset, scale) {
+    const at = offset === -1 ? this.writePtr + d.base + d.length - 1 : this.writePtr + d.base + offset;
+    const r = this.buffer[at & this.mask] / 4096;
+    this.previousRead = r;
+    this.acc += r * scale;
+  }
+  write(d, offset, scale) {
+    const at = offset === -1 ? this.writePtr + d.base + d.length - 1 : this.writePtr + d.base + offset;
+    this.buffer[at & this.mask] = PlFxEngine.compress(this.acc);
+    this.acc *= scale;
+  }
+  writeAllPass(d, offset, scale) { this.write(d, offset, scale); this.acc += this.previousRead; }
+  // writes the accumulator out (returned), and scales what stays
+  writeValue(scale) { const v = this.acc; this.acc *= scale; return v; }
+  lp(state, coefficient) { state += coefficient * (this.acc - state); this.acc = state; return state; }
+  hp(state, coefficient) { state += coefficient * (this.acc - state); this.acc -= state; return state; }
+  interpolate(d, offset, lfoIndex, amplitude, scale) {
+    if (lfoIndex >= 0) offset += amplitude * this.lfoValue[lfoIndex];
+    const oi = offset | 0, of = offset - oi;
+    const a = this.buffer[(this.writePtr + oi + d.base) & this.mask] / 4096;
+    const b = this.buffer[(this.writePtr + oi + d.base + 1) & this.mask] / 4096;
+    const x = a + (b - a) * of;
+    this.previousRead = x;
+    this.acc += x * scale;
+  }
+}
+
+// ---- plaits/dsp/fx/diffuser.h: four all-passes and a modulated loop, smearing a signal in time
+class PlDiffuser {
+  constructor() {
+    this.engine = new PlFxEngine(8192, [126, 180, 269, 444, 1653, 2010, 3411]);
+    this.engine.setLFOFrequency(0, 0.3 / 48000);
+    this.lpDecay = 0;
+  }
+  reset() { this.engine.clear(); }
+  process(amount, rt, buf, size) {
+    const e = this.engine, [ap1, ap2, ap3, ap4, dapa, dapb, del] = e.lines;
+    const kap = 0.625, klp = 0.75;
+    let lp = this.lpDecay;
+    for (let i = 0; i < size; i++) {
+      e.start();
+      e.readValue(buf[i]);
+      e.read(ap1, -1, kap); e.writeAllPass(ap1, 0, -kap);
+      e.read(ap2, -1, kap); e.writeAllPass(ap2, 0, -kap);
+      e.read(ap3, -1, kap); e.writeAllPass(ap3, 0, -kap);
+      e.interpolate(ap4, 400, 0, 43, kap); e.writeAllPass(ap4, 0, -kap);
+      e.interpolate(del, 3070, 0, 340, rt);
+      lp = e.lp(lp, klp);
+      e.read(dapa, -1, -kap); e.writeAllPass(dapa, 0, kap);
+      e.read(dapb, -1, kap); e.writeAllPass(dapb, 0, -kap);
+      e.write(del, 0, 2);
+      const wet = e.writeValue(0);
+      buf[i] += amount * (wet - buf[i]);
+    }
+    this.lpDecay = lp;
+  }
+}
+
+// ---- plaits/dsp/noise/clocked_noise.h: sample-and-hold noise at a clock (band-limited steps)
+class PlClockedNoise {
+  constructor() { this.phase = 0; this.sample = 0; this.nextSample = 0; this.frequency = 0.001; }
+  render(sync, frequency, out, size) {
+    frequency = plConstrain(frequency, 0, 1);
+    let fv = this.frequency; const df = (frequency - fv) / size;
+    let nextSample = this.nextSample, sample = this.sample;
+    if (sync) this.phase = 1;
+    for (let n = 0; n < size; n++) {
+      let thisSample = nextSample;
+      nextSample = 0;
+      fv += df;
+      const f = fv;
+      const raw = plRandomFloat() * 2 - 1;
+      const rawAmount = plConstrain(4 * (f - 0.25), 0, 1);
+      this.phase += f;
+      if (this.phase >= 1) {
+        this.phase -= 1;
+        const t = this.phase / f, d = raw - sample;
+        thisSample += d * plThisBlepSample(t);
+        nextSample += d * plNextBlepSample(t);
+        sample = raw;
+      }
+      nextSample += sample;
+      out[n] = thisSample + rawAmount * (raw - thisSample);
+    }
+    this.nextSample = nextSample; this.sample = sample; this.frequency = fv;
+  }
+}
+
+// ---- plaits/dsp/noise/particle.h: random impulses, each through a band-pass at a random pitch
+class PlParticle {
+  constructor() { this.preGain = 0; this.filter = new PlSvf(); }
+  render(sync, density, gain, frequency, spread, q, out, aux, size) {
+    let u = plRandomFloat();
+    if (sync) u = density;
+    let canRandomize = true;
+    for (let n = 0; n < size; n++) {
+      let s = 0;
+      if (u <= density) {
+        s = u * gain;
+        if (canRandomize) {
+          const v = 2 * plRandomFloat() - 1;
+          const f = Math.min(plSemitonesToRatio(spread * v) * frequency, 0.25);
+          this.preGain = 0.5 / Math.sqrt(q * f * Math.sqrt(density));
+          this.filter.setFQ(PL_FREQ_DIRTY, f, q);
+          canRandomize = false;
+        }
+      }
+      aux[n] += s;
+      out[n] += this.filter.process(PL_BAND_PASS, this.preGain * s);
+      u = plRandomFloat();
+    }
+  }
+}
+
+// ---- plaits/dsp/noise/dust.h
+function plDust(frequency) {
+  const inv = 1 / frequency, u = plRandomFloat();
+  return u < frequency ? u * inv : 0;
+}
+
+// ---- stmlib/dsp/filter.h (DCBlocker)
+class PlDCBlocker {
+  constructor(pole) { this.x = 0; this.y = 0; this.pole = pole; }
+  process(v) { const oldX = this.x; this.x = v; this.y = this.y * this.pole + v - oldX; return this.y; }
+}
+
+// ---- plaits/dsp/physical_modelling/delay_line.h
+class PlDelayLine {
+  constructor(maxDelay) { this.max = maxDelay; this.line = new Float32Array(maxDelay); this.writePtr = 0; }
+  reset() { this.line.fill(0); this.writePtr = 0; }
+  write(s) { this.line[this.writePtr] = s; this.writePtr = (this.writePtr - 1 + this.max) % this.max; }
+  allpass(s, delay, coefficient) {
+    const read = this.line[(this.writePtr + delay) % this.max];
+    const w = s + coefficient * read;
+    this.write(w);
+    return -w * coefficient + read;
+  }
+  read(delay) {
+    const di = delay | 0, df = delay - di;
+    const a = this.line[(this.writePtr + di) % this.max], b = this.line[(this.writePtr + di + 1) % this.max];
+    return a + (b - a) * df;
+  }
+  readHermite(delay) {
+    const di = delay | 0, f = delay - di, t = this.writePtr + di + this.max, M = this.max, L = this.line;
+    const xm1 = L[(t - 1) % M], x0 = L[t % M], x1 = L[(t + 1) % M], x2 = L[(t + 2) % M];
+    const c = (x1 - xm1) * 0.5, v = x0 - x1, w = c + v, a = w + v + (x2 - x0) * 0.5, bNeg = w + a;
+    return (((a * f) - bNeg) * f + c) * f + x0;
+  }
+}
+
+// ---- plaits/dsp/physical_modelling/string.cc: a Karplus-Strong string with a curved bridge (structure low) or
+// dispersion (high), resampled so its delay fits the line at any pitch
+const PL_STRING_DELAY = 1024;
+class PlString {
+  constructor() {
+    this.string = new PlDelayLine(PL_STRING_DELAY);
+    this.stretch = new PlDelayLine(PL_STRING_DELAY / 4);
+    this.delay = 100;
+    this.reset();
+  }
+  reset() {
+    this.string.reset(); this.stretch.reset();
+    this.iirDamping = new PlSvf();
+    this.dcBlocker = new PlDCBlocker(1 - 20 / PL_SAMPLE_RATE);
+    this.dispersionNoise = 0; this.curvedBridge = 0;
+    this.out0 = 0; this.out1 = 0; this.srcPhase = 0;
+  }
+  // adds into out
+  process(f0, nonLinearity, brightness, damping, input, out, size) {
+    const dispersion = nonLinearity > 0;
+    const amount = dispersion ? nonLinearity : -nonLinearity;
+    let delay = plConstrain(1 / f0, 4, PL_STRING_DELAY - 4);
+    let srcRatio = delay * f0;
+    if (srcRatio >= 0.9999) { this.srcPhase = 1; srcRatio = 1; }
+    let dampingCutoff = Math.min(12 + damping * damping * 60 + brightness * 24, 84);
+    let dampingF = Math.min(f0 * plSemitonesToRatio(dampingCutoff), 0.499);
+    if (damping >= 0.95) {
+      const toInfinite = 20 * (damping - 0.95);
+      brightness += toInfinite * (1 - brightness);
+      dampingF += toInfinite * (0.4999 - dampingF);
+      dampingCutoff += toInfinite * (128 - dampingCutoff);
+    }
+    this.iirDamping.setFQ(PL_FREQ_FAST, dampingF, 0.5);
+    const compensation = plInterpolate(PL_SVF_SHIFT, dampingCutoff, 1);
+    // the delay steps only when the resampler takes a sample, so it may end the block short of its target
+    let dv = this.delay; const dd = (delay * compensation - dv) / size;
+    const stretchPoint = amount * (2 - amount) * 0.225;
+    const stretchCorrection = plConstrain((160 / PL_SAMPLE_RATE) * delay, 1, 2.1);
+    const noiseSqrt = amount > 0.75 ? 4 * (amount - 0.75) : 0;
+    const noiseAmount = noiseSqrt * noiseSqrt * 0.1;
+    const noiseFilter = 0.06 + 0.94 * brightness * brightness;
+    const bridgeCurving = amount * amount * 0.01;
+    const apGain = -0.618 * amount / (0.15 + Math.abs(amount));
+    for (let n = 0; n < size; n++) {
+      this.srcPhase += srcRatio;
+      if (this.srcPhase > 1) {
+        this.srcPhase -= 1;
+        dv += dd;
+        let d = dv, s = 0;
+        if (dispersion) {
+          const noise = plRandomFloat() - 0.5;
+          this.dispersionNoise += noiseFilter * (noise - this.dispersionNoise);
+          d *= 1 + this.dispersionNoise * noiseAmount;
+          const apDelay = d * stretchPoint;
+          const mainDelay = d - apDelay * (0.408 - stretchPoint * 0.308) * stretchCorrection;
+          if (apDelay >= 4 && mainDelay >= 4) {
+            s = this.string.read(mainDelay);
+            s = this.stretch.allpass(s, apDelay | 0, apGain);
+          } else {
+            s = this.string.readHermite(d);
+          }
+        } else {
+          d *= 1 - this.curvedBridge * bridgeCurving;
+          s = this.string.readHermite(d);
+          const value = Math.abs(s) - 0.025, sign = s > 0 ? 1 : -1.5;
+          this.curvedBridge = (Math.abs(value) + value) * sign;
+        }
+        s = plConstrain(s + input[n], -20, 20);
+        s = this.dcBlocker.process(s);
+        s = this.iirDamping.process(PL_LOW_PASS, s);
+        this.string.write(s);
+        this.out1 = this.out0;
+        this.out0 = s;
+      }
+      out[n] += this.out1 + (this.out0 - this.out1) * this.srcPhase;
+    }
+    this.delay = dv;
+  }
+}
+
+// ---- plaits/dsp/physical_modelling/string_voice.cc: a string, plucked by a burst of filtered noise (or bowed
+// by dust when the trigger is not patched)
+class PlStringVoice {
+  constructor() { this.excitationFilter = new PlSvf(); this.string = new PlString(); this.remainingNoiseSamples = 0; }
+  reset() { this.string.reset(); }
+  render(sustain, trigger, accent, f0, structure, brightness, damping, temp, out, aux, size) {
+    const density = brightness * brightness;
+    brightness += 0.25 * accent * (1 - brightness);
+    damping += 0.25 * accent * (1 - damping);
+    if (trigger || sustain) {
+      const f = 4 * f0;
+      const cutoff = Math.min(f * plSemitonesToRatio((brightness * (2 - brightness) - 0.5) * 72), 0.499);
+      this.remainingNoiseSamples = (1 / f0) >>> 0;
+      this.excitationFilter.setFQ(PL_FREQ_DIRTY, cutoff, sustain ? 1 : 0.5);
+    }
+    if (sustain) {
+      const dustF = 0.00005 + 0.99995 * density * density;
+      for (let i = 0; i < size; i++) temp[i] = plDust(dustF) * (8 - dustF * 6) * accent;
+    } else if (this.remainingNoiseSamples) {
+      const noiseSamples = Math.min(this.remainingNoiseSamples, size);
+      this.remainingNoiseSamples -= noiseSamples;
+      for (let i = 0; i < size; i++) temp[i] = i < noiseSamples ? 2 * plRandomFloat() - 1 : 0;
+    } else {
+      temp.fill(0, 0, size);
+    }
+    this.excitationFilter.processBuffer(PL_LOW_PASS, temp, temp, size);
+    for (let i = 0; i < size; i++) aux[i] += temp[i];
+    const nonLinearity = structure < 0.24 ? (structure - 0.24) * 4.166 : structure > 0.26 ? (structure - 0.26) * 1.35135 : 0;
+    this.string.process(f0, nonLinearity, brightness, damping, temp, out, size);
+  }
+}
+
+// ---- plaits/dsp/physical_modelling/resonator.h, .cc: a bank of band-passes, tuned to a stiff bar or string
+class PlResonatorSvf {
+  constructor(n) {
+    this.n = n;
+    this.s1 = new Float64Array(n); this.s2 = new Float64Array(n);
+    this.g = new Float64Array(n); this.rg = new Float64Array(n); this.h = new Float64Array(n); this.gains = new Float64Array(n);
+  }
+  init() { this.s1.fill(0); this.s2.fill(0); }
+  // f, q, gain: one each per filter; lowPass or band-pass; add into out, or write it
+  process(lowPass, add, f, q, gain, input, out, size) {
+    const n = this.n, g = this.g, rg = this.rg, h = this.h, gains = this.gains, s1 = this.s1, s2 = this.s2;
+    for (let i = 0; i < n; i++) {
+      g[i] = plTan(PL_FREQ_FAST, f[i]);
+      const r = 1 / q[i];
+      h[i] = 1 / (1 + r * g[i] + g[i] * g[i]);
+      rg[i] = r + g[i];
+      gains[i] = gain[i];
+    }
+    for (let k = 0; k < size; k++) {
+      const x = input[k];
+      let y = 0;
+      for (let i = 0; i < n; i++) {
+        const hp = (x - rg[i] * s1[i] - s2[i]) * h[i];
+        const bp = g[i] * hp + s1[i];
+        s1[i] = g[i] * hp + bp;
+        const lp = g[i] * bp + s2[i];
+        s2[i] = g[i] * bp + lp;
+        y += gains[i] * (lowPass ? lp : bp);
+      }
+      if (add) out[k] += y; else out[k] = y;
+    }
+  }
+}
+
+const PL_MAX_MODES = 24, PL_MODE_BATCH = 4;
+function plNthHarmonicCompensation(n, stiffness) {
+  let stretch = 1;
+  for (let i = 0; i < n - 1; i++) { stretch += stiffness; stiffness *= stiffness < 0 ? 0.93 : 0.98; }
+  return 1 / stretch;
+}
+
+class PlResonator {
+  constructor() {
+    this.resolution = PL_MAX_MODES;
+    this.modeAmplitude = new Float64Array(PL_MAX_MODES);
+    this.modeFilters = Array.from({ length: PL_MAX_MODES / PL_MODE_BATCH }, () => new PlResonatorSvf(PL_MODE_BATCH));
+    this.modeQ = new Float64Array(PL_MODE_BATCH); this.modeF = new Float64Array(PL_MODE_BATCH); this.modeA = new Float64Array(PL_MODE_BATCH);
+  }
+  init(position, resolution) {
+    this.resolution = Math.min(resolution, PL_MAX_MODES);
+    const amplitudes = new PlCosineOscillator(position);
+    for (let i = 0; i < resolution; i++) this.modeAmplitude[i] = amplitudes.next() * 0.25;
+    for (const f of this.modeFilters) f.init();
+  }
+  // adds into out
+  process(f0, structure, brightness, damping, input, out, size) {
+    let stiffness = plInterpolate(PL_STIFFNESS, structure, 64);
+    f0 *= plNthHarmonicCompensation(3, stiffness);
+    let harmonic = f0, stretch = 1;
+    const qSqrt = plSemitonesToRatio(damping * 79.7);
+    let q = 500 * qSqrt * qSqrt;
+    brightness *= 1 - structure * 0.3;
+    brightness *= 1 - damping * 0.3;
+    const qLoss = brightness * (2 - brightness) * 0.85 + 0.15;
+    let batch = 0, filter = 0;
+    for (let i = 0; i < this.resolution; i++) {
+      let mf = harmonic * stretch;
+      if (mf >= 0.499) mf = 0.499;
+      this.modeF[batch] = mf;
+      this.modeQ[batch] = 1 + mf * q;
+      this.modeA[batch] = this.modeAmplitude[i] * (1 - mf * 2);
+      if (++batch === PL_MODE_BATCH) {
+        batch = 0;
+        this.modeFilters[filter++].process(false, true, this.modeF, this.modeQ, this.modeA, input, out, size);
+      }
+      stretch += stiffness;
+      stiffness *= stiffness < 0 ? 0.93 : 0.98;
+      harmonic += f0;
+      q *= qLoss;
+    }
+  }
+}
+
+// ---- plaits/dsp/physical_modelling/modal_voice.cc: the resonator struck by a filtered impulse (or bowed by dust)
+class PlModalVoice {
+  constructor() {
+    this.excitationFilter = new PlResonatorSvf(1);
+    this.resonator = new PlResonator();
+    this.one = [1]; this.cutoff = [0]; this.q = [0];
+  }
+  init() { this.excitationFilter.init(); this.resonator.init(0.015, PL_MAX_MODES); }
+  render(sustain, trigger, accent, f0, structure, brightness, damping, temp, out, aux, size) {
+    const density = brightness * brightness;
+    brightness += 0.25 * accent * (1 - brightness);
+    damping += 0.25 * accent * (1 - damping);
+    const range = sustain ? 36 : 60, f = sustain ? 4 * f0 : 2 * f0;
+    const cutoff = Math.min(f * plSemitonesToRatio((brightness * (2 - brightness) - 0.5) * range), 0.499);
+    const q = sustain ? 0.7 : 1.5;
+    if (sustain) {
+      const dustF = 0.00005 + 0.99995 * density * density;
+      for (let i = 0; i < size; i++) temp[i] = plDust(dustF) * (4 - dustF * 3) * accent;
+    } else {
+      temp.fill(0, 0, size);
+      if (trigger) {
+        const attenuation = 1 - damping * 0.5;
+        const amplitude = (0.12 + 0.08 * accent) * attenuation;
+        temp[0] = amplitude * plSemitonesToRatio(cutoff * cutoff * 24) / cutoff;
+      }
+    }
+    this.cutoff[0] = cutoff; this.q[0] = q;
+    this.excitationFilter.process(true, false, this.cutoff, this.q, this.one, temp, temp, size);
+    for (let i = 0; i < size; i++) aux[i] += temp[i];
+    this.resonator.process(f0, structure, brightness, damping, temp, out, size);
   }
 }
 `;

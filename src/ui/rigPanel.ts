@@ -1,5 +1,5 @@
 import type { Control } from '../domain/devices/controls';
-import { RIG_DESTS, RIG_SOURCES, type RigDest, type RigSource } from '../domain/devices/rigParams';
+import { RIG_DESTS, RIG_MACRO_AUX, RIG_SOURCES, type RigDest, type RigSource } from '../domain/devices/rigParams';
 import type { RigMulti } from '../domain/devices/rigMulti';
 import { RIG_PARTS, type RigSynth } from '../domain/devices/rigSynth';
 import { renderRigKitPanel, type RigKitSource } from './rigKitPanel';
@@ -232,6 +232,10 @@ export function renderRigPanel(rig: RigSynth, kits?: RigKitSource): HTMLElement 
   const showMode = () => {
     const isMacro = (rig.control('osc3.mode') as { value: string }).value === 'MACRO';
     for (const [id, node] of modal) node.hidden = MACRO_ONLY.has(id) ? !isMacro : isMacro;
+    // OUT/AUX says what AUX is for the model
+    const model = (rig.control('osc3.model') as { value: string }).value as keyof typeof RIG_MACRO_AUX;
+    const auxLabel = modal.find(([id]) => id === 'osc3.aux')?.[1].querySelector('.knob-label');
+    if (auxLabel) auxLabel.textContent = `OUT/${RIG_MACRO_AUX[model] ?? 'AUX'}`;
   };
   const grid = el('div', 'rig-grid');
   for (const [title, colour, ids] of SECTIONS) {
@@ -313,6 +317,7 @@ export function renderRigPanel(rig: RigSynth, kits?: RigKitSource): HTMLElement 
     showMode();
   };
   rig.control('osc3.mode').onChange(showMode);
+  rig.control('osc3.model').onChange(showMode);
   rig.onPartChange(sync);
   rig.onEdit(syncRings); // routings changed elsewhere: a loaded sound, the other side copied over
   sync();
