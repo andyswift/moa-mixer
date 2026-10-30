@@ -14,6 +14,7 @@ import { TONE_NAME, TONE_SOURCE } from './toneWorklet';
 import { GRANULAR_NAME, GRANULAR_SOURCE } from './granularWorklet';
 import { M2600_NAME, M2600_SOURCE } from './m2600Worklet';
 import { PIPE_NAME, PIPE_SOURCE, SPRING_NAME } from './pipeWorklet';
+import { RIG_NAME, RIG_SOURCE } from './rigWorklet';
 
 const SMOOTHING = 0.01; // seconds; avoids zipper noise on param changes
 
@@ -365,6 +366,13 @@ export class AudioEngine {
           nodes.set(n.id, new AudioWorkletNode(ctx, FOLD_NAME, {
             numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1], channelCount: 1, channelCountMode: 'explicit',
             parameterData: n.params,
+          }));
+          break;
+        }
+        case 'rig': {
+          nodes.set(n.id, new AudioWorkletNode(ctx, RIG_NAME, {
+            numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],
+            processorOptions: { state: JSON.parse(n.options.state ?? '{}') as unknown },
           }));
           break;
         }
@@ -798,7 +806,7 @@ registerProcessor('${FOLLOWER_NAME}', MoaFollower);
 `;
 
 /** Every processor, as the one script the audio worklet loads. Top-level names must not clash between them. */
-export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE, KIT_SOURCE, SAMPLER_SOURCE, TONE_SOURCE, VOICE_SOURCE].join('\n');
+export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE, KIT_SOURCE, SAMPLER_SOURCE, TONE_SOURCE, VOICE_SOURCE, RIG_SOURCE].join('\n');
 
 /** The processors are one worklet module, loaded from an in-memory script. */
 function workletModuleUrl(): string {

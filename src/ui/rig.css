@@ -1,0 +1,36 @@
+/* ---- MOA-RIG: the first panel, in the SYNTH page's colours (grey face, white ink, an accent per section) ---- */
+.rig-wrap { margin-bottom: 16px; font-family: 'Barlow Semi Condensed', system-ui, sans-serif; color: #f1f1ec; }
+.rig-wrap .keybed { margin: 0; border-radius: 0 0 12px 12px; }
+.rig-panel { background: #2f3136; border: 1px solid #1f2023; border-bottom: 0; border-radius: 12px 12px 0 0; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.rig-parts { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 4px; }
+.rig-part { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 5px 6px; border: 0; border-radius: 4px; background: #3a3c41; color: #f1f1ec; box-shadow: inset 0 0 0 1px #45474c; font-family: inherit; text-align: left; cursor: pointer; }
+.rig-part.empty { background: #2a2c30; color: #8a8d93; }
+.rig-part.selected { background: #f1f1ec; color: #1b1c1f; }
+.rig-part-num { font-weight: 700; font-size: 13px; }
+.rig-part-name { font-weight: 700; font-size: 11px; letter-spacing: 0.04em; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rig-part-meta { font-size: 9.5px; font-weight: 600; opacity: 0.8; white-space: nowrap; }
+.rig-setup { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; padding: 8px 10px; border-radius: 5px; background: #1d1e21; box-shadow: inset 0 0 0 1px #34363b; }
+.rig-field { display: flex; align-items: center; gap: 6px; }
+.rig-field .knob-label { margin-right: 2px; }
+.rig-wrap select { background: #2a2c30; color: #f1f1ec; border: 1px solid #45474c; border-radius: 3px; font: 600 12px/1.2 'Barlow Semi Condensed', system-ui, sans-serif; padding: 3px 4px; }
+.rig-readout { font-family: 'Share Tech Mono', ui-monospace, monospace; font-size: 13px; color: #ffb27a; min-width: 2ch; }
+.rig-small { min-width: 26px; height: 24px; padding: 0 6px; border-radius: 3px; border: 0; background: #2a2c30; color: #f1f1ec; box-shadow: inset 0 0 0 1px #45474c; font: 700 13px/1 'Barlow Semi Condensed', system-ui, sans-serif; cursor: pointer; }
+.rig-wide { font-size: 11px; letter-spacing: 0.08em; }
+.rig-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+.rig-section { background: #5a5e65; border-radius: 5px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), inset 0 0 0 1px #2c2e33; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.rig-title { margin: 0; padding-bottom: 4px; border-bottom: 2px solid var(--rig-accent); font-size: 13px; font-weight: 700; letter-spacing: 0.08em; }
+.rig-controls { display: flex; flex-wrap: wrap; justify-content: space-around; align-items: flex-end; gap: 10px 8px; }
+.rig-section .knob-label { color: #e4e5e7; letter-spacing: 0.06em; }
+.rig-section .knob-value { color: #d9dadc; }
+.rig-section .knob-pointer::after { background: var(--rig-accent); width: 3px; left: calc(50% - 1.5px); }
+.rig-choice, .rig-toggle { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.rig-key { width: 36px; height: 20px; padding: 0; border: 0; border-radius: 3px; background: #2a2c30; color: #e4e5e7; box-shadow: inset 0 0 0 1px #45474c, 0 1px 2px rgba(0,0,0,0.6); font: 700 11px/1 'Barlow Semi Condensed', system-ui, sans-serif; cursor: pointer; }
+.rig-key.on { background: var(--rig-accent, #f1f1ec); color: #1b1c1f; box-shadow: 0 0 8px var(--rig-accent, #f1f1ec); }
+.rig-side { --rig-accent: #f1f1ec; }
+.rig-mod { gap: 6px; }
+.rig-routes { display: flex; flex-direction: column; gap: 4px; }
+.rig-route { display: flex; align-items: center; gap: 8px; }
+.rig-route input[type='range'] { flex: 1 1 auto; max-width: 320px; }
+.rig-wrap button:focus-visible, .rig-wrap select:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+@media (max-width: 1100px) { .rig-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .rig-parts { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .rig-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); } .rig-parts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }

@@ -4,6 +4,7 @@ import { DRUM_OUTPUTS, DrumMachine } from '../devices/drumMachine';
 import { GranularFx } from '../devices/granular';
 import { OuroborosFx } from '../devices/ouroboros';
 import { DuoSynth } from '../devices/duoSynth';
+import { RigSynth } from '../devices/rigSynth';
 import { M2600Synth } from '../devices/m2600Synth';
 import { BassGuitar } from '../devices/bassGuitar';
 import { ElectricGuitar } from '../devices/electricGuitar';
@@ -154,6 +155,11 @@ export class Patch {
   /** The MOA-2600 page: the synth (with the MOA-SQ16 under it) straight to the speakers. */
   static m2600(): Patch {
     return new Patch().add('m2600', new M2600Synth('MOA-2600')).setOutput('m2600', 'out');
+  }
+
+  /** The MOA-RIG page: the multitimbral synth straight to the speakers. */
+  static rig(): Patch {
+    return new Patch().add('rig', new RigSynth('MOA-RIG')).setOutput('rig', 'out');
   }
 
   /** The MOA-DUO page: the synth straight to the speakers. */

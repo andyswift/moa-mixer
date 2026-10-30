@@ -51,10 +51,13 @@
 // 'tone' is MOA-UNICORN's sound (`toneWorklet.ts`), no input, mono out: option `role` 'voices' (eight simple
 // two-wave voices; option `preset` keeps the sound, JSON, for a worklet built later) or 'drums' (the rhythm box).
 // Param level; `send` messages set the sound and play notes and drums.
+// 'rig' is the MOA-RIG (`rigWorklet.ts`): sixteen parts sharing a pool of voices, each voice three oscillators, a ladder
+// and an SEM filter, two envelopes, two LFOs and a mod matrix; no input, stereo out. `send` messages set patches, the
+// voice layout, notes and controllers; its `state` option keeps all of it (JSON) for a worklet built later.
 // 'df' is the MOA-DF2 filter box: two multimode filters, two envelopes, a sample-and-hold, a delay and a mixer in
 // one worklet; stereo in, stereo out. Its params are listed in `dfWorklet.ts`. `gate(id, target, on)` drives its
 // envelope gates: 'keys' (the held keys) or 'open1' / 'open2' (the OPEN buttons).
-export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df' | 'duo' | 'm2600' | 'fold' | 'ladder' | 'string' | 'drum' | 'sampler' | 'tone' | 'voice';
+export type NodeKind = 'oscillator' | 'filter' | 'gain' | 'pan' | 'envelope' | 'trigger' | 'delay' | 'convolver' | 'compressor' | 'constant' | 'waveshaper' | 'noise' | 'random' | 'meter' | 'follower' | 'granular' | 'pipe' | 'spring' | 'df' | 'duo' | 'm2600' | 'fold' | 'ladder' | 'string' | 'drum' | 'sampler' | 'tone' | 'voice' | 'rig';
 
 export interface CircuitNode {
   readonly id: string;
@@ -165,9 +168,9 @@ export class Circuit {
     this.emit({ type: 'play', nodeId, n1, n2, gate, retrig });
   }
 
-  /** Sends a message to a 2600, string, drum, sampler, tone or voice node's worklet as it is (the AR's manual button, patch cords, plucks, sounds, notes). */
+  /** Sends a message to a 2600, string, drum, sampler, tone, voice or rig node's worklet as it is (the AR's manual button, patch cords, plucks, sounds, notes). */
   send(nodeId: string, data: unknown): void {
-    this.expectKind(nodeId, 'm2600', 'string', 'drum', 'sampler', 'tone', 'voice');
+    this.expectKind(nodeId, 'm2600', 'string', 'drum', 'sampler', 'tone', 'voice', 'rig');
     this.emit({ type: 'message', nodeId, data });
   }
 
