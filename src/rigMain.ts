@@ -8,6 +8,7 @@ import { mountInstrumentPage } from './ui/instrumentPage';
 import { mountKeyboardBed } from './ui/keyboard';
 import { renderRigPanel } from './ui/rigPanel';
 import { renderRigSeqPanel } from './ui/rigSeqPanel';
+import * as store from './ui/rigStorage';
 
 // The MOA-RIG page: the multitimbral synth on its own patch, separate from the mixer. Its audio is also published on
 // the audio bus as "MOA-RIG", where the mixer page can take it into a stereo input strip.
@@ -17,8 +18,19 @@ const rig = patch.device<RigSynth>('rig');
 
 const wrap = document.createElement('div');
 wrap.className = 'rig-wrap';
+// ---- storage: the saved sounds, the working multi as it was left, and the multi slots
+rig.setSavedSounds(store.loadSounds());
+const restored = store.loadCurrent();
+if (restored) rig.loadMulti(restored.multi);
+const multis = {
+  slot: restored?.slot ?? -1,
+  names: store.slotNames,
+  load: store.loadSlot,
+  save: store.saveSlot,
+};
+
 const engine = new AudioEngine(patch);
-wrap.append(renderRigPanel(rig), mountKeyboardBed(rig), renderRigSeqPanel(rig, () => engine.currentTime));
+wrap.append(renderRigPanel(rig, multis), mountKeyboardBed(rig), renderRigSeqPanel(rig, () => engine.currentTime));
 
 // The sequencer sends ahead on the audio clock; a live-played note is placed by when it was heard.
 const SCHEDULE_MS = 25;
@@ -33,3 +45,21 @@ const page = mountInstrumentPage({
 
 // Dev-only handle for poking at the engine from the browser console.
 if (import.meta.env.DEV) Object.assign(window, { __rig: { engine, patch, rig, pcm: page.pcm, midi: page.handleMidiBytes } });
+
+// Every change is kept: the working multi a moment after it settles, the saved sounds when they change. Sound and
+// part edits come through the synth's onEdit, pattern edits through the sequencer's onChange.
+const AUTOSAVE_MS = 400;
+let pending: ReturnType<typeof setTimeout> | undefined;
+let soundsSaved = JSON.stringify(rig.savedSounds);
+const changed = () => {
+  clearTimeout(pending);
+  pending = setTimeout(() => {
+    store.saveCurrent(rig.toMulti(), multis.slot);
+    const sounds = JSON.stringify(rig.savedSounds);
+    if (sounds !== soundsSaved) { store.saveSounds(rig.savedSounds); soundsSaved = sounds; }
+  }, AUTOSAVE_MS);
+};
+rig.onEdit(changed);
+rig.seq.onChange(changed);
+window.addEventListener('pagehide', () => { if (pending) { clearTimeout(pending); store.saveCurrent(rig.toMulti(), multis.slot); } });
+

@@ -61,7 +61,7 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   const rec = button('rig-key rig-seq-rec', 'REC');
   rec.addEventListener('click', () => rig.setRecording(!rig.isRecording));
   const tempo = new NumberControl('seq.tempo', 'Tempo', 40, 240, rig.bpm, 'BPM', (v) => { rig.bpm = v; });
-  const shuffle = new NumberControl('seq.shuffle', 'Shuffle', 0, 50, seq.shuffle * 100, '%', (v) => { seq.shuffle = v / 100; });
+  const shuffle = new NumberControl('seq.shuffle', 'Shuffle', 0, 50, seq.shuffle * 100, '%', (v) => { seq.shuffle = v / 100; seq.notify(); });
   const length = select('Pattern length', [['FREE', '0'], ...[16, 32, 48, 64, 96, 128, 192, 256].map((n): [string, string] => [`${n / 16} BAR${n > 16 ? 'S' : ''}`, String(n)])],
     (v) => { seq.pattern.length = Number(v); changed(); });
   const pads = el('div', 'rig-seq-pads');

@@ -4,6 +4,7 @@ import { ChoiceControl, type Control, NumberControl, ToggleControl } from './con
 import { Device } from './device';
 import type { Playable } from './playable';
 import { RIG_DEFAULTS, RIG_PARAMS, type RigRoute, type RigSide } from './rigParams';
+import { RIG_MULTI_VERSION, type RigMulti } from './rigMulti';
 import { RIG_PRESETS, type RigPreset } from './rigPresets';
 
 export const RIG_PARTS = 16;
@@ -34,6 +35,16 @@ export interface RigPart {
 }
 
 const clone = (s: RigSide): RigSide => ({ params: { ...s.params }, matrix: s.matrix.map((r) => ({ ...r })) });
+const copy = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+
+/** A part as a fresh multi has it: part 1 the Init sound with the whole pool, the rest empty, each on its own channel. */
+export function freshPart(p: number): RigPart {
+  return {
+    name: p === 0 ? RIG_PRESETS[0]!.name : '', slot: 0, voices: p === 0 ? RIG_VOICES : 0,
+    channel: p === 0 ? 0 : p + 1, lo: 0, hi: 127, octave: 0,
+    a: clone(RIG_PRESETS[0]!.a), b: clone(RIG_PRESETS[0]!.a),
+  };
+}
 
 /**
  * MOA-RIG: a multitimbral synth after the Melbourne Instruments NINA, with sixteen parts instead of four. Each part is
@@ -51,8 +62,11 @@ const clone = (s: RigSide): RigSide => ({ params: { ...s.params }, matrix: s.mat
  */
 export class RigSynth extends Device implements Playable {
   readonly name: string;
-  readonly slots: readonly RigPreset[] = RIG_PRESETS;
+  /** The sounds a part can load: the factory ones, then the ones saved with `saveSound`. */
+  readonly slots: RigPreset[] = [...RIG_PRESETS];
   readonly parts: RigPart[];
+  private multiNameValue = 'Multi';
+  private readonly editListeners = new Set<() => void>();
   private editPart = 0;
   private editSide: 'a' | 'b' = 'a';
   /** While the controls are being set to show another part, their changes are not edits. */
@@ -91,11 +105,7 @@ export class RigSynth extends Device implements Playable {
       mod: (part, value, when) => this.circuit.send('synth', { type: 'ctrl', part, name: 'seq', value, when }),
       flush: () => this.circuit.send('synth', { type: 'flush' }),
     });
-    this.parts = Array.from({ length: RIG_PARTS }, (_, p) => ({
-      name: p === 0 ? RIG_PRESETS[0]!.name : '', slot: 0, voices: p === 0 ? RIG_VOICES : 0,
-      channel: p === 0 ? 0 : p + 1, lo: 0, hi: 127, octave: 0,
-      a: clone(RIG_PRESETS[0]!.a), b: clone(RIG_PRESETS[0]!.a),
-    }));
+    this.parts = Array.from({ length: RIG_PARTS }, (_, p) => freshPart(p));
     const c = this.circuit;
     c.add('synth', 'rig', {}, { state: '{}' })
       .add('meterL', 'meter', {}, { channel: 'left' })
@@ -169,6 +179,107 @@ export class RigSynth extends Device implements Playable {
     this.sendPatch(this.editPart);
   }
 
+  // ---- Multis and sounds ----
+
+  get multiName(): string {
+    return this.multiNameValue;
+  }
+
+  set multiName(name: string) {
+    this.multiNameValue = name.slice(0, 24);
+    this.edited();
+  }
+
+  /** Called after anything that a multi or the saved sounds keep has changed (for saving). */
+  onEdit(fn: () => void): () => void {
+    this.editListeners.add(fn);
+    return () => this.editListeners.delete(fn);
+  }
+
+  private edited(): void {
+    for (const l of this.editListeners) l();
+  }
+
+  /** Names a part (what the part buttons and the sequencer's lanes show). */
+  setPartName(part: number, name: string): void {
+    this.parts[part]!.name = name.slice(0, 24);
+    this.notifyParts();
+    this.edited();
+  }
+
+  /**
+   * Saves the edited part's sound (both sides) as a sound any part can load, under `name`: a saved sound of the same
+   * name is replaced (factory ones never are). Returns its slot.
+   */
+  saveSound(name: string): number {
+    const pt = this.parts[this.editPart]!;
+    const sound: RigPreset = { name: name.trim().slice(0, 24) || 'Sound', a: clone(pt.a), b: clone(pt.b) };
+    let slot = this.slots.findIndex((s, i) => i >= this.factorySounds && s.name === sound.name);
+    if (slot < 0) slot = this.slots.push(sound) - 1;
+    else this.slots[slot] = sound;
+    pt.slot = slot;
+    pt.name = sound.name;
+    this.notifyParts();
+    this.edited();
+    return slot;
+  }
+
+  /** How many of the slots are factory sounds (the saved ones come after). */
+  get factorySounds(): number {
+    return RIG_PRESETS.length;
+  }
+
+  /** The saved sounds (for storage). */
+  get savedSounds(): RigPreset[] {
+    return this.slots.slice(this.factorySounds);
+  }
+
+  /** Puts saved sounds (from storage) after the factory ones. */
+  setSavedSounds(sounds: RigPreset[]): void {
+    this.slots.splice(this.factorySounds, Infinity, ...sounds.map(copy));
+    this.notifyParts();
+  }
+
+  /** The whole machine as it is now. */
+  toMulti(): RigMulti {
+    return copy({
+      v: RIG_MULTI_VERSION, name: this.multiName, parts: this.parts, patterns: this.seq.patterns,
+      current: this.seq.current, chain: this.seq.chain, tempo: this.bpm, shuffle: this.seq.shuffle,
+    });
+  }
+
+  /** Loads a multi (sanitised beforehand): stops the sequencer, and the edited part goes back to part 1. */
+  loadMulti(m: RigMulti): void {
+    this.stop();
+    this.multiName = m.name;
+    m.parts.forEach((src, p) => {
+      Object.assign(this.parts[p]!, copy(src), { voices: 0, slot: src.slot < this.slots.length ? src.slot : 0 });
+    });
+    // voices last, so a save that asks for more than the pool still gets what fits, in part order
+    m.parts.forEach((src, p) => { this.parts[p]!.voices = Math.max(0, Math.min(this.freeVoices, src.voices)); });
+    this.seq.patterns = copy(m.patterns);
+    this.seq.current = m.current;
+    this.seq.next = undefined;
+    this.seq.chain = [...m.chain];
+    this.seq.shuffle = m.shuffle;
+    this.bpm = m.tempo;
+    this.circuit.send('synth', { type: 'layout', counts: this.parts.map((pt) => pt.voices) });
+    this.parts.forEach((_, p) => this.sendPatch(p));
+    this.editPart = 0;
+    this.editSide = 'a';
+    this.selStep = -1;
+    this.lockStep = undefined;
+    this.syncControls();
+    this.seq.notify();
+  }
+
+  /** Starts over: part 1 with the Init sound, empty patterns. */
+  newMulti(): void {
+    const fresh = new RigSynth().toMulti();
+    fresh.name = 'Multi';
+    this.loadMulti(fresh);
+  }
+
   /** Gives a part `voices` of the pool, as many as the other parts leave free. */
   setVoices(part: number, voices: number): void {
     const others = this.parts.reduce((sum, pt, i) => sum + (i === part ? 0 : pt.voices), 0);
@@ -182,6 +293,7 @@ export class RigSynth extends Device implements Playable {
   setPartSetting(part: number, setting: 'channel' | 'lo' | 'hi' | 'octave', value: number): void {
     this.parts[part]![setting] = Math.round(value);
     this.notifyParts();
+    this.edited();
   }
 
   /** Voices of the pool not given to any part. */
@@ -353,6 +465,7 @@ export class RigSynth extends Device implements Playable {
       patches: this.parts.map((pt, part) => ({ part, a: pt.a, b: pt.b })),
       bpm: this.bpmValue,
     }));
+    this.edited();
   }
 
   private notifyParts(): void {

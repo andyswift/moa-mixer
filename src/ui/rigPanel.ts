@@ -1,5 +1,6 @@
 import type { Control } from '../domain/devices/controls';
 import { RIG_DESTS, RIG_SOURCES, type RigDest, type RigSource } from '../domain/devices/rigParams';
+import type { RigMulti } from '../domain/devices/rigMulti';
 import { RIG_PARTS, type RigSynth } from '../domain/devices/rigSynth';
 import { el, renderKnob } from './widgets';
 
@@ -60,8 +61,62 @@ function renderToggle(c: Extract<Control, { kind: 'toggle' }>, section: string):
   return wrap;
 }
 
-export function renderRigPanel(rig: RigSynth): HTMLElement {
+/** Where multis are kept (the page's storage): sixteen slots, and which one the working multi came from. */
+export interface RigMultiStore {
+  slot: number;
+  names(): (string | undefined)[];
+  load(slot: number): RigMulti | undefined;
+  save(slot: number, multi: RigMulti): boolean;
+}
+
+export function renderRigPanel(rig: RigSynth, store?: RigMultiStore): HTMLElement {
   const panel = el('div', 'rig-panel');
+
+  // ---- the multi: its name, and the slots it is saved in and loaded from
+  const multiBar = el('div', 'rig-setup rig-multi');
+  const multiName = el('input', 'rig-name');
+  multiName.setAttribute('aria-label', 'Multi name');
+  multiName.maxLength = 24;
+  multiName.addEventListener('input', () => { rig.multiName = multiName.value; });
+  const slotSelect = el('select');
+  slotSelect.setAttribute('aria-label', 'Multi slot');
+  const fillSlots = () => {
+    const names = store?.names() ?? [];
+    slotSelect.replaceChildren(...Array.from({ length: 16 }, (_, i) => new Option(`${i + 1} · ${names[i] ?? '—'}`, String(i))));
+    slotSelect.value = String(Math.max(0, store?.slot ?? 0));
+  };
+  const status = el('span', 'rig-multi-status');
+  const say = (t: string) => { status.textContent = t; };
+  const load = el('button', 'rig-small rig-wide', 'LOAD');
+  load.addEventListener('click', () => {
+    const slot = Number(slotSelect.value);
+    const m = store?.load(slot);
+    if (!m) { say(`Slot ${slot + 1} is empty`); return; }
+    rig.loadMulti(m);
+    if (store) store.slot = slot;
+    say(`Loaded ${m.name} from slot ${slot + 1}`);
+  });
+  const save = el('button', 'rig-small rig-wide', 'SAVE');
+  save.addEventListener('click', () => {
+    const slot = Number(slotSelect.value);
+    const names = store?.names() ?? [];
+    if (names[slot] !== undefined && store?.slot !== slot && !confirm(`Replace ${names[slot]} in slot ${slot + 1}?`)) return;
+    const ok = store?.save(slot, rig.toMulti()) ?? false;
+    if (ok && store) store.slot = slot;
+    fillSlots();
+    say(ok ? `Saved ${rig.multiName} in slot ${slot + 1}` : 'Not saved: this browser is not keeping data for the page');
+  });
+  const fresh = el('button', 'rig-small rig-wide', 'NEW');
+  fresh.addEventListener('click', () => {
+    if (!confirm('Start a new multi? Save this one first if you want to keep it.')) return;
+    rig.newMulti();
+    if (store) store.slot = -1;
+    say('New multi');
+  });
+  for (const b of [load, save, fresh]) b.type = 'button';
+  multiBar.append(el('span', 'knob-label', 'Multi'), multiName, slotSelect, load, save, fresh, status);
+  if (!store) multiBar.hidden = true;
+  fillSlots();
 
   // ---- the sixteen parts
   const partRow = el('div', 'rig-parts');
@@ -77,8 +132,23 @@ export function renderRigPanel(rig: RigSynth): HTMLElement {
   const setup = el('div', 'rig-setup');
   const sound = el('select');
   sound.setAttribute('aria-label', 'Sound');
-  rig.slots.forEach((s, i) => sound.add(new Option(s.name, String(i))));
+  const fillSounds = () => {
+    const factory = el('optgroup');
+    factory.label = 'Factory';
+    const saved = el('optgroup');
+    saved.label = 'Saved';
+    rig.slots.forEach((s, i) => (i < rig.factorySounds ? factory : saved).append(new Option(s.name, String(i))));
+    sound.replaceChildren(factory, ...(saved.children.length ? [saved] : []));
+  };
   sound.addEventListener('change', () => rig.loadSlot(Number(sound.value)));
+  const partName = el('input', 'rig-name');
+  partName.setAttribute('aria-label', 'Part name');
+  partName.maxLength = 24;
+  partName.addEventListener('input', () => rig.setPartName(rig.part, partName.value));
+  const saveSound = el('button', 'rig-small rig-wide', 'SAVE SOUND');
+  saveSound.type = 'button';
+  saveSound.title = 'Save this part’s sound under the part’s name, for any part to load';
+  saveSound.addEventListener('click', () => rig.saveSound(partName.value || rig.parts[rig.part]!.name));
   const voices = el('output', 'rig-readout');
   const less = el('button', 'rig-small', '−');
   const more = el('button', 'rig-small', '+');
@@ -115,7 +185,7 @@ export function renderRigPanel(rig: RigSynth): HTMLElement {
     return f;
   };
   setup.append(
-    field('Sound', sound), field('Voices', less, voices, more), field('Channel', channel), field('Octave', octave),
+    field('Name', partName), field('Sound', sound, saveSound), field('Voices', less, voices, more), field('Channel', channel), field('Octave', octave),
     field('Range', lo, hi), field('Side', sideA, sideB, copy),
   );
 
@@ -190,7 +260,10 @@ export function renderRigPanel(rig: RigSynth): HTMLElement {
       b.setAttribute('aria-pressed', String(p === rig.part));
     });
     const pt = rig.parts[rig.part]!;
+    if (sound.options.length !== rig.slots.length || [...sound.options].some((o, i) => o.text !== rig.slots[i]!.name)) fillSounds();
     sound.value = String(pt.slot);
+    if (document.activeElement !== partName) partName.value = pt.name;
+    if (document.activeElement !== multiName) multiName.value = rig.multiName;
     voices.textContent = `${pt.voices} (${rig.freeVoices} free)`;
     channel.value = String(pt.channel);
     octave.value = String(pt.octave);
@@ -203,6 +276,6 @@ export function renderRigPanel(rig: RigSynth): HTMLElement {
   rig.onPartChange(sync);
   sync();
 
-  panel.append(partRow, setup, grid, mod);
+  panel.append(multiBar, partRow, setup, grid, mod);
   return panel;
 }
