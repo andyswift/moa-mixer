@@ -131,3 +131,102 @@
 .rig-mix-fx { display: grid; grid-template-columns: 1.4fr 1.5fr 1.4fr 1fr 1.3fr 1.7fr; gap: 4px; }
 .rig-mix-fx .rig-controls { justify-content: flex-start; gap: 10px 12px; }
 @media (max-width: 1100px) { .rig-mix-desk { grid-template-columns: repeat(4, minmax(0, 1fr)); } .rig-mix-fx { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---- the designed frame: a header over one page at a time, the whole window and no more ---- */
+body:has(.rig-shell) { background: #1b1c1f; }
+#app:has(.rig-shell) { max-width: none; padding: 0; }
+.rig-shell { display: flex; flex-direction: column; height: 100vh; margin: 0; overflow: hidden; }
+.rig-header { display: flex; align-items: center; gap: 14px; height: 44px; padding: 0 14px; background: #121315; border-bottom: 1px solid #2a2c30; flex: none; }
+.rig-logo { font: 700 18px/1 'Barlow Condensed', system-ui, sans-serif; letter-spacing: 0.12em; color: #f1f1ec; margin-right: 6px; }
+.rig-tabs { display: flex; gap: 4px; }
+.rig-tab { height: 28px; padding: 0 14px; border: 0; border-radius: 4px; background: #2a2c30; color: #c4c6c9; font: 700 13px/1 'Barlow Semi Condensed', system-ui, sans-serif; letter-spacing: 0.08em; cursor: pointer; }
+.rig-tab.on { background: #f1f1ec; color: #1b1c1f; }
+.rig-header-bpm { cursor: ns-resize; padding: 4px 8px; border-radius: 3px; background: #1d1e21; box-shadow: inset 0 0 0 1px #34363b; user-select: none; touch-action: none; }
+.rig-header-stat { font: 600 12px/1 'Share Tech Mono', ui-monospace, monospace; color: #c4c6c9; letter-spacing: 0.04em; white-space: nowrap; }
+.rig-drop-button:first-of-type { margin-left: auto; }
+.rig-header .rig-drop-button.on { background: #f1f1ec; color: #1b1c1f; }
+.rig-start { width: auto; height: 28px; padding: 0 12px; --rig-accent: #d6ef6a; }
+.rig-drop { position: absolute; top: 44px; right: 14px; z-index: 20; max-width: calc(100vw - 28px); padding: 12px; border-radius: 0 0 8px 8px; background: #26282c; box-shadow: 0 12px 30px rgba(0,0,0,0.6), inset 0 0 0 1px #3a3c41; }
+.rig-drop-keys { left: 14px; }
+.rig-drop-keys .keybed { border-radius: 8px; }
+.rig-drop-setup { left: 14px; max-height: calc(100vh - 70px); overflow: auto; }
+.rig-drop-multi .rig-multi { flex-wrap: wrap; }
+.rig-pages { flex: 1; min-height: 0; padding: 8px 10px 10px; overflow: auto; }
+.rig-page { height: 100%; }
+.rig-pages > .rig-panel { margin: 0; border-radius: 10px; border: 1px solid #1f2023; }
+.rig-pages .rig-panel { padding: 8px; gap: 6px; }
+
+/* SYNTH: the panel and the part's track, the detail column beside */
+.rig-page-synth { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 8px; }
+.rig-page-synth[hidden] { display: none; }
+.rig-page-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rig-page-main > .rig-panel { border-radius: 10px; border: 1px solid #1f2023; }
+.rig-page-synth .rig-part { padding: 3px 5px; }
+.rig-page-synth .rig-part-num { font-size: 11px; }
+.rig-page-synth .rig-setup { padding: 5px 8px; gap: 12px; }
+.rig-page-synth .rig-section { padding: 6px; gap: 5px; }
+.rig-page-synth .rig-controls { gap: 6px 6px; }
+.rig-page-synth .rig-title { font-size: 12px; padding-bottom: 3px; }
+.rig-page-synth .knob-value { font-size: 10px; }
+.rig-detail { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.rig-scope canvas { width: 100%; height: auto; border-radius: 4px; background: #121315; box-shadow: inset 0 0 0 1px #2a2c30; }
+.rig-kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0; font-size: 12px; }
+.rig-kv dt { color: #c4c6c9; font-weight: 700; letter-spacing: 0.06em; font-size: 10.5px; }
+.rig-kv dd { margin: 0; font-family: 'Share Tech Mono', ui-monospace, monospace; color: #ffb27a; text-align: right; }
+.rig-pattern-pads { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+.rig-pattern-pads .rig-seq-pad { height: 26px; }
+.rig-track-strip { padding: 6px 8px; gap: 5px; }
+.rig-track-strip .rig-seq-cell { height: 30px; }
+.rig-track-strip.kit .rig-seq-cell.note { background: #ffa3c7; }
+
+/* MOD mode: rings round the knobs a source can reach */
+.rig-mod-sources { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.rig-mod-source { width: 44px; --rig-accent: #ffd84a; }
+.rig-mod-mode { width: auto; padding: 0 10px; --rig-accent: #ffd84a; }
+.rig-ringwrap { position: relative; display: inline-flex; }
+.rig-ring { position: absolute; inset: -5px; border-radius: 50%; pointer-events: none; }
+.rig-ring.active { pointer-events: auto; cursor: ns-resize; touch-action: none;
+  --deg: calc(var(--amt, 0) * 180deg);
+  background: conic-gradient(from 0deg, #ffd84a 0deg max(0deg, var(--deg)), transparent max(0deg, var(--deg)) calc(360deg + min(0deg, var(--deg))), #ffd84a calc(360deg + min(0deg, var(--deg))) 360deg);
+  -webkit-mask: radial-gradient(circle, transparent calc(50% - 4px), #000 calc(50% - 3px));
+  mask: radial-gradient(circle, transparent calc(50% - 4px), #000 calc(50% - 3px));
+  box-shadow: inset 0 0 0 1px rgba(255,216,74,0.25); }
+.rig-ring.active:not(.has) { background: rgba(255,255,255,0.07); }
+.rig-ring:focus-visible { outline: 2px solid #ffd84a; outline-offset: 2px; }
+.rig-panel.modmode .rig-section:not(.rig-mod) .knob { opacity: 0.75; }
+.rig-routes { max-height: 84px; overflow: auto; }
+
+/* SEQUENCER: the lanes, then the drum grid and the step editor side by side */
+.rig-pages > .rig-seq { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto 1fr; gap: 6px; }
+.rig-pages > .rig-seq[hidden] { display: none; }
+.rig-pages > .rig-seq > .rig-seq-bar, .rig-pages > .rig-seq > .rig-seq-lanes { grid-column: 1 / -1; }
+.rig-pages > .rig-seq .rig-seq-lane { padding: 1px 4px; }
+.rig-pages > .rig-seq .rig-seq-cell { height: 20px; }
+.rig-pages > .rig-seq .rig-seq-lanes { gap: 2px; }
+.rig-pages > .rig-seq .rig-drum-grid { grid-column: 1; }
+.rig-pages > .rig-seq .rig-seq-step { grid-column: 2; align-self: start; }
+.rig-pages > .rig-seq .rig-drum-grid[hidden] + .rig-seq-step { grid-column: 1 / -1; }
+.rig-pages > .rig-seq .rig-drum-rows { gap: 1px; }
+.rig-pages > .rig-seq .rig-drum-cell, .rig-pages > .rig-seq .rig-drum-name { height: 15px; }
+.rig-pages > .rig-seq .rig-drum-name { font-size: 10.5px; }
+
+/* MIXER · FX */
+.rig-pages > .rig-mix { display: flex; flex-direction: column; }
+.rig-pages > .rig-mix[hidden] { display: none; }
+.rig-pages > .rig-mix .rig-fader-travel { height: 150px; }
+.rig-pages > .rig-mix .rig-master .rig-fader-travel { height: 230px; }
+.rig-pages > .rig-seq .rig-seq-lane select { height: 20px; padding: 0 2px; font-size: 11px; }
+.rig-pages > .rig-seq .rig-seq-lane .rig-small { height: 20px; min-width: 22px; font-size: 11px; }
+.rig-pages > .rig-seq .rig-seq-name { font-size: 11px; }
+.rig-pages > .rig-seq .rig-seq-bar { padding: 4px 8px; }
+.rig-pages > .rig-seq .rig-seq-bar .knob-value { display: none; }
+.rig-pages > .rig-seq .rig-seq-step .rig-seq-hint { font-size: 11px; }
+.rig-pages > .rig-mix .rig-fader-travel { height: 132px; }
+.rig-pages > .rig-panel, .rig-page { margin: 0; box-sizing: border-box; }
+.rig-page-synth .rig-routes { max-height: 54px; }
+.rig-page-synth .rig-mod { gap: 4px; }
+/* what modulation is in use, without MOD mode: a dot on a source that has routings, a faint ring on a knob something moves */
+.rig-mod-source { position: relative; }
+.rig-mod-source.used::after { content: ''; position: absolute; top: 2px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: #ffd84a; box-shadow: 0 0 4px #ffd84a; }
+.rig-mod-source.used.on::after { background: #1b1c1f; box-shadow: none; }
+.rig-ring.moved { box-shadow: 0 0 0 2px rgba(255,216,74,0.45); }

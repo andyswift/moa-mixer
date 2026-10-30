@@ -6,7 +6,8 @@ import { MidiClock } from './domain/midi/clock';
 import { Patch } from './domain/patch/patch';
 import { mountInstrumentPage } from './ui/instrumentPage';
 import { mountKeyboardBed } from './ui/keyboard';
-import { renderRigPanel } from './ui/rigPanel';
+import { renderRigMultiBar, renderRigPanel } from './ui/rigPanel';
+import { renderRigDetail, renderRigShell, renderRigTrackStrip } from './ui/rigShell';
 import { renderRigMixPanel } from './ui/rigMixPanel';
 import { renderRigSeqPanel } from './ui/rigSeqPanel';
 import * as store from './ui/rigStorage';
@@ -18,8 +19,6 @@ const clock = new MidiClock();
 const patch = Patch.rig();
 const rig = patch.device<RigSynth>('rig');
 
-const wrap = document.createElement('div');
-wrap.className = 'rig-wrap';
 // Kit pads: analogue ones rendered from the MOA-DR, samples from the MOA-60's factory kits.
 rig.kitSounds = rigKitSound;
 const kits = { breakKits: RIG_BREAK_KITS.map((k) => k.name), loadBreakKit, samples: RIG_SAMPLES };
@@ -38,8 +37,36 @@ const multis = {
 };
 
 const engine = new AudioEngine(patch);
-wrap.append(renderRigPanel(rig, multis, kits), mountKeyboardBed(rig), renderRigSeqPanel(rig, () => engine.currentTime),
-  renderRigMixPanel(rig, () => engine.readRigMeters('rig', 'synth')));
+
+// The pages, after the design: SYNTH (the edited part, its track, the detail column), SEQUENCER, MIXER · FX.
+let scope: AnalyserNode | undefined;
+const analyser = () => {
+  const ctx = engine.context, out = engine.jackNode('rig', 'out', 'out');
+  if (!scope && ctx && out) {
+    scope = ctx.createAnalyser();
+    scope.fftSize = 2048;
+    out.connect(scope);
+  }
+  return scope;
+};
+const synthPage = document.createElement('div');
+synthPage.className = 'rig-page rig-page-synth';
+const synthMain = document.createElement('div');
+synthMain.className = 'rig-page-main';
+synthMain.append(renderRigPanel(rig, kits), renderRigTrackStrip(rig, () => engine.currentTime));
+synthPage.append(synthMain, renderRigDetail(rig, analyser));
+const seqPage = renderRigSeqPanel(rig, () => engine.currentTime);
+seqPage.classList.add('rig-page');
+const mixPage = renderRigMixPanel(rig, () => engine.readRigMeters('rig', 'synth'));
+mixPage.classList.add('rig-page');
+const setup = document.createElement('div');
+setup.className = 'rig-setup-frame';
+const shell = renderRigShell(rig, {
+  synth: synthPage, seq: seqPage, mix: mixPage,
+  multi: renderRigMultiBar(rig, multis), setup, keys: mountKeyboardBed(rig),
+  start: () => page.power(true),
+  running: () => engine.context?.state === 'running',
+});
 
 // The sequencer sends ahead on the audio clock; a live-played note is placed by when it was heard.
 const SCHEDULE_MS = 25;
@@ -47,7 +74,7 @@ rig.now = () => engine.currentTime;
 rig.latency = () => engine.context ? engine.context.outputLatency || engine.context.baseLatency || 0 : 0;
 setInterval(() => rig.seq.schedule(engine.currentTime), SCHEDULE_MS);
 const page = mountInstrumentPage({
-  id: 'rig', patch, engine, clock, self: '/rig/', panel: wrap,
+  id: 'rig', patch, engine, clock, self: '/rig/', panel: shell, chrome: setup,
   ports: [{ device: 'rig', jack: 'out', name: 'MOA-RIG' }],
   onMidi: (event) => rig.handleMidi(event),
 });

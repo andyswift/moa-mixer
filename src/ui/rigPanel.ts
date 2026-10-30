@@ -7,9 +7,10 @@ import { el, renderKnob } from './widgets';
 
 /**
  * The MOA-RIG's first panel: every control of the edited part and side in the SYNTH page's sections, the sixteen
- * part buttons, the part's setup (voices, channel, octave, key range), a sound picker, A/B, and the mod routings as
- * a list. Plain on purpose: it is for hearing the engine; the designed panel (MOD mode, the detail column) replaces it.
+ * part buttons, the part's setup (voices, channel, octave, key range), a sound picker, A/B, and MOD mode: pick a
+ * source and every knob it can reach shows and sets its amount on a ring.
  */
+const DEST_IDS = new Set<string>(RIG_DESTS.map((d) => d[0]));
 const SECTIONS: [title: string, colour: string, ids: string[]][] = [
   ['OSC 1', '#ffb84d', ['osc1.oct', 'osc1.tune', 'osc1.width', 'osc1.blend', 'osc1.sub']],
   ['OSC 2', '#ffb84d', ['osc2.oct', 'osc2.tune', 'osc2.width', 'osc2.blend', 'osc2.sync']],
@@ -70,58 +71,8 @@ export interface RigMultiStore {
   save(slot: number, multi: RigMulti): boolean;
 }
 
-export function renderRigPanel(rig: RigSynth, store?: RigMultiStore, kits?: RigKitSource): HTMLElement {
+export function renderRigPanel(rig: RigSynth, kits?: RigKitSource): HTMLElement {
   const panel = el('div', 'rig-panel');
-
-  // ---- the multi: its name, and the slots it is saved in and loaded from
-  const multiBar = el('div', 'rig-setup rig-multi');
-  const multiName = el('input', 'rig-name');
-  multiName.setAttribute('aria-label', 'Multi name');
-  multiName.maxLength = 24;
-  multiName.addEventListener('input', () => { rig.multiName = multiName.value; });
-  const slotSelect = el('select');
-  slotSelect.setAttribute('aria-label', 'Multi slot');
-  const fillSlots = () => {
-    const names = store?.names() ?? [];
-    slotSelect.replaceChildren(...Array.from({ length: 16 }, (_, i) => new Option(`${i + 1} · ${names[i] ?? '—'}`, String(i))));
-    slotSelect.value = String(Math.max(0, store?.slot ?? 0));
-  };
-  const status = el('span', 'rig-multi-status');
-  const say = (t: string) => { status.textContent = t; };
-  const load = el('button', 'rig-small rig-wide', 'LOAD');
-  load.addEventListener('click', () => {
-    const slot = Number(slotSelect.value);
-    const m = store?.load(slot);
-    if (!m) { say(`Slot ${slot + 1} is empty`); return; }
-    rig.loadMulti(m);
-    if (store) store.slot = slot;
-    say(`Loaded ${m.name} from slot ${slot + 1}`);
-  });
-  const save = el('button', 'rig-small rig-wide', 'SAVE');
-  save.addEventListener('click', () => {
-    const slot = Number(slotSelect.value);
-    const names = store?.names() ?? [];
-    if (names[slot] !== undefined && store?.slot !== slot && !confirm(`Replace ${names[slot]} in slot ${slot + 1}?`)) return;
-    const ok = store?.save(slot, rig.toMulti()) ?? false;
-    if (ok && store) store.slot = slot;
-    fillSlots();
-    say(ok ? `Saved ${rig.multiName} in slot ${slot + 1}` : 'Not saved: this browser is not keeping data for the page');
-  });
-  const fresh = el('button', 'rig-small rig-wide', 'NEW');
-  fresh.addEventListener('click', () => {
-    if (!confirm('Start a new multi? Save this one first if you want to keep it.')) return;
-    rig.newMulti();
-    if (store) store.slot = -1;
-    say('New multi');
-  });
-  for (const b of [load, save, fresh]) b.type = 'button';
-  const follow = el('button', 'rig-small rig-wide rig-follow', 'MIDI → EDITED PART');
-  follow.type = 'button';
-  follow.title = 'On: MIDI on any channel plays only the part being edited. Off: each part plays its own channel.';
-  follow.addEventListener('click', () => { rig.midiToEdited = !rig.midiToEdited; });
-  multiBar.append(el('span', 'knob-label', 'Multi'), multiName, slotSelect, load, save, fresh, status, follow);
-  if (!store) multiBar.hidden = true;
-  fillSlots();
 
   // ---- the sixteen parts
   const partRow = el('div', 'rig-parts');
@@ -202,6 +153,77 @@ export function renderRigPanel(rig: RigSynth, store?: RigMultiStore, kits?: RigK
   );
   const kitPanel = renderRigKitPanel(rig, kits);
 
+  // ---- MOD mode: pick a source, and every knob it can reach shows (and sets) that source's amount on a ring
+  let modSource: RigSource | undefined;
+  let lastSource: RigSource = 'lfo1';
+  const rings = new Map<RigDest, HTMLElement>();
+  const amountOf = (dest: RigDest) => rig.routes.find((r) => r.source === modSource && r.dest === dest)?.amount ?? 0;
+  const setAmount = (dest: RigDest, amount: number) => {
+    if (!modSource) return;
+    const a = Math.round(Math.max(-1, Math.min(1, amount)) * 1000) / 1000;
+    const routes = rig.routes.map((r) => ({ ...r }));
+    const at = routes.findIndex((r) => r.source === modSource && r.dest === dest);
+    if (Math.abs(a) < 0.005) { if (at >= 0) routes.splice(at, 1); }
+    else if (at >= 0) routes[at]!.amount = a;
+    else routes.push({ source: modSource, dest, amount: a });
+    rig.setRoutes(routes);
+    syncRings();
+  };
+  /** Puts a ring round a knob; in MOD mode the ring takes the drag (up and down), the wheel, and a double-click (none). */
+  function withRing(knobWrap: HTMLElement, dest: RigDest): HTMLElement {
+    const knob = knobWrap.querySelector<HTMLElement>('.knob');
+    if (!knob) return knobWrap;
+    const holder = el('span', 'rig-ringwrap');
+    const ring = el('span', 'rig-ring');
+    ring.setAttribute('role', 'slider');
+    ring.setAttribute('aria-valuemin', '-1');
+    ring.setAttribute('aria-valuemax', '1');
+    ring.tabIndex = -1;
+    knob.replaceWith(holder);
+    holder.append(knob, ring);
+    ring.addEventListener('pointerdown', (e) => {
+      if (!modSource) return;
+      e.preventDefault();
+      const y0 = e.clientY, a0 = amountOf(dest);
+      ring.setPointerCapture(e.pointerId);
+      const move = (m: PointerEvent) => setAmount(dest, a0 + (y0 - m.clientY) / (m.shiftKey ? 600 : 150));
+      const up = () => { ring.removeEventListener('pointermove', move); ring.removeEventListener('pointerup', up); };
+      ring.addEventListener('pointermove', move);
+      ring.addEventListener('pointerup', up);
+    });
+    ring.addEventListener('wheel', (e) => { if (!modSource) return; e.preventDefault(); setAmount(dest, amountOf(dest) + Math.sign(-e.deltaY) * 0.02); }, { passive: false });
+    ring.addEventListener('dblclick', () => setAmount(dest, 0));
+    ring.addEventListener('keydown', (e) => {
+      if (!modSource || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+      e.preventDefault();
+      setAmount(dest, amountOf(dest) + (e.key === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 0.1 : 0.02));
+    });
+    rings.set(dest, ring);
+    return knobWrap;
+  }
+  function syncRings(): void {
+    if (modSource) lastSource = modSource;
+    // what is in use, without picking each source: a dot on a source with routings, a mark on a knob something moves
+    const routes = rig.routes.filter((r) => r.amount !== 0);
+    for (const [src, b] of sourceButtons) {
+      b.classList.toggle('on', src === modSource);
+      b.classList.toggle('used', routes.some((r) => r.source === src));
+    }
+    modMode.classList.toggle('on', !!modSource);
+    panel.classList.toggle('modmode', !!modSource);
+    for (const [dest, ring] of rings) {
+      const a = modSource ? amountOf(dest) : 0;
+      ring.style.setProperty('--amt', String(a));
+      ring.classList.toggle('active', !!modSource);
+      ring.classList.toggle('has', a !== 0);
+      ring.classList.toggle('moved', !modSource && routes.some((r) => r.dest === dest));
+      ring.tabIndex = modSource ? 0 : -1;
+      ring.setAttribute('aria-label', `${modSource?.toUpperCase() ?? ''} to ${dest}`);
+      ring.setAttribute('aria-valuenow', String(a));
+      ring.title = modSource ? `${modSource.toUpperCase()} → ${dest}: ${a.toFixed(3)} (drag, wheel; double-click: none)` : '';
+    }
+  }
+
   // ---- the sections
   const grid = el('div', 'rig-grid');
   for (const [title, colour, ids] of SECTIONS) {
@@ -211,7 +233,10 @@ export function renderRigPanel(rig: RigSynth, store?: RigMultiStore, kits?: RigK
     const body = el('div', 'rig-controls');
     for (const id of ids) {
       const c = rig.control(id);
-      if (c.kind === 'number') body.append(renderKnob(c, title, shortLabel(c), 34));
+      if (c.kind === 'number') {
+        const knob = renderKnob(c, title, shortLabel(c), 34);
+        body.append(DEST_IDS.has(id) ? withRing(knob, id as RigDest) : knob);
+      }
       else if (c.kind === 'choice') body.append(renderChoice(c, title));
       else if (c.kind === 'toggle') body.append(renderToggle(c, title));
     }
@@ -222,45 +247,26 @@ export function renderRigPanel(rig: RigSynth, store?: RigMultiStore, kits?: RigK
   // ---- mod routings of the edited side
   const mod = el('section', 'rig-section rig-mod');
   mod.style.setProperty('--rig-accent', '#ffd84a');
-  mod.append(el('h3', 'rig-title', 'MOD ROUTINGS'));
-  const list = el('div', 'rig-routes');
-  const add = el('button', 'rig-small rig-wide', 'ADD ROUTING');
-  add.addEventListener('click', () => rig.setRoutes([...rig.routes, { source: 'lfo1', dest: 'lad.cutoff', amount: 0 }]));
-  mod.append(list, add);
-
-  const renderRoutes = () => {
-    list.replaceChildren();
-    rig.routes.forEach((r, i) => {
-      const row = el('div', 'rig-route');
-      const src = el('select');
-      src.setAttribute('aria-label', `Routing ${i + 1} source`);
-      for (const s of RIG_SOURCES) src.add(new Option(s.toUpperCase(), s, false, s === r.source));
-      const dst = el('select');
-      dst.setAttribute('aria-label', `Routing ${i + 1} destination`);
-      for (const [d] of RIG_DESTS) dst.add(new Option(d, d, false, d === r.dest));
-      const amt = el('input');
-      amt.type = 'range';
-      amt.min = '-1'; amt.max = '1'; amt.step = '0.005';
-      amt.value = String(r.amount);
-      amt.setAttribute('aria-label', `Routing ${i + 1} amount`);
-      const readout = el('output', 'rig-readout', r.amount.toFixed(3));
-      const del = el('button', 'rig-small', '×');
-      del.setAttribute('aria-label', `Remove routing ${i + 1}`);
-      const write = () => {
-        const routes = rig.routes.map((x) => ({ ...x }));
-        routes[i] = { source: src.value as RigSource, dest: dst.value as RigDest, amount: Number(amt.value) };
-        rig.setRoutes(routes);
-        readout.textContent = Number(amt.value).toFixed(3);
-      };
-      src.addEventListener('change', write);
-      dst.addEventListener('change', write);
-      amt.addEventListener('input', write);
-      del.addEventListener('click', () => { rig.setRoutes(rig.routes.filter((_, k) => k !== i)); renderRoutes(); });
-      row.append(src, dst, amt, readout, del);
-      list.append(row);
-    });
-  };
-  add.addEventListener('click', renderRoutes);
+  mod.append(el('h3', 'rig-title', 'MOD · PICK A SOURCE, EVERY KNOB SHOWS ITS AMOUNT'));
+  const sourceRow = el('div', 'rig-mod-sources');
+  const sourceButtons = RIG_SOURCES.map((src) => {
+    const b = el('button', 'rig-key rig-mod-source', src.toUpperCase());
+    b.type = 'button';
+    b.setAttribute('aria-label', `Mod source ${src.toUpperCase()}`);
+    b.addEventListener('click', () => { modSource = modSource === src ? undefined : src; syncRings(); });
+    sourceRow.append(b);
+    return [src, b] as const;
+  });
+  const modMode = el('button', 'rig-key rig-wide rig-mod-mode', 'MOD MODE');
+  modMode.type = 'button';
+  modMode.title = 'On while a source is picked: turning a ringed knob sets that source’s amount. Click to leave.';
+  modMode.addEventListener('click', () => { modSource = modSource ? undefined : lastSource; syncRings(); });
+  const reset = el('button', 'rig-small rig-wide', 'RESET SOURCE');
+  reset.type = 'button';
+  reset.title = 'Remove every routing from the picked source (on this side)';
+  reset.addEventListener('click', () => { if (modSource) { const s0 = modSource; rig.setRoutes(rig.routes.filter((r) => r.source !== s0)); syncRings(); } });
+  sourceRow.append(modMode, reset);
+  mod.append(sourceRow);
 
   const sync = () => {
     rig.parts.forEach((pt, p) => {
@@ -284,9 +290,6 @@ export function renderRigPanel(rig: RigSynth, store?: RigMultiStore, kits?: RigK
     if (sound.options.length !== rig.slots.length || [...sound.options].some((o, i) => o.text !== rig.slots[i]!.name)) fillSounds();
     sound.value = String(pt.slot);
     if (document.activeElement !== partName) partName.value = pt.name;
-    if (document.activeElement !== multiName) multiName.value = rig.multiName;
-    follow.classList.toggle('on', rig.midiToEdited);
-    follow.setAttribute('aria-pressed', String(rig.midiToEdited));
     voices.textContent = `${pt.voices} (${rig.freeVoices} free)`;
     channel.value = String(pt.channel);
     octave.value = String(pt.octave);
@@ -294,11 +297,74 @@ export function renderRigPanel(rig: RigSynth, store?: RigMultiStore, kits?: RigK
     hi.value = String(pt.hi);
     sideA.classList.toggle('on', rig.side === 'a');
     sideB.classList.toggle('on', rig.side === 'b');
-    renderRoutes();
+    syncRings();
+  };
+  rig.onPartChange(sync);
+  rig.onEdit(syncRings); // routings changed elsewhere: a loaded sound, the other side copied over
+  sync();
+
+  panel.append(partRow, setup, kitPanel, grid, mod);
+  return panel;
+}
+
+/** The multi: its name, the slots it is saved in and loaded from, NEW, and whether MIDI follows the edited part. */
+export function renderRigMultiBar(rig: RigSynth, store?: RigMultiStore): HTMLElement {
+  // ---- the multi: its name, and the slots it is saved in and loaded from
+  const multiBar = el('div', 'rig-setup rig-multi');
+  const multiName = el('input', 'rig-name');
+  multiName.setAttribute('aria-label', 'Multi name');
+  multiName.maxLength = 24;
+  multiName.addEventListener('input', () => { rig.multiName = multiName.value; });
+  const slotSelect = el('select');
+  slotSelect.setAttribute('aria-label', 'Multi slot');
+  const fillSlots = () => {
+    const names = store?.names() ?? [];
+    slotSelect.replaceChildren(...Array.from({ length: 16 }, (_, i) => new Option(`${i + 1} · ${names[i] ?? '—'}`, String(i))));
+    slotSelect.value = String(Math.max(0, store?.slot ?? 0));
+  };
+  const status = el('span', 'rig-multi-status');
+  const say = (t: string) => { status.textContent = t; };
+  const load = el('button', 'rig-small rig-wide', 'LOAD');
+  load.addEventListener('click', () => {
+    const slot = Number(slotSelect.value);
+    const m = store?.load(slot);
+    if (!m) { say(`Slot ${slot + 1} is empty`); return; }
+    rig.loadMulti(m);
+    if (store) store.slot = slot;
+    say(`Loaded ${m.name} from slot ${slot + 1}`);
+  });
+  const save = el('button', 'rig-small rig-wide', 'SAVE');
+  save.addEventListener('click', () => {
+    const slot = Number(slotSelect.value);
+    const names = store?.names() ?? [];
+    if (names[slot] !== undefined && store?.slot !== slot && !confirm(`Replace ${names[slot]} in slot ${slot + 1}?`)) return;
+    const ok = store?.save(slot, rig.toMulti()) ?? false;
+    if (ok && store) store.slot = slot;
+    fillSlots();
+    say(ok ? `Saved ${rig.multiName} in slot ${slot + 1}` : 'Not saved: this browser is not keeping data for the page');
+  });
+  const fresh = el('button', 'rig-small rig-wide', 'NEW');
+  fresh.addEventListener('click', () => {
+    if (!confirm('Start a new multi? Save this one first if you want to keep it.')) return;
+    rig.newMulti();
+    if (store) store.slot = -1;
+    say('New multi');
+  });
+  for (const b of [load, save, fresh]) b.type = 'button';
+  const follow = el('button', 'rig-small rig-wide rig-follow', 'MIDI → EDITED PART');
+  follow.type = 'button';
+  follow.title = 'On: MIDI on any channel plays only the part being edited. Off: each part plays its own channel.';
+  follow.addEventListener('click', () => { rig.midiToEdited = !rig.midiToEdited; });
+  multiBar.append(el('span', 'knob-label', 'Multi'), multiName, slotSelect, load, save, fresh, status, follow);
+  if (!store) multiBar.hidden = true;
+  fillSlots();
+  const sync = () => {
+    if (document.activeElement !== multiName) multiName.value = rig.multiName;
+    follow.classList.toggle('on', rig.midiToEdited);
+    follow.setAttribute('aria-pressed', String(rig.midiToEdited));
   };
   rig.onPartChange(sync);
   sync();
+  return multiBar;
 
-  panel.append(multiBar, partRow, setup, kitPanel, grid, mod);
-  return panel;
 }

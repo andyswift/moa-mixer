@@ -77,6 +77,11 @@ export function mountInstrumentPage(opts: {
    * audio on and off itself with the `power` it gets back. MIDI devices and the buses still play it.
    */
   bare?: boolean;
+  /**
+   * Where the navigation row and the audio and MIDI strip go, for a page with a header of its own (the MOA-RIG puts
+   * them in a SETUP drop-down); by default they go above the panel.
+   */
+  chrome?: HTMLElement;
 }): { handleMidiBytes: (data: ArrayLike<number>, time?: number) => void; pcm: PcmBus; power: (on: boolean) => Promise<void>; midi: WebMidi } {
   const { engine, clock } = opts;
   applyEmbedMode();
@@ -183,6 +188,7 @@ export function mountInstrumentPage(opts: {
   strip.append(renderAudioBusBlock(pcm, speakers));
   const panels = Array.isArray(opts.panel) ? opts.panel : [opts.panel];
   if (opts.bare) app.append(...panels);
+  else if (opts.chrome) { opts.chrome.append(renderPageNav(opts.self), strip); app.append(...panels); }
   else app.append(renderPageNav(opts.self), strip, ...panels);
   /** The page's own on/off: the first time it starts the audio; after that it pauses and resumes it. */
   const power = async (on: boolean) => {
