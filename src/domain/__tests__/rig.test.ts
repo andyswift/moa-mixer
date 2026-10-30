@@ -250,5 +250,33 @@ describe('MOA-RIG sequencer on the device', () => {
     rig.transposeStep(1, 0, 100);
     expect(s.notes).toEqual([120, 124, 127]);
   });
+
+  it('with MIDI to the edited part, plays only that part from any channel, follows it, and still lets go of notes', () => {
+    const { rig, sent } = setup();
+    rig.setVoices(0, 8);
+    rig.setVoices(1, 8);
+    rig.setPartSetting(1, 'lo', 72); // its range does not matter now
+    rig.midiToEdited = true;
+    rig.selectPart(1);
+    rig.handleMidi({ type: 'noteOn', channel: 7, note: 60, velocity: 100 });
+    rig.selectPart(0);
+    rig.handleMidi({ type: 'noteOn', channel: 1, note: 64, velocity: 100 });
+    rig.handleMidi({ type: 'noteOff', channel: 7, note: 60, velocity: 0 });
+    expect(notes(sent, 'on')).toEqual([[1, 60], [0, 64]]);
+    expect(notes(sent, 'off')).toEqual([[1, 60]]);
+    rig.midiToEdited = false;
+    rig.handleMidi({ type: 'noteOn', channel: 2, note: 50, velocity: 100 });
+    expect(notes(sent, 'on').at(-1)).toEqual([0, 50]); // part 1 hears all channels; part 2's range starts at 72
+  });
+
+  it('with MIDI to the edited part, the wheels go to that part and move over with it', () => {
+    const { rig, sent } = setup();
+    rig.midiToEdited = true;
+    rig.handleMidi({ type: 'cc', channel: 1, controller: 1, value: 127 });
+    const mods = () => sent.filter((m) => m.type === 'ctrl' && m.name === 'mod').map((m) => [m.part, m.value]);
+    expect(mods()).toEqual([[0, 1]]);
+    rig.selectPart(3);
+    expect(mods().slice(1)).toEqual([[0, 0], [3, 1]]);
+  });
 });
 

@@ -103,3 +103,5 @@
 .rig-drum-cell { height: 22px; }
 .rig-drum-cell.hit { background: color-mix(in srgb, #ffa3c7 calc(35% + var(--vel) * 65%), #2a2c30); }
 .rig-drum-row.selected .rig-drum-name { background: #ffa3c7; color: #1b1c1f; }
+.rig-follow { margin-left: auto; }
+.rig-follow.on { background: #f1f1ec; color: #1b1c1f; box-shadow: 0 0 8px #f1f1ec; }

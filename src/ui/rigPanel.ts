@@ -115,7 +115,11 @@ export function renderRigPanel(rig: RigSynth, store?: RigMultiStore, kits?: RigK
     say('New multi');
   });
   for (const b of [load, save, fresh]) b.type = 'button';
-  multiBar.append(el('span', 'knob-label', 'Multi'), multiName, slotSelect, load, save, fresh, status);
+  const follow = el('button', 'rig-small rig-wide rig-follow', 'MIDI → EDITED PART');
+  follow.type = 'button';
+  follow.title = 'On: MIDI on any channel plays only the part being edited. Off: each part plays its own channel.';
+  follow.addEventListener('click', () => { rig.midiToEdited = !rig.midiToEdited; });
+  multiBar.append(el('span', 'knob-label', 'Multi'), multiName, slotSelect, load, save, fresh, status, follow);
   if (!store) multiBar.hidden = true;
   fillSlots();
 
@@ -281,6 +285,8 @@ export function renderRigPanel(rig: RigSynth, store?: RigMultiStore, kits?: RigK
     sound.value = String(pt.slot);
     if (document.activeElement !== partName) partName.value = pt.name;
     if (document.activeElement !== multiName) multiName.value = rig.multiName;
+    follow.classList.toggle('on', rig.midiToEdited);
+    follow.setAttribute('aria-pressed', String(rig.midiToEdited));
     voices.textContent = `${pt.voices} (${rig.freeVoices} free)`;
     channel.value = String(pt.channel);
     octave.value = String(pt.octave);

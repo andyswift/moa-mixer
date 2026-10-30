@@ -25,6 +25,8 @@ const kits = { breakKits: RIG_BREAK_KITS.map((k) => k.name), loadBreakKit, sampl
 
 // ---- storage: the saved sounds, the working multi as it was left, and the multi slots
 rig.setSavedSounds(store.loadSounds());
+rig.midiToEdited = store.loadMidiToEdited();
+rig.onPartChange(() => store.saveMidiToEdited(rig.midiToEdited));
 const restored = store.loadCurrent();
 if (restored) rig.loadMulti(restored.multi);
 const multis = {

@@ -59,3 +59,8 @@ export function loadSounds(): RigPreset[] {
 }
 
 export const saveSounds = (sounds: RigPreset[]): boolean => put(SOUNDS_KEY, sounds);
+
+const MIDI_TO_EDITED_KEY = 'moa-rig.midiToEdited';
+/** Whether MIDI plays the edited part (a setting of the machine, kept apart from the multis). */
+export const loadMidiToEdited = (): boolean => get(MIDI_TO_EDITED_KEY) === true;
+export const saveMidiToEdited = (on: boolean): boolean => put(MIDI_TO_EDITED_KEY, on);

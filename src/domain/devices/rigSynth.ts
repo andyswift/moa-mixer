@@ -89,6 +89,7 @@ export class RigSynth extends Device implements Playable {
   /** Which parts each sounding MIDI note went to (and at what pitch), so its note off finds them whatever changed since. */
   private readonly sounding = new Map<string, { part: number; note: number }[]>();
   private bend = 0;
+  private followEdit = false;
   private modWheelValue = 0;
   private readonly noteListeners = new Set<() => void>();
   private readonly performanceListeners = new Set<() => void>();
@@ -254,9 +255,17 @@ export class RigSynth extends Device implements Playable {
     return this.editSide;
   }
 
-  /** Edits another part: the controls move to its sound. */
+  /** Edits another part: the controls move to its sound (and MIDI with it, if it follows the edited part). */
   selectPart(part: number): void {
+    const was = this.editPart;
     this.editPart = Math.max(0, Math.min(RIG_PARTS - 1, part));
+    if (this.followEdit && was !== this.editPart) {
+      // the wheels move over with the keyboard: the part left behind goes back to rest
+      for (const [name, value] of [['bend', this.bend], ['mod', this.modWheelValue]] as const) {
+        this.circuit.send('synth', { type: 'ctrl', part: was, name, value: 0 });
+        this.circuit.send('synth', { type: 'ctrl', part: this.editPart, name, value });
+      }
+    }
     if (this.lockStep && this.lockStep.track !== this.editPart) this.lockStep = undefined;
     this.syncControls();
   }
@@ -307,6 +316,20 @@ export class RigSynth extends Device implements Playable {
   set multiName(name: string) {
     this.multiNameValue = name.slice(0, 24);
     this.edited();
+  }
+
+  /**
+   * MIDI to the edited part: on, notes, bend and wheels from any channel play only the part being edited, whatever
+   * its channel and key range; off, every part plays what comes on its channel, within its range. A setting of the
+   * machine, not of the multi.
+   */
+  get midiToEdited(): boolean {
+    return this.followEdit;
+  }
+
+  set midiToEdited(on: boolean) {
+    this.followEdit = on;
+    this.notifyParts();
   }
 
   /** Called after anything that a multi or the saved sounds keep has changed (for saving). */
@@ -658,7 +681,7 @@ export class RigSynth extends Device implements Playable {
   handleMidi(event: MidiEvent): void {
     switch (event.type) {
       case 'noteOn': {
-        const parts = this.parts.flatMap((pt, i) =>
+        const parts = this.followEdit ? [this.editPart] : this.parts.flatMap((pt, i) =>
           (pt.voices > 0 || pt.kind === 'kit') && (pt.channel === 0 || pt.channel === event.channel) && event.note >= pt.lo && event.note <= pt.hi ? [i] : []);
         this.start(`${event.channel}:${event.note}`, parts, event.note, event.velocity / 127);
         break;
@@ -738,7 +761,9 @@ export class RigSynth extends Device implements Playable {
     return () => this.performanceListeners.delete(fn);
   }
 
+  /** The wheels go to every part, or only to the edited one when MIDI follows it. */
   private sendControl(name: string, value: number): void {
+    if (this.followEdit) { this.circuit.send('synth', { type: 'ctrl', part: this.editPart, name, value }); return; }
     for (let part = 0; part < RIG_PARTS; part++) this.circuit.send('synth', { type: 'ctrl', part, name, value });
   }
 
