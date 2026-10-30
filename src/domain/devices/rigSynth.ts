@@ -5,6 +5,7 @@ import { Device } from './device';
 import type { Playable } from './playable';
 import { RIG_DEFAULTS, RIG_PARAMS, type RigRoute, type RigSide } from './rigParams';
 import { cloneKit, padSoundId, RIG_FIRST_PAD_NOTE, RIG_KITS, RIG_PADS, type RigKit, type RigPad } from './rigKit';
+import { RIG_MIX_DEFAULTS, RIG_MIX_PARAMS } from './rigMix';
 import { RIG_MULTI_VERSION, type RigMulti } from './rigMulti';
 import { RIG_PRESETS, type RigPreset } from './rigPresets';
 
@@ -106,6 +107,9 @@ export class RigSynth extends Device implements Playable {
   kitSounds?: (pad: RigPad) => Promise<RigKitSound | undefined>;
   /** Sounds the worklet has, by id, with their rates. */
   private readonly sentSounds = new Map<string, number>();
+  /** The mixer and effects: a control per param of `RIG_MIX_PARAMS` (not the edited part's: see `deskControl`). */
+  readonly desk: Control[] = [];
+  private readonly mixValues: Record<string, number> = { ...RIG_MIX_DEFAULTS };
   private readonly fetching = new Set<string>();
   private padSel = 0;
   /** The edited track's selected step (-1 for none). */
@@ -144,6 +148,12 @@ export class RigSynth extends Device implements Playable {
       else if (p.kind === 'choice') this.controlList.push(new ChoiceControl(p.id, p.label, p.options!, p.options![p.def]!, (v) => edit(p.options!.indexOf(v))));
       else this.controlList.push(new ToggleControl(p.id, p.label, p.def > 0, (v) => edit(v ? 1 : 0)));
     }
+    for (const p of RIG_MIX_PARAMS) {
+      const put = (v: number) => this.setMix(p.id, v);
+      if (p.kind === 'number') this.desk.push(new NumberControl(p.id, p.label, p.min, p.max, p.def, p.unit ?? '', put, p.curve));
+      else if (p.kind === 'choice') this.desk.push(new ChoiceControl(p.id, p.label, p.options!, p.options![p.def]!, (v) => put(p.options!.indexOf(v))));
+      else this.desk.push(new ToggleControl(p.id, p.label, p.def > 0, (v) => put(v ? 1 : 0)));
+    }
     this.syncing = false;
     this.saveState();
     // a worklet built (or rebuilt) gets every kit's sounds and pads
@@ -152,6 +162,28 @@ export class RigSynth extends Device implements Playable {
       this.sentSounds.clear();
       this.parts.forEach((_, p) => this.sendKit(p));
     });
+  }
+
+  // ---- The mixer ----
+
+  /** A mixer or effect control by id (`p3.fader`, `rA.a`, `dub.time`, `master.fader`). */
+  deskControl(id: string): Control {
+    const c = this.desk.find((d) => d.id === id);
+    if (!c) throw new Error(`Unknown mixer control: ${id}`);
+    return c;
+  }
+
+  private setMix(id: string, value: number): void {
+    if (this.mixValues[id] === value) return;
+    this.mixValues[id] = value;
+    this.circuit.send('synth', { type: 'mix', id, value });
+    if (this.syncing) return;
+    this.saveState();
+  }
+
+  /** The mix as a multi keeps it: every value but the momentary ones (the throws). */
+  private mixToSave(): Record<string, number> {
+    return Object.fromEntries(Object.entries(this.mixValues).filter(([id]) => !id.endsWith('throw')));
   }
 
   // ---- Kits ----
@@ -386,7 +418,7 @@ export class RigSynth extends Device implements Playable {
   toMulti(): RigMulti {
     return copy({
       v: RIG_MULTI_VERSION, name: this.multiName, parts: this.parts, patterns: this.seq.patterns,
-      current: this.seq.current, chain: this.seq.chain, tempo: this.bpm, shuffle: this.seq.shuffle,
+      current: this.seq.current, chain: this.seq.chain, tempo: this.bpm, shuffle: this.seq.shuffle, mix: this.mixToSave(),
     });
   }
 
@@ -405,6 +437,9 @@ export class RigSynth extends Device implements Playable {
     this.seq.chain = [...m.chain];
     this.seq.shuffle = m.shuffle;
     this.bpm = m.tempo;
+    this.syncing = true;
+    for (const c of this.desk) setControl(c, m.mix[c.id] ?? RIG_MIX_DEFAULTS[c.id]!);
+    this.syncing = false;
     this.circuit.send('synth', { type: 'layout', counts: this.parts.map((pt) => pt.voices) });
     this.parts.forEach((pt, p) => {
       this.sendPatch(p);
@@ -609,6 +644,25 @@ export class RigSynth extends Device implements Playable {
     this.seq.notify();
   }
 
+  /**
+   * Moves the hits of some rows of the drum grid (pads, 0-15) one pad up (-1) or down (+1) on every step of a track.
+   * A row they pass is swapped past them, never overwritten. Returns where the rows went (unchanged at the edge).
+   */
+  moveRows(track: number, pads: number[], dir: -1 | 1): number[] {
+    const t = this.seq.pattern.tracks[track];
+    const sel = [...new Set(pads)].sort((x, y) => (x - y) * -dir); // the row leading the way moves first
+    if (!t || !sel.length || sel.some((p) => p + dir < 0 || p + dir >= RIG_PADS)) return pads;
+    const row = Array.from({ length: RIG_PADS }, (_, i) => i); // row[i]: the row whose hits end up on pad i
+    for (const p of sel) [row[p], row[p + dir]] = [row[p + dir]!, row[p]!];
+    const to = new Map(row.map((from, i) => [RIG_FIRST_PAD_NOTE + from, RIG_FIRST_PAD_NOTE + i]));
+    for (const s of t.steps) {
+      s.notes = s.notes.map((n) => to.get(n) ?? n);
+      if (s.vels) s.vels = Object.fromEntries(Object.entries(s.vels).map(([n, v]) => [to.get(Number(n)) ?? Number(n), v]));
+    }
+    this.seq.notify();
+    return sel.map((p) => p + dir).sort((x, y) => x - y);
+  }
+
   /** A hit's own velocity, 0..1. */
   setHitVelocity(track: number, step: number, note: number, velocity: number): void {
     const s = this.seq.pattern.tracks[track]?.steps[step];
@@ -652,6 +706,7 @@ export class RigSynth extends Device implements Playable {
       counts: this.parts.map((pt) => pt.voices),
       patches: this.parts.map((pt, part) => ({ part, a: pt.a, b: pt.b })),
       kinds: this.parts.map((pt) => pt.kind),
+      mix: this.mixValues,
       bpm: this.bpmValue,
     }));
     this.edited();

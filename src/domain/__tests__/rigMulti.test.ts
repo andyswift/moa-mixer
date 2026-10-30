@@ -128,4 +128,26 @@ describe('MOA-RIG multis', () => {
     rig.newMulti();
     expect(rig.toMulti()).toEqual(new RigSynth().toMulti());
   });
+
+  it('keep the mix: the desk’s controls go to the worklet, into its state, and into the multi (not the throws)', () => {
+    const rig = new RigSynth();
+    const sent: { type: string; id?: string; value?: number }[] = [];
+    rig.circuit.onChange((c: CircuitChange) => { if (c.type === 'message') sent.push(c.data as never); });
+    (rig.deskControl('p3.fader') as NumberControl).set(0.5);
+    (rig.deskControl('rev.type') as unknown as { set(v: string): void }).set('HALL');
+    (rig.deskControl('rA.throw') as unknown as { set(v: boolean): void }).set(true);
+    expect(sent.filter((m) => m.type === 'mix')).toEqual([
+      { type: 'mix', id: 'p3.fader', value: 0.5 }, { type: 'mix', id: 'rev.type', value: 2 }, { type: 'mix', id: 'rA.throw', value: 1 },
+    ]);
+    expect(JSON.parse(rig.circuit.node('synth').options.state!).mix['p3.fader']).toBe(0.5);
+    const m = sanitiseMulti(JSON.parse(JSON.stringify(rig.toMulti())), freshPart)!;
+    expect(m.mix['p3.fader']).toBe(0.5);
+    expect(m.mix['rev.type']).toBe(2);
+    expect('rA.throw' in m.mix).toBe(false);
+    const other = new RigSynth();
+    other.loadMulti(m);
+    expect((other.deskControl('p3.fader') as NumberControl).value).toBe(0.5);
+    expect((other.deskControl('rev.type') as unknown as { value: string }).value).toBe('HALL');
+  });
 });
+

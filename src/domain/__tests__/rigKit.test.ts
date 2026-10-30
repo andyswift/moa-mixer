@@ -157,5 +157,26 @@ describe('MOA-RIG kits', () => {
     expect(steps[4]!.notes).toEqual([36]);
     expect(steps[4]!.vels).toBeUndefined();
   });
+
+  it('moves drum-grid rows up and down, swapping past the rows they pass instead of overwriting them', () => {
+    const { rig } = setup();
+    const steps = rig.seq.pattern.tracks[0]!.steps;
+    const rows = () => Array.from({ length: 4 }, (_, pad) => steps.slice(0, 8).flatMap((s, i) => (s.notes.includes(36 + pad) ? [i] : [])));
+    rig.toggleHit(0, 0, 36); // pad 1 (BD) on step 0
+    rig.toggleHit(0, 2, 37); // pad 2 on step 2
+    rig.toggleHit(0, 4, 38); // pad 3 on steps 4 and 6
+    rig.toggleHit(0, 6, 38);
+    rig.setHitVelocity(0, 6, 38, 0.3);
+    // pad 3 up: it swaps with pad 2, which is not lost
+    expect(rig.moveRows(0, [2], -1)).toEqual([1]);
+    expect(rows()).toEqual([[0], [4, 6], [2], []]);
+    expect(steps[6]!.vels).toEqual({ 37: 0.3 });
+    // pads 1 and 2 down together: pad 3's row comes up above them
+    expect(rig.moveRows(0, [0, 1], 1)).toEqual([1, 2]);
+    expect(rows()).toEqual([[2], [0], [4, 6], []]);
+    // at the top, nothing moves
+    expect(rig.moveRows(0, [0, 2], -1)).toEqual([0, 2]);
+    expect(rows()).toEqual([[2], [0], [4, 6], []]);
+  });
 });
 

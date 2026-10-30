@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RigRoute } from '../../domain/devices/rigParams';
 import { defaultPad } from '../../domain/devices/mpc60';
+import { RIG_MIX_SOURCE } from '../rigMixWorklet';
 import { RIG_SOURCE } from '../rigWorklet';
 import { SAMPLER_SOURCE } from '../samplerWorklet';
 
@@ -382,6 +383,17 @@ describe('MOA-RIG robustness', () => {
     core.post({ type: 'kind', part: 9, kind: 'synth' });
     core.post({ type: 'on', part: 9, note: 38, vel: 1 });
     expect(rms(run(core, 0.02).l)).toBe(0);
+  });
+
+  it('goes through the mixer when the mixer’s source is there: a muted strip silences its part', () => {
+    const { RigCore } = new Function(`${RIG_MIX_SOURCE}; ${RIG_SOURCE}; return { RigCore };`)() as { RigCore: new (sr: number) => CoreI };
+    const core = new RigCore(SR);
+    core.setPatch(0, side());
+    core.noteOn(0, 69, 1);
+    expect(rms(run(core, 0.1).l)).toBeGreaterThan(0.05);
+    core.post({ type: 'mix', id: 'p1.mute', value: 1 });
+    run(core, 0.02); // the fader glides down over a block
+    expect(rms(run(core, 0.1).l)).toBeLessThan(1e-6);
   });
 });
 

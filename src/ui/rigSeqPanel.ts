@@ -164,13 +164,13 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
     const row = el('div', 'rig-drum-row');
     const note = RIG_FIRST_PAD_NOTE + pad;
     const name = button('rig-drum-name', '', `Hear pad ${pad + 1}`);
-    name.addEventListener('pointerdown', () => { selectRow(pad); rig.audition(note, true); });
+    name.addEventListener('pointerdown', (e) => { pickRow(pad, e); rig.audition(note, true); });
     for (const ev of ['pointerup', 'pointerleave'] as const) name.addEventListener(ev, () => rig.audition(note, false));
     const cells = Array.from({ length: PAGE }, (_, c) => {
       const b = button('rig-seq-cell rig-drum-cell', '');
       b.addEventListener('click', () => {
         const i = page * PAGE + c;
-        selectRow(pad);
+        selectRows([pad]);
         if (i < track().length) rig.toggleHit(rig.part, i, note);
       });
       b.addEventListener('wheel', (e) => {
@@ -188,23 +188,45 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
     drumRows.append(row);
     return { row, name, cells };
   });
-  drums.append(drumTitle, drumRows, el('p', 'rig-seq-hint', 'Click a cell to put a hit in or take it out. Mouse wheel over a hit: its velocity (brighter is harder). Press a pad’s name to hear it. Backspace clears the selected row’s hits on every step.'));
+  drums.append(drumTitle, drumRows, el('p', 'rig-seq-hint', 'Click a cell to put a hit in or take it out. Mouse wheel over a hit: its velocity (brighter is harder). Press a pad’s name to hear it and select its row (shift or ⌘ for more rows). Backspace clears the selected rows; ↑ ↓ move them (a row they pass swaps past, it is not overwritten). Space starts and stops.'));
   let drumLit = -1;
-  /** The selected row (a pad), whose hits Backspace or Delete clears; -1 for none. */
-  let drumSel = -1;
+  /** The selected rows (pads): Backspace or Delete clears their hits, up and down move them. */
+  let drumSel: number[] = [];
   let drumPart = -1;
-  const selectRow = (pad: number) => {
-    drumSel = pad;
-    drumRow.forEach((r, k) => r.row.classList.toggle('selected', k === pad));
+  const selectRows = (pads: number[]) => {
+    drumSel = pads;
+    drumRow.forEach((r, k) => r.row.classList.toggle('selected', pads.includes(k)));
+  };
+  /** A click picks a row; with shift or cmd/ctrl it adds the row to the selection (or takes it out). */
+  const pickRow = (pad: number, e: MouseEvent | PointerEvent) => {
+    if (e.shiftKey || e.metaKey || e.ctrlKey) selectRows(drumSel.includes(pad) ? drumSel.filter((p) => p !== pad) : [...drumSel, pad]);
+    else selectRows([pad]);
+  };
+  const typing = (e: KeyboardEvent) => {
+    const t = e.target as HTMLElement | null;
+    return !!t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
   };
   // on the page, as Safari does not focus a clicked button; not while typing in a field
   document.addEventListener('keydown', (e) => {
-    if ((e.key !== 'Backspace' && e.key !== 'Delete') || drumSel < 0 || drums.hidden) return;
-    const t = e.target as HTMLElement | null;
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-    e.preventDefault();
-    rig.clearHits(rig.part, RIG_FIRST_PAD_NOTE + drumSel);
+    if (e.defaultPrevented || !drumSel.length || drums.hidden || typing(e)) return;
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      e.preventDefault();
+      for (const pad of drumSel) rig.clearHits(rig.part, RIG_FIRST_PAD_NOTE + pad);
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectRows(rig.moveRows(rig.part, drumSel, e.key === 'ArrowUp' ? -1 : 1));
+    }
   });
+  // space starts and stops the sequencer (not on a key of the keyboard bed, which plays it, nor in a field)
+  let spaceHandled = false;
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== ' ' || e.defaultPrevented || typing(e) || e.altKey || e.metaKey || e.ctrlKey) return;
+    e.preventDefault();
+    spaceHandled = true;
+    if (!e.repeat) { if (seq.isPlaying) rig.stop(); else rig.play(); }
+  });
+  // a focused button would be clicked by the space's key-up too
+  document.addEventListener('keyup', (e) => { if (e.key === ' ' && spaceHandled) { spaceHandled = false; e.preventDefault(); } }, true);
 
   // ---- the selected step
   const editor = el('section', 'rig-section rig-seq-step');
@@ -313,7 +335,7 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
     // the drum grid, when the edited part is a kit
     const kitPart = rig.parts[rig.part]!;
     drums.hidden = kitPart.kind !== 'kit';
-    if (rig.part !== drumPart) { drumPart = rig.part; selectRow(-1); }
+    if (rig.part !== drumPart) { drumPart = rig.part; selectRows([]); }
     if (kitPart.kind === 'kit') {
       const t = track();
       drumTitle.textContent = `DRUM GRID · TRACK ${rig.part + 1} · ${kitPart.kit?.name ?? ''} · STEPS ${page * PAGE + 1}–${(page + 1) * PAGE}`;

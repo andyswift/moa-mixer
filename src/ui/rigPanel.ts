@@ -32,7 +32,7 @@ const shortLabel = (c: Control): string =>
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = (n: number) => `${NOTE_NAMES[n % 12]}${Math.floor(n / 12) - 1}`;
 
-function renderChoice(c: Extract<Control, { kind: 'choice' }>, section: string): HTMLElement {
+export function renderChoice(c: Extract<Control, { kind: 'choice' }>, section: string): HTMLElement {
   const wrap = el('label', 'rig-choice');
   wrap.append(el('span', 'knob-label', shortLabel(c)));
   const select = el('select');
@@ -46,7 +46,7 @@ function renderChoice(c: Extract<Control, { kind: 'choice' }>, section: string):
   return wrap;
 }
 
-function renderToggle(c: Extract<Control, { kind: 'toggle' }>, section: string): HTMLElement {
+export function renderToggle(c: Extract<Control, { kind: 'toggle' }>, section: string): HTMLElement {
   const wrap = el('div', 'rig-toggle');
   const button = el('button', 'rig-key');
   button.type = 'button';

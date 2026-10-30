@@ -7,6 +7,7 @@ import { Patch } from './domain/patch/patch';
 import { mountInstrumentPage } from './ui/instrumentPage';
 import { mountKeyboardBed } from './ui/keyboard';
 import { renderRigPanel } from './ui/rigPanel';
+import { renderRigMixPanel } from './ui/rigMixPanel';
 import { renderRigSeqPanel } from './ui/rigSeqPanel';
 import * as store from './ui/rigStorage';
 import { loadBreakKit, RIG_BREAK_KITS, RIG_SAMPLES, rigKitSound } from './audio/rigKitSounds';
@@ -37,7 +38,8 @@ const multis = {
 };
 
 const engine = new AudioEngine(patch);
-wrap.append(renderRigPanel(rig, multis, kits), mountKeyboardBed(rig), renderRigSeqPanel(rig, () => engine.currentTime));
+wrap.append(renderRigPanel(rig, multis, kits), mountKeyboardBed(rig), renderRigSeqPanel(rig, () => engine.currentTime),
+  renderRigMixPanel(rig, () => engine.readRigMeters('rig', 'synth')));
 
 // The sequencer sends ahead on the audio clock; a live-played note is placed by when it was heard.
 const SCHEDULE_MS = 25;

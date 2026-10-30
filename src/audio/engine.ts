@@ -14,6 +14,7 @@ import { TONE_NAME, TONE_SOURCE } from './toneWorklet';
 import { GRANULAR_NAME, GRANULAR_SOURCE } from './granularWorklet';
 import { M2600_NAME, M2600_SOURCE } from './m2600Worklet';
 import { PIPE_NAME, PIPE_SOURCE, SPRING_NAME } from './pipeWorklet';
+import { RIG_MIX_SOURCE } from './rigMixWorklet';
 import { RIG_NAME, RIG_SOURCE } from './rigWorklet';
 
 const SMOOTHING = 0.01; // seconds; avoids zipper noise on param changes
@@ -43,6 +44,14 @@ export interface DuoView {
 }
 
 /** What a 2600 node reports for display: the keyboard gate, LFO and S/H clock lamps, the electronic switch, envelope levels (0-10 V). */
+/** The MOA-RIG mixer's meters: peaks per strip ([L, R] for the parts, then the returns), the master's, and the
+ * compressor's gain reduction (dB, 0 or below). */
+export interface RigMeters {
+  strips: Float32Array;
+  master: number[];
+  gr: number;
+}
+
 export interface M2600View {
   gate: boolean;
   lfo: boolean;
@@ -77,6 +86,7 @@ export class AudioEngine {
   private readonly dfViews = new Map<string, DFView>();
   private readonly duoViews = new Map<string, DuoView>();
   private readonly m2600Views = new Map<string, M2600View>();
+  private readonly rigMeters = new Map<string, RigMeters>();
   private readonly stringViews = new Map<string, StringView>();
   private readonly voiceViews = new Map<string, VoxView>();
   private readonly samplerViews = new Map<string, SamplerView>();
@@ -179,6 +189,11 @@ export class AudioEngine {
   /** The latest tract shape, pitch and loudness of a voice node; undefined until audio has started. */
   readVoice(deviceId: string, nodeId: string): VoxView | undefined {
     return this.voiceViews.get(`${deviceId}/${nodeId}`);
+  }
+
+  /** The MOA-RIG mixer's latest meters; undefined until audio has started. */
+  readRigMeters(deviceId: string, nodeId: string): RigMeters | undefined {
+    return this.rigMeters.get(`${deviceId}/${nodeId}`);
   }
 
   /** The latest lamps and envelope levels of a 2600 node; undefined until audio has started. */
@@ -375,7 +390,10 @@ export class AudioEngine {
             processorOptions: { state: JSON.parse(n.options.state ?? '{}') as unknown },
           });
           // its kits' sounds are too big for the options: the device sends them when the worklet is ready
-          node.port.onmessage = (e: MessageEvent<{ type: string }>) => { if (e.data.type === 'ready') circuit.nodeReady(n.id); };
+          node.port.onmessage = (e: MessageEvent<{ type: 'ready' } | ({ type: 'meters' } & RigMeters)>) => {
+            if (e.data.type === 'ready') circuit.nodeReady(n.id);
+            else this.rigMeters.set(`${deviceId}/${n.id}`, e.data);
+          };
           nodes.set(n.id, node);
           break;
         }
@@ -809,7 +827,7 @@ registerProcessor('${FOLLOWER_NAME}', MoaFollower);
 `;
 
 /** Every processor, as the one script the audio worklet loads. Top-level names must not clash between them. */
-export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE, KIT_SOURCE, SAMPLER_SOURCE, TONE_SOURCE, VOICE_SOURCE, RIG_SOURCE].join('\n');
+export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE, KIT_SOURCE, SAMPLER_SOURCE, TONE_SOURCE, VOICE_SOURCE, RIG_MIX_SOURCE, RIG_SOURCE].join('\n');
 
 /** The processors are one worklet module, loaded from an in-memory script. */
 function workletModuleUrl(): string {

@@ -271,6 +271,8 @@ class RigCore {
     this.kits = [];
     this.kitL = new Float32Array(RIG_MAX_BLOCK);
     this.kitR = new Float32Array(RIG_MAX_BLOCK);
+    // the mixer and effects (RigMixer, from the mixer's worklet source); without it the parts are simply summed
+    this.mix = typeof RigMixer === 'function' ? new RigMixer(sampleRate, parts) : null;
     this.tables = rigTables();
     this.voices = [];
     for (let i = 0; i < voices; i++) {
@@ -411,6 +413,7 @@ class RigCore {
     else if (m.type === 'pad') this.setPad(m.part, m.pad, m.settings);
     else if (m.type === 'ctrl') this.setControl(m.part, m.name, m.value);
     else if (m.type === 'bpm') this.bpm = m.bpm;
+    else if (m.type === 'mix') { if (this.mix) this.mix.set(m.id, m.value); }
     else if (m.type === 'flush') this.queue = [];
     else if (m.type === 'panic') { this.queue = []; for (let p = 0; p < this.parts.length; p++) this.allNotesOff(p); }
   }
@@ -542,6 +545,7 @@ class RigCore {
       k.process(L, R, n, 1);
       for (let i = 0; i < n; i++) { pL[i] += L[i]; pR[i] += R[i]; outL[i] += L[i]; outR[i] += R[i]; }
     }
+    if (this.mix) this.mix.process(this.partL, this.partR, outL, outR, n, this.bpm);
     this.frame += n;
   }
 
@@ -827,6 +831,8 @@ if (typeof registerProcessor === 'function') {
       for (const p of st.patches || []) this.core.setPatch(p.part, p.a, p.b);
       if (st.bpm) this.core.bpm = st.bpm;
       (st.kinds || []).forEach((kind, p) => this.core.setKind(p, kind));
+      if (this.core.mix) for (const id in st.mix || {}) this.core.mix.set(id, st.mix[id]);
+      this.since = 0;
       // \`when\` (an audio-clock time) places a message on its sample: the sequencer sends ahead of time
       this.port.onmessage = (e) => {
         const m = e.data;
@@ -837,6 +843,10 @@ if (typeof registerProcessor === 'function') {
     process(inputs, outputs) {
       const out = outputs[0];
       this.core.frame = currentFrame;
+      if (this.core.mix && (this.since += out[0].length) >= sampleRate / 30) {
+        this.since = 0;
+        this.port.postMessage({ type: 'meters', ...this.core.mix.meters() });
+      }
       this.core.process(out[0], out[1] || out[0], out[0].length);
       return true;
     }

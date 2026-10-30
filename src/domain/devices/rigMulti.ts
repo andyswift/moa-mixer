@@ -1,3 +1,4 @@
+import { RIG_MIX_PARAMS } from './rigMix';
 import { DRUM_VOICES, newPad, RIG_PADS, rigDrumParams, type RigKit, type RigPad } from './rigKit';
 import { RIG_DESTS, RIG_PARAMS, RIG_SOURCES, type RigRoute, type RigSide } from './rigParams';
 import type { RigPreset } from './rigPresets';
@@ -35,7 +36,11 @@ export interface RigMulti {
   chain: number[];
   tempo: number;
   shuffle: number;
+  /** The mixer and effects: param id -> value (choices as option indices); missing ones are their defaults. */
+  mix: Record<string, number>;
 }
+
+const MIX_PARAMS = new Map(RIG_MIX_PARAMS.map((p) => [p.id, p]));
 
 const PARAMS = new Map(RIG_PARAMS.map((p) => [p.id, p]));
 const SOURCES = new Set<string>(RIG_SOURCES);
@@ -175,6 +180,13 @@ export function sanitiseMulti(raw: unknown, defaults: (part: number) => RigMulti
     chain: Array.isArray(raw.chain) ? raw.chain.filter((i): i is number => Number.isInteger(i) && (i as number) >= 0 && (i as number) < RIG_PATTERNS) : [],
     tempo: num(raw.tempo, 40, 240, 120),
     shuffle: num(raw.shuffle, 0, 0.5, 0),
+    mix: {},
   };
+  if (isObject(raw.mix)) {
+    for (const [id, v] of Object.entries(raw.mix)) {
+      const p = MIX_PARAMS.get(id);
+      if (p && !id.endsWith('throw') && typeof v === 'number' && Number.isFinite(v)) multi.mix[id] = num(v, p.min, p.max, p.def, p.kind !== 'number');
+    }
+  }
   return multi;
 }
