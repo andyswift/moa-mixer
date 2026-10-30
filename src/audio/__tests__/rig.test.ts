@@ -14,6 +14,9 @@ interface CoreI {
   noteOff(part: number, note: number): void;
   setControl(part: number, name: string, value: number): void;
   sounding(part: number): number;
+  setLocks(part: number, locks: Params): void;
+  post(m: Record<string, unknown>, frame?: number): void;
+  parts: { a: Float64Array; b: Float64Array }[];
   process(l: Float32Array, r: Float32Array, n: number): void;
 }
 const mod = new Function(`${RIG_SOURCE}; return { RigCore, rigFft };`)() as {
@@ -336,5 +339,27 @@ describe('MOA-RIG robustness', () => {
     const t0 = performance.now();
     for (let b = 0; b < (SR / 128) * 2; b++) core.process(l, r, 128);
     expect(2000 / (performance.now() - t0)).toBeGreaterThan(3);
+  });
+
+  it('starts a timed note on its own sample, inside a block', () => {
+    const core = newCore();
+    core.setPatch(0, side({ 'eg2.a': 0 }));
+    core.post({ type: 'on', part: 0, note: 69, vel: 1 }, 200);
+    const { l } = run(core, 0.02);
+    for (let i = 0; i < 200; i++) expect(l[i]).toBe(0);
+    expect(rms(l, 200, 400)).toBeGreaterThan(0.01);
+  });
+
+  it('holds a lock over both sides until the next step, and keeps it through a patch change', () => {
+    const core = newCore();
+    const P = core.parts[0]!;
+    const cut = (new Function(`${RIG_SOURCE}; return RIG_P;`)() as Params)['lad.cutoff']!;
+    core.setPatch(0, side({ 'lad.cutoff': 1000 }), side({ 'lad.cutoff': 3000 }));
+    core.setLocks(0, { 'lad.cutoff': 400 });
+    expect([P.a[cut], P.b[cut]]).toEqual([400, 400]);
+    core.setPatch(0, side({ 'lad.cutoff': 2000 }), side({ 'lad.cutoff': 3000 }));
+    expect(P.a[cut]).toBe(400);
+    core.setLocks(0, {});
+    expect([P.a[cut], P.b[cut]]).toEqual([2000, 3000]);
   });
 });

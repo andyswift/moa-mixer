@@ -1,4 +1,5 @@
 import type { MidiEvent } from '../midi/events';
+import { RigSequencer, type RigStep } from '../sequencer/rigSequencer';
 import { ChoiceControl, type Control, NumberControl, ToggleControl } from './controls';
 import { Device } from './device';
 import type { Playable } from './playable';
@@ -9,6 +10,8 @@ export const RIG_PARTS = 16;
 /** The pool of voices the parts share. */
 export const RIG_VOICES = 24;
 
+/** A step recorded with no note off yet gets this gate. */
+const RECORD_GATE = 0.5;
 const MOD_WHEEL_CC = 1;
 const EXPRESSION_CC = 11;
 
@@ -39,6 +42,12 @@ const clone = (s: RigSide): RigSide => ({ params: { ...s.params }, matrix: s.mat
  * side being edited. The keyboard bed plays the edited part; MIDI plays every part listening on the event's channel,
  * within its key range. The sound is one worklet node; its `state` option holds the whole multi for a worklet built
  * later, and changes go to it as messages.
+ *
+ * The sequencer (`seq`) has a track per part. It sends ahead of time, so its notes and locks carry their audio-clock
+ * time; the page gives the device that clock (`now`) and calls `seq.schedule` every few milliseconds. With a step
+ * held (`holdStep`), turning a control locks it on that step rather than changing the sound. Stopped, playing the
+ * edited part sets the selected step's notes (a chord is the keys held together; with REC the step then moves on).
+ * Playing with REC on writes onto the nearest step, gate and all.
  */
 export class RigSynth extends Device implements Playable {
   readonly name: string;
@@ -57,10 +66,31 @@ export class RigSynth extends Device implements Playable {
   private readonly noteListeners = new Set<() => void>();
   private readonly performanceListeners = new Set<() => void>();
   private readonly partListeners = new Set<() => void>();
+  readonly seq: RigSequencer;
+  /** The audio clock, in seconds (set by the page). */
+  now: () => number = () => 0;
+  /** How long after the audio clock the player hears it (set by the page): a note played live is placed by what was heard. */
+  latency: () => number = () => 0;
+  /** The edited track's selected step (-1 for none). */
+  private selStep = -1;
+  /** While set, control changes lock onto this step instead of editing the sound. */
+  private lockStep?: { track: number; step: number };
+  private recording = false;
+  /** Step entry: keys held for the chord on the selected step. */
+  private entryHeld = new Set<number>();
+  /** Live recording: notes waiting for their release to set the gate. */
+  private readonly takes = new Map<number, { step: RigStep; tick: number; clock: number }>();
 
   constructor(name = 'MOA-RIG') {
     super();
     this.name = name;
+    this.seq = new RigSequencer({
+      on: (part, note, vel, when) => this.circuit.send('synth', { type: 'on', part, note, vel, when }),
+      off: (part, note, when) => this.circuit.send('synth', { type: 'off', part, note, when }),
+      locks: (part, locks, when) => this.circuit.send('synth', { type: 'lock', part, locks, when }),
+      mod: (part, value, when) => this.circuit.send('synth', { type: 'ctrl', part, name: 'seq', value, when }),
+      flush: () => this.circuit.send('synth', { type: 'flush' }),
+    });
     this.parts = Array.from({ length: RIG_PARTS }, (_, p) => ({
       name: p === 0 ? RIG_PRESETS[0]!.name : '', slot: 0, voices: p === 0 ? RIG_VOICES : 0,
       channel: p === 0 ? 0 : p + 1, lo: 0, hi: 127, octave: 0,
@@ -98,6 +128,7 @@ export class RigSynth extends Device implements Playable {
   /** Edits another part: the controls move to its sound. */
   selectPart(part: number): void {
     this.editPart = Math.max(0, Math.min(RIG_PARTS - 1, part));
+    if (this.lockStep && this.lockStep.track !== this.editPart) this.lockStep = undefined;
     this.syncControls();
   }
 
@@ -160,6 +191,7 @@ export class RigSynth extends Device implements Playable {
 
   set bpm(v: number) {
     this.bpmValue = v;
+    this.seq.tempo = v;
     this.circuit.send('synth', { type: 'bpm', bpm: v });
     this.saveState();
   }
@@ -175,13 +207,132 @@ export class RigSynth extends Device implements Playable {
 
   private edit(id: string, value: number): void {
     if (this.syncing) return;
+    if (this.lockStep) {
+      const { track, step } = this.lockStep;
+      this.seq.pattern.tracks[track]!.steps[step]!.locks[id] = value;
+      this.seq.notify();
+      return;
+    }
     this.parts[this.editPart]![this.editSide].params[id] = value;
     this.sendPatch(this.editPart);
   }
 
+  // ---- Sequencer editing ----
+
+  /** The edited part's track's selected step, or -1. */
+  get step(): number {
+    return this.selStep;
+  }
+
+  /** Selects a step of a track; its part becomes the edited one. */
+  selectStep(track: number, step: number): void {
+    this.selStep = step;
+    this.entryHeld.clear();
+    if (this.lockStep) this.lockStep = { track, step };
+    if (track !== this.editPart) this.selectPart(track);
+    else if (this.lockStep) this.syncControls();
+    else this.notifyParts();
+  }
+
+  /** Holds the selected step: controls now show and lock its values (off with `releaseStep`). */
+  holdStep(): void {
+    if (this.selStep < 0) return;
+    this.lockStep = { track: this.editPart, step: this.selStep };
+    this.syncControls();
+  }
+
+  releaseStep(): void {
+    if (!this.lockStep) return;
+    this.lockStep = undefined;
+    this.syncControls();
+  }
+
+  get holding(): boolean {
+    return this.lockStep !== undefined;
+  }
+
+  get isRecording(): boolean {
+    return this.recording;
+  }
+
+  setRecording(on: boolean): void {
+    this.recording = on;
+    this.entryHeld.clear();
+    this.takes.clear();
+    this.notifyParts();
+  }
+
+  play(): void {
+    this.seq.play(this.now());
+  }
+
+  stop(): void {
+    this.seq.stop(this.now());
+    this.takes.clear();
+  }
+
+  private heard(): number {
+    return this.now() - this.latency();
+  }
+
+  /**
+   * Writes a played note into the edited part's track. Stopped, with a step selected, it sets the step's notes (a
+   * chord is the keys held together), REC or not; with REC the step then moves on. Playing, only with REC.
+   */
+  private recordOn(note: number, velocity: number): void {
+    const track = this.seq.pattern.tracks[this.editPart]!;
+    if (this.seq.isPlaying) {
+      if (!this.recording) return;
+      const near = this.seq.stepNear(this.editPart, this.heard());
+      if (!near) return;
+      const step = track.steps[near.step]!;
+      if (!this.takes.size || !step.notes.length) step.notes = [];
+      if (!step.notes.includes(note)) step.notes.push(note);
+      step.vel = velocity;
+      step.gate = RECORD_GATE;
+      this.seq.recorded(this.editPart, near.step, near.tick);
+      this.takes.set(note, { step, tick: this.seq.tickAt(this.heard()), clock: track.clock });
+    } else {
+      if (this.selStep < 0 && !this.recording) return;
+      if (this.selStep < 0) this.selStep = 0;
+      const step = track.steps[this.selStep]!;
+      if (this.entryHeld.size === 0) step.notes = [];
+      this.entryHeld.add(note);
+      if (!step.notes.includes(note)) step.notes.push(note);
+      step.vel = velocity;
+    }
+    this.seq.notify();
+  }
+
+  private recordOff(note: number): void {
+    const take = this.takes.get(note);
+    if (take) {
+      this.takes.delete(note);
+      take.step.gate = Math.max(0.25, Math.min(16, Math.round(((this.seq.tickAt(this.heard()) - take.tick) / take.clock) * 4) / 4));
+      this.seq.notify();
+    }
+    if (this.entryHeld.delete(note) && this.entryHeld.size === 0 && this.recording && !this.seq.isPlaying) {
+      // the chord is in: on to the next step
+      this.selStep = (this.selStep + 1) % this.seq.pattern.tracks[this.editPart]!.length;
+      this.notifyParts();
+    }
+  }
+
+  /** Moves a step's notes by semitones (the chord keeps its shape; nothing goes past 0 or 127). */
+  transposeStep(track: number, step: number, semitones: number): void {
+    const s = this.seq.pattern.tracks[track]?.steps[step];
+    if (!s?.notes.length) return;
+    const lo = Math.min(...s.notes), hi = Math.max(...s.notes);
+    const by = Math.max(-lo, Math.min(127 - hi, Math.round(semitones)));
+    if (!by) return;
+    s.notes = s.notes.map((n) => n + by);
+    this.seq.notify();
+  }
+
   private syncControls(): void {
     this.syncing = true;
-    const params = this.parts[this.editPart]![this.editSide].params;
+    const lock = this.lockStep ? this.seq.pattern.tracks[this.lockStep.track]!.steps[this.lockStep.step]!.locks : {};
+    const params = { ...this.parts[this.editPart]![this.editSide].params, ...lock };
     for (const c of this.controlList) {
       const v = params[c.id] ?? RIG_DEFAULTS[c.id]!;
       setControl(c, v);
@@ -221,7 +372,7 @@ export class RigSynth extends Device implements Playable {
   keyUp(note: number): void {
     if (!this.held.includes(note)) return;
     this.held = this.held.filter((n) => n !== note);
-    this.stop(`k${note}`);
+    this.release(`k${note}`);
     this.notifyNotes();
   }
 
@@ -234,7 +385,7 @@ export class RigSynth extends Device implements Playable {
         break;
       }
       case 'noteOff':
-        this.stop(`${event.channel}:${event.note}`);
+        this.release(`${event.channel}:${event.note}`);
         break;
       case 'pitchBend':
         this.setPitchBend(event.value);
@@ -249,19 +400,25 @@ export class RigSynth extends Device implements Playable {
   }
 
   private start(key: string, parts: number[], note: number, velocity: number): void {
-    this.stop(key);
+    this.release(key);
     const sent = parts.map((part) => ({ part, note: note + 12 * this.parts[part]!.octave }));
     for (const s of sent) this.circuit.send('synth', { type: 'on', part: s.part, note: s.note, vel: velocity });
     if (sent.length) this.sounding.set(key, sent);
+    const mine = sent.find((s) => s.part === this.editPart);
+    if (mine) this.recordOn(mine.note, velocity);
   }
 
-  private stop(key: string): void {
-    for (const s of this.sounding.get(key) ?? []) this.circuit.send('synth', { type: 'off', part: s.part, note: s.note });
+  private release(key: string): void {
+    for (const s of this.sounding.get(key) ?? []) {
+      this.circuit.send('synth', { type: 'off', part: s.part, note: s.note });
+      if (s.part === this.editPart) this.recordOff(s.note);
+    }
     this.sounding.delete(key);
   }
 
-  /** Releases everything (the transport's stop). */
+  /** Releases everything (the transport's stop), and stops the sequencer. */
   panic(): void {
+    this.stop();
     this.sounding.clear();
     this.held = [];
     this.circuit.send('synth', { type: 'panic' });

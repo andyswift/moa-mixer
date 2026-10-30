@@ -80,7 +80,8 @@ const KNOB_SWEEP = 270; // degrees, centred on 12 o'clock
 const DRAG_PIXELS = 160; // vertical drag for the full range
 
 /** Rotary knob: drag vertically, arrow keys, Home/End, double-click resets. */
-export function renderKnob(c: NumberControl, section: string, label: string, size = 34): HTMLElement {
+/** `format` shows the value its own way (a note name, say) instead of the number and unit. */
+export function renderKnob(c: NumberControl, section: string, label: string, size = 34, format?: (v: number) => string): HTMLElement {
   const wrap = el('div', 'knob-wrap');
   wrap.append(el('div', 'knob-label', label));
 
@@ -100,7 +101,7 @@ export function renderKnob(c: NumberControl, section: string, label: string, siz
   const sync = () => {
     const t = toSlider(c) / STEPS;
     pointer.style.transform = `rotate(${-KNOB_SWEEP / 2 + t * KNOB_SWEEP}deg)`;
-    readout.textContent = formatCompact(c);
+    readout.textContent = format ? format(c.value) : formatCompact(c);
     knob.setAttribute('aria-valuenow', String(c.value));
     knob.setAttribute('aria-valuetext', readout.textContent);
   };

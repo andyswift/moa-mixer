@@ -261,6 +261,9 @@ class RigCore {
     this.random = random;
     this.bpm = 120;
     this.clock = 0;
+    // timed messages ({ frame, m }) in time order, and the absolute frame the next block starts on
+    this.queue = [];
+    this.frame = 0;
     this.tables = rigTables();
     this.voices = [];
     for (let i = 0; i < voices; i++) {
@@ -275,7 +278,8 @@ class RigCore {
       const a = new Float64Array(RIG_NP), b = new Float64Array(RIG_NP);
       for (let i = 0; i < RIG_NP; i++) { a[i] = RIG_PARAM_DEFS[i][1]; b[i] = a[i]; }
       this.parts.push({
-        a, b, routes: [], fm1: [0, 0], fm2: [0, 0],
+        a, b, baseA: Float64Array.from(a), baseB: Float64Array.from(b), locks: new Map(),
+        routes: [], fm1: [0, 0], fm2: [0, 0],
         ctrl: { bend: 0, mod: 0, aft: 0, exp: 0, cc: 0, seq: 0 },
         voices: [], stack: [], lastNote: 60, panIdx: 0, lfoPh: [0, 0],
       });
@@ -310,9 +314,10 @@ class RigCore {
     for (let i = 0; i < RIG_NP; i++) {
       const id = RIG_PARAM_DEFS[i][0], def = RIG_PARAM_DEFS[i][1];
       const va = a.params[id], vb = sb.params[id];
-      pt.a[i] = va === undefined ? def : va;
-      pt.b[i] = vb === undefined ? def : vb;
+      pt.baseA[i] = va === undefined ? def : va;
+      pt.baseB[i] = vb === undefined ? def : vb;
     }
+    this.applyLocks(pt);
     const map = new Map();
     const add = (list, side) => {
       for (const r of list || []) {
@@ -336,6 +341,41 @@ class RigCore {
       if (e.s === S_VEL && (e.d === D_E1[4] || e.d === D_E2[4])) e.sens = 1;
       pt.routes.push(e);
     }
+  }
+
+  // A sequencer step's parameter locks ({ id: value }): they hold the params on both sides until the next call.
+  setLocks(part, locks) {
+    const pt = this.parts[part];
+    if (!pt) return;
+    pt.locks = new Map();
+    for (const id in locks || {}) if (RIG_P[id] !== undefined) pt.locks.set(RIG_P[id], locks[id]);
+    this.applyLocks(pt);
+  }
+
+  applyLocks(pt) {
+    pt.a.set(pt.baseA);
+    pt.b.set(pt.baseB);
+    for (const [i, v] of pt.locks) { pt.a[i] = v; pt.b[i] = v; }
+  }
+
+  // A message from the device; with a frame (an absolute sample time) it waits for that sample.
+  post(m, frame) {
+    if (frame === undefined || frame <= this.frame) { this.handle(m); return; }
+    let i = this.queue.length;
+    while (i > 0 && this.queue[i - 1].frame > frame) i--;
+    this.queue.splice(i, 0, { frame, m });
+  }
+
+  handle(m) {
+    if (m.type === 'patch') this.setPatch(m.part, m.a, m.b);
+    else if (m.type === 'layout') this.setLayout(m.counts);
+    else if (m.type === 'on') this.noteOn(m.part, m.note, m.vel);
+    else if (m.type === 'off') this.noteOff(m.part, m.note);
+    else if (m.type === 'lock') this.setLocks(m.part, m.locks);
+    else if (m.type === 'ctrl') this.setControl(m.part, m.name, m.value);
+    else if (m.type === 'bpm') this.bpm = m.bpm;
+    else if (m.type === 'flush') this.queue = [];
+    else if (m.type === 'panic') { this.queue = []; for (let p = 0; p < this.parts.length; p++) this.allNotesOff(p); }
   }
 
   setControl(part, name, value) {
@@ -439,8 +479,25 @@ class RigCore {
     return this.parts[part].voices.filter((v) => v.active).length;
   }
 
+  // Renders n samples, handling the queued messages on their samples (the block is split at each).
   process(outL, outR, n) {
-    for (let p = 0; p < this.parts.length; p++) { this.partL[p].fill(0, 0, n); this.partR[p].fill(0, 0, n); }
+    let at = 0;
+    while (at < n) {
+      while (this.queue.length && this.queue[0].frame <= this.frame + at) this.handle(this.queue.shift().m);
+      const next = this.queue.length ? this.queue[0].frame - this.frame : n;
+      const end = Math.min(n, Math.max(at + 1, next));
+      if (at === 0 && end === n) this.render(outL, outR, 0, n);
+      else this.render(outL, outR, at, end - at);
+      at = end;
+    }
+    this.frame += n;
+  }
+
+  // Renders len samples into out (and each part's buffer) from sample off.
+  render(outL, outR, off, len) {
+    const whole = off === 0;
+    const n = len;
+    for (let p = 0; p < this.parts.length; p++) { this.partL[p].fill(0, off, off + n); this.partR[p].fill(0, off, off + n); }
     for (const pt of this.parts) {
       for (let k = 0; k < 2; k++) {
         const a = pt.a, L = Q_L[k];
@@ -448,8 +505,12 @@ class RigCore {
         pt.lfoPh[k] = (pt.lfoPh[k] + rate * n / this.sr) % 1;
       }
     }
-    for (const v of this.voices) if (v.active && v.part >= 0) this.runVoice(v, this.parts[v.part], this.partL[v.part], this.partR[v.part], n);
-    for (let i = 0; i < n; i++) {
+    for (const v of this.voices) {
+      if (!v.active || v.part < 0) continue;
+      const L = this.partL[v.part], R = this.partR[v.part];
+      this.runVoice(v, this.parts[v.part], whole ? L : L.subarray(off), whole ? R : R.subarray(off), n);
+    }
+    for (let i = off; i < off + n; i++) {
       let l = 0, r = 0;
       for (let p = 0; p < this.parts.length; p++) { l += this.partL[p][i]; r += this.partR[p][i]; }
       outL[i] = l;
@@ -713,19 +774,15 @@ if (typeof registerProcessor === 'function') {
       if (st.counts) this.core.setLayout(st.counts);
       for (const p of st.patches || []) this.core.setPatch(p.part, p.a, p.b);
       if (st.bpm) this.core.bpm = st.bpm;
+      // \`when\` (an audio-clock time) places a message on its sample: the sequencer sends ahead of time
       this.port.onmessage = (e) => {
         const m = e.data;
-        if (m.type === 'patch') this.core.setPatch(m.part, m.a, m.b);
-        else if (m.type === 'layout') this.core.setLayout(m.counts);
-        else if (m.type === 'on') this.core.noteOn(m.part, m.note, m.vel);
-        else if (m.type === 'off') this.core.noteOff(m.part, m.note);
-        else if (m.type === 'ctrl') this.core.setControl(m.part, m.name, m.value);
-        else if (m.type === 'bpm') this.core.bpm = m.bpm;
-        else if (m.type === 'panic') for (let p = 0; p < this.core.parts.length; p++) this.core.allNotesOff(p);
+        this.core.post(m, m.when === undefined ? undefined : Math.round(m.when * sampleRate));
       };
     }
     process(inputs, outputs) {
       const out = outputs[0];
+      this.core.frame = currentFrame;
       this.core.process(out[0], out[1] || out[0], out[0].length);
       return true;
     }
