@@ -2,6 +2,7 @@ import type { Control } from '../domain/devices/controls';
 import { RIG_DESTS, RIG_SOURCES, type RigDest, type RigSource } from '../domain/devices/rigParams';
 import type { RigMulti } from '../domain/devices/rigMulti';
 import { RIG_PARTS, type RigSynth } from '../domain/devices/rigSynth';
+import { renderRigKitPanel, type RigKitSource } from './rigKitPanel';
 import { el, renderKnob } from './widgets';
 
 /**
@@ -69,7 +70,7 @@ export interface RigMultiStore {
   save(slot: number, multi: RigMulti): boolean;
 }
 
-export function renderRigPanel(rig: RigSynth, store?: RigMultiStore): HTMLElement {
+export function renderRigPanel(rig: RigSynth, store?: RigMultiStore, kits?: RigKitSource): HTMLElement {
   const panel = el('div', 'rig-panel');
 
   // ---- the multi: its name, and the slots it is saved in and loaded from
@@ -141,6 +142,11 @@ export function renderRigPanel(rig: RigSynth, store?: RigMultiStore): HTMLElemen
     sound.replaceChildren(factory, ...(saved.children.length ? [saved] : []));
   };
   sound.addEventListener('change', () => rig.loadSlot(Number(sound.value)));
+  const kind = el('select');
+  kind.setAttribute('aria-label', 'Part type');
+  kind.add(new Option('Synth', 'synth'));
+  kind.add(new Option('Kit', 'kit'));
+  kind.addEventListener('change', () => rig.setKind(rig.part, kind.value as 'synth' | 'kit'));
   const partName = el('input', 'rig-name');
   partName.setAttribute('aria-label', 'Part name');
   partName.maxLength = 24;
@@ -184,10 +190,13 @@ export function renderRigPanel(rig: RigSynth, store?: RigMultiStore): HTMLElemen
     f.append(el('span', 'knob-label', label), ...nodes);
     return f;
   };
+  const synthOnly = [field('Sound', sound, saveSound), field('Voices', less, voices, more)];
+  const sideField = field('Side', sideA, sideB, copy);
   setup.append(
-    field('Name', partName), field('Sound', sound, saveSound), field('Voices', less, voices, more), field('Channel', channel), field('Octave', octave),
-    field('Range', lo, hi), field('Side', sideA, sideB, copy),
+    field('Type', kind), field('Name', partName), ...synthOnly, field('Channel', channel), field('Octave', octave),
+    field('Range', lo, hi), sideField,
   );
+  const kitPanel = renderRigKitPanel(rig, kits);
 
   // ---- the sections
   const grid = el('div', 'rig-grid');
@@ -253,13 +262,21 @@ export function renderRigPanel(rig: RigSynth, store?: RigMultiStore): HTMLElemen
     rig.parts.forEach((pt, p) => {
       const b = partButtons[p]!;
       b.classList.toggle('selected', p === rig.part);
-      b.classList.toggle('empty', pt.voices === 0);
       b.innerHTML = '';
-      b.append(el('span', 'rig-part-num', String(p + 1)), el('span', 'rig-part-name', pt.voices > 0 ? pt.name || 'Part' : 'EMPTY'),
-        el('span', 'rig-part-meta', `${pt.channel ? `CH ${pt.channel}` : 'ALL'} · ${pt.voices} V`));
+      const on = pt.voices > 0 || pt.kind === 'kit';
+      b.classList.toggle('empty', !on);
+      b.classList.toggle('kit', pt.kind === 'kit');
+      b.append(el('span', 'rig-part-num', String(p + 1)), el('span', 'rig-part-name', on ? pt.name || 'Part' : 'EMPTY'),
+        el('span', 'rig-part-meta', `${pt.channel ? `CH ${pt.channel}` : 'ALL'} · ${pt.kind === 'kit' ? 'KIT' : `${pt.voices} V`}`));
       b.setAttribute('aria-pressed', String(p === rig.part));
     });
     const pt = rig.parts[rig.part]!;
+    const isKit = pt.kind === 'kit';
+    kind.value = pt.kind;
+    for (const n of [...synthOnly, sideField, grid, mod]) n.hidden = isKit;
+    octave.disabled = isKit;
+    kitPanel.hidden = !isKit;
+    if (isKit) kitPanel.sync();
     if (sound.options.length !== rig.slots.length || [...sound.options].some((o, i) => o.text !== rig.slots[i]!.name)) fillSounds();
     sound.value = String(pt.slot);
     if (document.activeElement !== partName) partName.value = pt.name;
@@ -276,6 +293,6 @@ export function renderRigPanel(rig: RigSynth, store?: RigMultiStore): HTMLElemen
   rig.onPartChange(sync);
   sync();
 
-  panel.append(multiBar, partRow, setup, grid, mod);
+  panel.append(multiBar, partRow, setup, kitPanel, grid, mod);
   return panel;
 }

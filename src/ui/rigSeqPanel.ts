@@ -1,4 +1,5 @@
 import { NumberControl } from '../domain/devices/controls';
+import { RIG_FIRST_PAD_NOTE } from '../domain/devices/rigKit';
 import { RIG_PARAMS } from '../domain/devices/rigParams';
 import { RIG_PARTS, type RigSynth } from '../domain/devices/rigSynth';
 import {
@@ -52,6 +53,11 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   let clipboard: RigPattern | undefined;
   const lastNote = new Array<number>(RIG_PARTS).fill(60);
   const track = () => seq.pattern.tracks[rig.part]!;
+  /** A note as a part shows it: a kit part by its pad's name. */
+  const noteOf = (p: number, n: number) => {
+    const kit = rig.parts[p]!.kind === 'kit' ? rig.parts[p]!.kit : undefined;
+    return kit ? kit.pads[n - RIG_FIRST_PAD_NOTE]?.name ?? noteName(n) : noteName(n);
+  };
   const changed = () => seq.notify();
 
   // ---- transport and patterns
@@ -141,11 +147,64 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
     const t = seq.pattern.tracks[p]!;
     const s = t.steps[i]!;
     const selected = p === rig.part && i === rig.step;
+    const kit = rig.parts[p]!.kind === 'kit';
+    if (kit && (lastNote[p]! < RIG_FIRST_PAD_NOTE || lastNote[p]! >= RIG_FIRST_PAD_NOTE + 16)) lastNote[p] = RIG_FIRST_PAD_NOTE;
     if (!s.notes.length) { s.notes = [lastNote[p]!]; rig.selectStep(p, i); }
     else if (selected) s.notes = [];
     else rig.selectStep(p, i);
     changed();
   }
+
+  // ---- the drum grid: a kit's pads down, the steps across; click a cell for a hit, the wheel over one for its velocity
+  const drums = el('section', 'rig-section rig-drum-grid');
+  drums.style.setProperty('--rig-accent', '#ffa3c7');
+  const drumTitle = el('h3', 'rig-title');
+  const drumRows = el('div', 'rig-drum-rows');
+  const drumRow = Array.from({ length: 16 }, (_, pad) => {
+    const row = el('div', 'rig-drum-row');
+    const note = RIG_FIRST_PAD_NOTE + pad;
+    const name = button('rig-drum-name', '', `Hear pad ${pad + 1}`);
+    name.addEventListener('pointerdown', () => { selectRow(pad); rig.audition(note, true); });
+    for (const ev of ['pointerup', 'pointerleave'] as const) name.addEventListener(ev, () => rig.audition(note, false));
+    const cells = Array.from({ length: PAGE }, (_, c) => {
+      const b = button('rig-seq-cell rig-drum-cell', '');
+      b.addEventListener('click', () => {
+        const i = page * PAGE + c;
+        selectRow(pad);
+        if (i < track().length) rig.toggleHit(rig.part, i, note);
+      });
+      b.addEventListener('wheel', (e) => {
+        const st = track().steps[page * PAGE + c];
+        if (!st?.notes.includes(note)) return;
+        e.preventDefault();
+        const v = st.vels?.[note] ?? st.vel;
+        rig.setHitVelocity(rig.part, page * PAGE + c, note, v + Math.sign(-e.deltaY) * 0.05);
+      }, { passive: false });
+      return b;
+    });
+    const steps = el('div', 'rig-seq-cells');
+    steps.append(...cells);
+    row.append(name, steps);
+    drumRows.append(row);
+    return { row, name, cells };
+  });
+  drums.append(drumTitle, drumRows, el('p', 'rig-seq-hint', 'Click a cell to put a hit in or take it out. Mouse wheel over a hit: its velocity (brighter is harder). Press a pad’s name to hear it. Backspace clears the selected row’s hits on every step.'));
+  let drumLit = -1;
+  /** The selected row (a pad), whose hits Backspace or Delete clears; -1 for none. */
+  let drumSel = -1;
+  let drumPart = -1;
+  const selectRow = (pad: number) => {
+    drumSel = pad;
+    drumRow.forEach((r, k) => r.row.classList.toggle('selected', k === pad));
+  };
+  // on the page, as Safari does not focus a clicked button; not while typing in a field
+  document.addEventListener('keydown', (e) => {
+    if ((e.key !== 'Backspace' && e.key !== 'Delete') || drumSel < 0 || drums.hidden) return;
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    e.preventDefault();
+    rig.clearHits(rig.part, RIG_FIRST_PAD_NOTE + drumSel);
+  });
 
   // ---- the selected step
   const editor = el('section', 'rig-section rig-seq-step');
@@ -185,7 +244,7 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   clearTrack.addEventListener('click', () => { const t = track(); t.steps = t.steps.map(() => newStep()); changed(); });
   const locks = el('div', 'rig-seq-locks');
   const controls = el('div', 'rig-controls');
-  controls.append(renderKnob(note, 'Step', 'NOTE', 30, (v) => noteName(Math.round(v))),
+  controls.append(renderKnob(note, 'Step', 'NOTE', 30, (v) => noteOf(rig.part, Math.round(v))),
     ...knobs.map((k) => renderKnob(k.c, 'Step', k.c.label.toUpperCase(), 30)), lock);
   const tools = el('div', 'rig-field');
   tools.append(clearStep, clearLocks, clearTrack);
@@ -220,8 +279,10 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
       const t = pat.tracks[p]!;
       const pt = rig.parts[p]!;
       l.row.classList.toggle('selected', p === rig.part);
-      l.row.classList.toggle('empty', pt.voices === 0);
-      l.name.textContent = `${p + 1} ${pt.voices > 0 ? pt.name || 'Part' : 'EMPTY'}`;
+      const on = pt.voices > 0 || pt.kind === 'kit';
+      l.row.classList.toggle('empty', !on);
+      l.row.classList.toggle('kit', pt.kind === 'kit');
+      l.name.textContent = `${p + 1} ${on ? pt.name || 'Part' : 'EMPTY'}`;
       l.mute.classList.toggle('on', t.muted);
       l.solo.classList.toggle('on', t.solo);
       const tied = ties(t.steps, t.length);
@@ -229,15 +290,19 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
         const i = page * PAGE + k;
         const s = t.steps[i]!;
         const beyond = i >= t.length;
-        c.textContent = beyond ? '' : s.notes.length ? noteName(s.notes[0]!) + (s.notes.length > 1 ? `+${s.notes.length - 1}` : '') : tied[i] ? '~' : '';
+        const kit = pt.kind === 'kit';
+        c.textContent = beyond ? '' : s.notes.length
+          ? kit ? s.notes.map((n) => noteOf(p, n)).join(' ') : noteName(s.notes[0]!) + (s.notes.length > 1 ? `+${s.notes.length - 1}` : '')
+          : tied[i] && !kit ? '~' : '';
+        c.classList.toggle('kitnote', kit);
         c.className = 'rig-seq-cell';
         c.classList.toggle('beat', k % 4 === 0);
         c.classList.toggle('beyond', beyond);
         c.classList.toggle('note', !beyond && s.notes.length > 0);
-        c.classList.toggle('tie', !beyond && !s.notes.length && tied[i]!);
+        c.classList.toggle('tie', !beyond && !s.notes.length && tied[i]! && !kit);
         c.classList.toggle('locked', !beyond && Object.keys(s.locks).length > 0);
         c.classList.toggle('sel', p === rig.part && i === rig.step);
-        c.setAttribute('aria-label', `Track ${p + 1} step ${i + 1}${s.notes.length ? ` ${s.notes.map(noteName).join(' ')}` : ''}`);
+        c.setAttribute('aria-label', `Track ${p + 1} step ${i + 1}${s.notes.length ? ` ${s.notes.map((n) => noteOf(p, n)).join(' ')}` : ''}`);
       });
       l.lit = -1;
       l.len.value = String(t.length);
@@ -245,10 +310,40 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
       l.dir.value = t.direction;
       l.prob.value = String(Math.round(t.prob * 10) / 10);
     });
+    // the drum grid, when the edited part is a kit
+    const kitPart = rig.parts[rig.part]!;
+    drums.hidden = kitPart.kind !== 'kit';
+    if (rig.part !== drumPart) { drumPart = rig.part; selectRow(-1); }
+    if (kitPart.kind === 'kit') {
+      const t = track();
+      drumTitle.textContent = `DRUM GRID · TRACK ${rig.part + 1} · ${kitPart.kit?.name ?? ''} · STEPS ${page * PAGE + 1}–${(page + 1) * PAGE}`;
+      drumRow.forEach((r, pad) => {
+        const note = RIG_FIRST_PAD_NOTE + pad;
+        const padName = kitPart.kit?.pads[pad]?.name ?? '';
+        r.name.textContent = padName && padName !== String(pad + 1) ? `${pad + 1} ${padName}` : String(pad + 1);
+        r.cells.forEach((c, k) => {
+          const i = page * PAGE + k;
+          const st = t.steps[i]!;
+          const on = i < t.length && st.notes.includes(note);
+          const v = on ? st.vels?.[note] ?? st.vel : 0;
+          c.className = 'rig-seq-cell rig-drum-cell';
+          c.classList.toggle('beat', k % 4 === 0);
+          c.classList.toggle('beyond', i >= t.length);
+          c.classList.toggle('hit', on);
+          c.style.setProperty('--vel', String(v));
+          c.textContent = '';
+          c.setAttribute('aria-pressed', String(on));
+          c.setAttribute('aria-label', `Pad ${pad + 1} step ${i + 1}${on ? `, velocity ${Math.round(v * 127)}` : ''}`);
+          c.title = on ? `velocity ${Math.round(v * 127)}` : '';
+        });
+      });
+      drumLit = -1;
+    }
+
     const i = rig.step;
     const s = track().steps[i];
     title.textContent = s ? `TRACK ${rig.part + 1} · STEP ${i + 1}` : `TRACK ${rig.part + 1} · NO STEP SELECTED`;
-    notes.textContent = s?.notes.length ? s.notes.map(noteName).join(' ') : '—';
+    notes.textContent = s?.notes.length ? s.notes.map((n) => noteOf(rig.part, n)).join(' ') : '—';
     if (s?.notes.length) lastNote[rig.part] = s.notes[0]!;
     syncing = true;
     for (const k of knobs) k.c.set(k.get(s ?? newStep()));
@@ -271,18 +366,28 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   const frame = () => {
     const t = now();
     lane.forEach((l, p) => {
-      const step = seq.isPlaying && rig.parts[p]!.voices > 0 ? seq.stepAt(p, t) : -1;
+      const step = seq.isPlaying && (rig.parts[p]!.voices > 0 || rig.parts[p]!.kind === 'kit') ? seq.stepAt(p, t) : -1;
       const k = step >= page * PAGE && step < (page + 1) * PAGE ? step - page * PAGE : -1;
       if (k === l.lit) return;
       if (l.lit >= 0) l.cells[l.lit]!.classList.remove('play');
       if (k >= 0) l.cells[k]!.classList.add('play');
       l.lit = k;
     });
+    // the drum grid's playhead column
+    const kitStep = !drums.hidden && seq.isPlaying ? seq.stepAt(rig.part, t) : -1;
+    const col = kitStep >= page * PAGE && kitStep < (page + 1) * PAGE ? kitStep - page * PAGE : -1;
+    if (col !== drumLit) {
+      for (const r of drumRow) {
+        if (drumLit >= 0) r.cells[drumLit]!.classList.remove('play');
+        if (col >= 0) r.cells[col]!.classList.add('play');
+      }
+      drumLit = col;
+    }
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
 
   sync();
-  panel.append(bar, lanes, editor);
+  panel.append(bar, lanes, drums, editor);
   return panel;
 }

@@ -18,7 +18,7 @@ const RATE = 48000;
 const SPACING = 2.5; // seconds between hits in a render
 const SILENCE = 0.0005; // -66 dB: where a sound's tail is trimmed
 
-interface Take {
+export interface Take {
   voice: DrumVoice;
   velocity?: number;
   /** Drum machine settings for this take (e.g. a longer kick). */
@@ -26,7 +26,7 @@ interface Take {
 }
 
 /** Renders each take on its own, from a fresh drum machine, trimmed to where its tail falls silent. */
-async function sampleDrums(takes: Take[]): Promise<Float32Array[][]> {
+export async function sampleDrums(takes: Take[]): Promise<Float32Array[][]> {
   const out: Float32Array[][] = [];
   // takes with the same settings share a render
   const groups = new Map<string, number[]>();

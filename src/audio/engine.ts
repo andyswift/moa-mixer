@@ -370,10 +370,13 @@ export class AudioEngine {
           break;
         }
         case 'rig': {
-          nodes.set(n.id, new AudioWorkletNode(ctx, RIG_NAME, {
+          const node = new AudioWorkletNode(ctx, RIG_NAME, {
             numberOfInputs: 0, numberOfOutputs: 1, outputChannelCount: [2],
             processorOptions: { state: JSON.parse(n.options.state ?? '{}') as unknown },
-          }));
+          });
+          // its kits' sounds are too big for the options: the device sends them when the worklet is ready
+          node.port.onmessage = (e: MessageEvent<{ type: string }>) => { if (e.data.type === 'ready') circuit.nodeReady(n.id); };
+          nodes.set(n.id, node);
           break;
         }
         case 'm2600': {

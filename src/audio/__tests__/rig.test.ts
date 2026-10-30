@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { RigRoute } from '../../domain/devices/rigParams';
+import { defaultPad } from '../../domain/devices/mpc60';
 import { RIG_SOURCE } from '../rigWorklet';
+import { SAMPLER_SOURCE } from '../samplerWorklet';
 
 type Params = Record<string, number>;
 interface Side { params: Params; matrix: RigRoute[] }
@@ -362,4 +364,24 @@ describe('MOA-RIG robustness', () => {
     core.setLocks(0, {});
     expect([P.a[cut], P.b[cut]]).toEqual([2000, 3000]);
   });
+
+  it('plays a kit part’s pads from the MOA-60 sampler, on their own samples and onto the part’s bus', () => {
+    const { RigCore } = new Function(`${SAMPLER_SOURCE}; ${RIG_SOURCE}; return { RigCore };`)() as { RigCore: new (sr: number) => CoreI };
+    const core = new RigCore(SR);
+    core.post({ type: 'kind', part: 9, kind: 'kit' });
+    const tone = Float32Array.from({ length: 4800 }, (_, i) => Math.sin((2 * Math.PI * 440 * i) / SR));
+    core.post({ type: 'sample', id: 'tone', rate: SR, channels: [tone] });
+    core.post({ type: 'pad', part: 9, pad: 2, settings: { ...defaultPad(), sample: 'tone' } });
+    core.post({ type: 'on', part: 9, note: 38, vel: 1 }, 300); // pad 3
+    core.post({ type: 'on', part: 9, note: 60, vel: 1 }, 300); // not a pad: nothing
+    const { l, parts } = run(core, 0.05);
+    for (let i = 0; i < 300; i++) expect(l[i]).toBe(0);
+    expect(rms(l, 300, 1300)).toBeGreaterThan(0.1);
+    expect(rms(parts[9]!, 300, 1300)).toBeCloseTo(rms(l, 300, 1300), 6);
+    expect(core.sounding(9)).toBe(0); // no synth voices
+    core.post({ type: 'kind', part: 9, kind: 'synth' });
+    core.post({ type: 'on', part: 9, note: 38, vel: 1 });
+    expect(rms(run(core, 0.02).l)).toBe(0);
+  });
 });
+

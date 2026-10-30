@@ -1,3 +1,4 @@
+import { DRUM_VOICES, newPad, RIG_PADS, rigDrumParams, type RigKit, type RigPad } from './rigKit';
 import { RIG_DESTS, RIG_PARAMS, RIG_SOURCES, type RigRoute, type RigSide } from './rigParams';
 import type { RigPreset } from './rigPresets';
 import {
@@ -13,6 +14,8 @@ export const RIG_MULTI_VERSION = 1;
 
 export interface RigMultiPart {
   name: string;
+  kind: 'synth' | 'kit';
+  kit?: RigKit;
   slot: number;
   voices: number;
   channel: number;
@@ -67,6 +70,38 @@ export function sanitiseSide(raw: unknown): RigSide {
   return side;
 }
 
+function sanitisePad(raw: unknown): RigPad {
+  if (!isObject(raw)) return newPad();
+  const voice = (DRUM_VOICES as readonly unknown[]).includes(raw.voice) ? (raw.voice as RigPad['voice']) : 'kick';
+  const pad = newPad(voice);
+  pad.name = text(raw.name, pad.name, 4);
+  pad.src = raw.src === 'sample' && typeof raw.sound === 'string' && raw.sound ? 'sample' : 'analog';
+  pad.sound = text(raw.sound, '', 120);
+  if (isObject(raw.analog)) {
+    for (const p of rigDrumParams(voice)) {
+      const v = raw.analog[p.id];
+      if (typeof v === 'number' && Number.isFinite(v)) pad.analog[p.id] = num(v, p.min, p.max, p.def);
+    }
+  }
+  pad.start = num(raw.start, 0, 600, 0);
+  pad.end = num(raw.end, 0, 600, 0);
+  pad.tune = num(raw.tune, -36, 36, 0);
+  pad.decay = num(raw.decay, 0.01, 8, pad.decay);
+  pad.level = num(raw.level, 0, 2, pad.level);
+  pad.pan = num(raw.pan, -1, 1, 0);
+  pad.cutoff = num(raw.cutoff, 20, 20000, pad.cutoff);
+  pad.reso = num(raw.reso, 0, 1, 0);
+  pad.group = num(raw.group, 0, 8, 0, true);
+  pad.reverse = raw.reverse === true;
+  return pad;
+}
+
+function sanitiseKit(raw: unknown): RigKit | undefined {
+  if (!isObject(raw) || !Array.isArray(raw.pads)) return undefined;
+  const pads = raw.pads;
+  return { name: text(raw.name, 'Kit'), pads: Array.from({ length: RIG_PADS }, (_, i) => sanitisePad(pads[i])) };
+}
+
 /** A saved sound (a preset), or undefined when it has no name. */
 export function sanitiseSound(raw: unknown): RigPreset | undefined {
   if (!isObject(raw) || typeof raw.name !== 'string' || !raw.name.trim()) return undefined;
@@ -84,6 +119,11 @@ function sanitiseStep(raw: unknown): RigStep {
   s.micro = num(raw.micro, -0.5, 0.5, s.micro);
   s.mod = num(raw.mod, 0, 1, s.mod);
   if (isObject(raw.locks)) s.locks = sanitiseSide({ params: raw.locks }).params;
+  if (isObject(raw.vels)) {
+    const vels: Record<number, number> = {};
+    for (const [n, v] of Object.entries(raw.vels)) if (s.notes.includes(Number(n))) vels[Number(n)] = num(v, 0, 1, s.vel);
+    if (Object.keys(vels).length) s.vels = vels;
+  }
   return s;
 }
 
@@ -123,8 +163,9 @@ export function sanitiseMulti(raw: unknown, defaults: (part: number) => RigMulti
       const d = defaults(p);
       const r = parts[p];
       if (!isObject(r)) return d;
+      const kit = sanitiseKit(r.kit);
       return {
-        name: text(r.name, d.name), slot: num(r.slot, 0, 9999, d.slot, true), voices: num(r.voices, 0, 64, d.voices, true),
+        name: text(r.name, d.name), kind: r.kind === 'kit' && kit ? 'kit' : 'synth', ...(kit ? { kit } : {}), slot: num(r.slot, 0, 9999, d.slot, true), voices: num(r.voices, 0, 64, d.voices, true),
         channel: num(r.channel, 0, 16, d.channel, true), lo: num(r.lo, 0, 127, d.lo, true), hi: num(r.hi, 0, 127, d.hi, true),
         octave: num(r.octave, -2, 2, d.octave, true), a: sanitiseSide(r.a), b: sanitiseSide(r.b ?? r.a),
       };

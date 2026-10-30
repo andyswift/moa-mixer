@@ -9,6 +9,7 @@ import { mountKeyboardBed } from './ui/keyboard';
 import { renderRigPanel } from './ui/rigPanel';
 import { renderRigSeqPanel } from './ui/rigSeqPanel';
 import * as store from './ui/rigStorage';
+import { loadBreakKit, RIG_BREAK_KITS, RIG_SAMPLES, rigKitSound } from './audio/rigKitSounds';
 
 // The MOA-RIG page: the multitimbral synth on its own patch, separate from the mixer. Its audio is also published on
 // the audio bus as "MOA-RIG", where the mixer page can take it into a stereo input strip.
@@ -18,6 +19,10 @@ const rig = patch.device<RigSynth>('rig');
 
 const wrap = document.createElement('div');
 wrap.className = 'rig-wrap';
+// Kit pads: analogue ones rendered from the MOA-DR, samples from the MOA-60's factory kits.
+rig.kitSounds = rigKitSound;
+const kits = { breakKits: RIG_BREAK_KITS.map((k) => k.name), loadBreakKit, samples: RIG_SAMPLES };
+
 // ---- storage: the saved sounds, the working multi as it was left, and the multi slots
 rig.setSavedSounds(store.loadSounds());
 const restored = store.loadCurrent();
@@ -30,7 +35,7 @@ const multis = {
 };
 
 const engine = new AudioEngine(patch);
-wrap.append(renderRigPanel(rig, multis), mountKeyboardBed(rig), renderRigSeqPanel(rig, () => engine.currentTime));
+wrap.append(renderRigPanel(rig, multis, kits), mountKeyboardBed(rig), renderRigSeqPanel(rig, () => engine.currentTime));
 
 // The sequencer sends ahead on the audio clock; a live-played note is placed by when it was heard.
 const SCHEDULE_MS = 25;

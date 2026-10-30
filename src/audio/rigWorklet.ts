@@ -264,6 +264,13 @@ class RigCore {
     // timed messages ({ frame, m }) in time order, and the absolute frame the next block starts on
     this.queue = [];
     this.frame = 0;
+    // the frame a message handled now takes effect on (inside a block, where the block was split for it)
+    this.at = 0;
+    // kit parts: a MOA-60 sampler each (SamplerCore, from the sampler's worklet source), all sharing one store of sounds
+    this.samples = new Map();
+    this.kits = [];
+    this.kitL = new Float32Array(RIG_MAX_BLOCK);
+    this.kitR = new Float32Array(RIG_MAX_BLOCK);
     this.tables = rigTables();
     this.voices = [];
     for (let i = 0; i < voices; i++) {
@@ -343,6 +350,32 @@ class RigCore {
     }
   }
 
+  // A part becomes a kit ('kit'), its notes 36 to 51 playing pads 1 to 16, or goes back to being a synth ('synth').
+  setKind(part, kind) {
+    if (!this.parts[part]) return;
+    this.allNotesOff(part);
+    if (kind === 'kit') {
+      if (this.kits[part]) return;
+      const k = new SamplerCore(this.sr);
+      k.samples = this.samples;
+      this.kits[part] = k;
+    } else this.kits[part] = null;
+  }
+
+  addSample(id, rate, channels) {
+    this.samples.set(id, { rate, channels, length: channels[0] ? channels[0].length : 0 });
+  }
+
+  dropSample(id) {
+    this.samples.delete(id);
+    for (const k of this.kits) if (k) k.voices = k.voices.filter((v) => v.sample !== id);
+  }
+
+  setPad(part, pad, settings) {
+    const k = this.kits[part];
+    if (k) k.setPad(pad, settings);
+  }
+
   // A sequencer step's parameter locks ({ id: value }): they hold the params on both sides until the next call.
   setLocks(part, locks) {
     const pt = this.parts[part];
@@ -360,7 +393,7 @@ class RigCore {
 
   // A message from the device; with a frame (an absolute sample time) it waits for that sample.
   post(m, frame) {
-    if (frame === undefined || frame <= this.frame) { this.handle(m); return; }
+    if (frame === undefined || frame <= this.frame) { this.at = this.frame; this.handle(m); return; }
     let i = this.queue.length;
     while (i > 0 && this.queue[i - 1].frame > frame) i--;
     this.queue.splice(i, 0, { frame, m });
@@ -372,6 +405,10 @@ class RigCore {
     else if (m.type === 'on') this.noteOn(m.part, m.note, m.vel);
     else if (m.type === 'off') this.noteOff(m.part, m.note);
     else if (m.type === 'lock') this.setLocks(m.part, m.locks);
+    else if (m.type === 'kind') this.setKind(m.part, m.kind);
+    else if (m.type === 'sample') this.addSample(m.id, m.rate, m.channels);
+    else if (m.type === 'drop') this.dropSample(m.id);
+    else if (m.type === 'pad') this.setPad(m.part, m.pad, m.settings);
     else if (m.type === 'ctrl') this.setControl(m.part, m.name, m.value);
     else if (m.type === 'bpm') this.bpm = m.bpm;
     else if (m.type === 'flush') this.queue = [];
@@ -412,6 +449,8 @@ class RigCore {
   }
 
   noteOn(part, note, vel = 1) {
+    const kit = this.kits[part];
+    if (kit) { if (note >= 36 && note < 52) kit.hit(note - 36, vel, this.at); return; }
     const pt = this.parts[part];
     if (!pt || pt.voices.length === 0) return;
     const a = pt.a;
@@ -450,6 +489,8 @@ class RigCore {
   }
 
   noteOff(part, note) {
+    const kit = this.kits[part];
+    if (kit) { if (note >= 36 && note < 52) kit.release(note - 36, this.at); return; }
     const pt = this.parts[part];
     if (!pt) return;
     if (pt.a[Q_MODE] === 0) {
@@ -469,6 +510,7 @@ class RigCore {
   }
 
   allNotesOff(part) {
+    if (this.kits[part]) this.kits[part].stopAll();
     const pt = this.parts[part];
     pt.stack = [];
     for (const v of pt.voices) if (v.gate) { v.gate = false; v.st1 = 3; v.st2 = 3; }
@@ -483,12 +525,22 @@ class RigCore {
   process(outL, outR, n) {
     let at = 0;
     while (at < n) {
+      this.at = this.frame + at;
       while (this.queue.length && this.queue[0].frame <= this.frame + at) this.handle(this.queue.shift().m);
       const next = this.queue.length ? this.queue[0].frame - this.frame : n;
       const end = Math.min(n, Math.max(at + 1, next));
       if (at === 0 && end === n) this.render(outL, outR, 0, n);
       else this.render(outL, outR, at, end - at);
       at = end;
+    }
+    // the kits play their hits on their own frames, so they render the whole block at once
+    for (let p = 0; p < this.kits.length; p++) {
+      const k = this.kits[p];
+      if (!k || (!k.voices.length && !k.queue.length)) continue;
+      const L = this.kitL.subarray(0, n), R = this.kitR.subarray(0, n), pL = this.partL[p], pR = this.partR[p];
+      k.frame = this.frame;
+      k.process(L, R, n, 1);
+      for (let i = 0; i < n; i++) { pL[i] += L[i]; pR[i] += R[i]; outL[i] += L[i]; outR[i] += R[i]; }
     }
     this.frame += n;
   }
@@ -774,11 +826,13 @@ if (typeof registerProcessor === 'function') {
       if (st.counts) this.core.setLayout(st.counts);
       for (const p of st.patches || []) this.core.setPatch(p.part, p.a, p.b);
       if (st.bpm) this.core.bpm = st.bpm;
+      (st.kinds || []).forEach((kind, p) => this.core.setKind(p, kind));
       // \`when\` (an audio-clock time) places a message on its sample: the sequencer sends ahead of time
       this.port.onmessage = (e) => {
         const m = e.data;
         this.core.post(m, m.when === undefined ? undefined : Math.round(m.when * sampleRate));
       };
+      this.port.postMessage({ type: 'ready' }); // the device sends the kits' sounds and pads when it hears this
     }
     process(inputs, outputs) {
       const out = outputs[0];
