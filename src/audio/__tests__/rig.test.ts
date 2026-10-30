@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RigRoute } from '../../domain/devices/rigParams';
 import { defaultPad } from '../../domain/devices/mpc60';
+import { PLAITS_SOURCE } from '../plaits';
 import { RIG_MIX_SOURCE } from '../rigMixWorklet';
 import { RIG_SOURCE } from '../rigWorklet';
 import { SAMPLER_SOURCE } from '../samplerWorklet';
@@ -394,6 +395,24 @@ describe('MOA-RIG robustness', () => {
     core.post({ type: 'mix', id: 'p1.mute', value: 1 });
     run(core, 0.02); // the fader glides down over a block
     expect(rms(run(core, 0.1).l)).toBeLessThan(1e-6);
+  });
+
+  it('OSC 3 in MACRO mode plays a Plaits engine at its pitch, and TIMBRE changes its sound', () => {
+    const { RigCore } = new Function(`${PLAITS_SOURCE}; ${RIG_SOURCE}; return { RigCore };`)() as { RigCore: new (sr: number) => CoreI };
+    const macro = (timbre: number) => {
+      const core = new RigCore(SR);
+      core.setPatch(0, side({ 'mix.osc1': 0, 'mix.osc3': 1, 'osc3.mode': 1, 'osc3.model': 0, 'osc3.timbre': timbre, 'osc3.morph': 0 }));
+      core.noteOn(0, 57, 1); // A3: 220 Hz
+      return run(core, 1.6).l;
+    };
+    const dull = macro(0), bright = macro(0.9);
+    expect(rms(dull, 4800)).toBeGreaterThan(0.02);
+    const sd = spectrum(dull), sb = spectrum(bright);
+    // the fundamental is at 220 Hz, well above what lies between the harmonics
+    expect(band(sd, 210, 230) - band(sd, 250, 300)).toBeGreaterThan(30);
+    // TIMBRE: from a saw and a thin square to a hard-synced square; the highs move against the lows by decibels
+    const tilt = (spec: Float64Array) => band(spec, 2000, 6000) - band(spec, 150, 500);
+    expect(Math.abs(tilt(sb) - tilt(sd))).toBeGreaterThan(3);
   });
 });
 

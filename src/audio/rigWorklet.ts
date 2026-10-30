@@ -48,6 +48,10 @@ const RIG_MAX_BLOCK = 512;
 // param indices the voice reads every tick
 const Q_O1_OCT = RIG_P['osc1.oct'], Q_O1_TUNE = RIG_P['osc1.tune'], Q_O1_W = RIG_P['osc1.width'], Q_O1_B = RIG_P['osc1.blend'], Q_O1_SUB = RIG_P['osc1.sub'];
 const Q_O2_OCT = RIG_P['osc2.oct'], Q_O2_TUNE = RIG_P['osc2.tune'], Q_O2_W = RIG_P['osc2.width'], Q_O2_B = RIG_P['osc2.blend'], Q_O2_SYNC = RIG_P['osc2.sync'];
+const Q_O3_MODE = RIG_P['osc3.mode'], Q_O3_MODEL = RIG_P['osc3.model'], Q_O3_HARM = RIG_P['osc3.harm'];
+const Q_O3_TIMBRE = RIG_P['osc3.timbre'], Q_O3_MORPH = RIG_P['osc3.morph'], Q_O3_AUX = RIG_P['osc3.aux'];
+// Plaits' engines (PL_ENGINES, from the Plaits worklet source), if the module has them
+const RIG_HAS_MACRO = typeof PL_ENGINES !== 'undefined';
 const Q_O3_OCT = RIG_P['osc3.oct'], Q_O3_TUNE = RIG_P['osc3.tune'], Q_O3_TAB = RIG_P['osc3.table'], Q_O3_POS = RIG_P['osc3.pos'], Q_O3_INT = RIG_P['osc3.interp'];
 const Q_M1 = RIG_P['mix.osc1'], Q_M2 = RIG_P['mix.osc2'], Q_M3 = RIG_P['mix.osc3'], Q_MN = RIG_P['mix.noise'], Q_NTYPE = RIG_P['noise.type'];
 const Q_DRIVE = RIG_P['drive'], Q_OD = RIG_P['overdrive'];
@@ -241,6 +245,11 @@ class RigVoice {
     this.b0 = 0; this.b1 = 0; this.b2 = 0;
     this.seed = seed >>> 0 || 1;
     this.w3 = 0;
+    // OSC 3 in MACRO mode: a Plaits engine of this voice's own (made when a model is first chosen)
+    this.macro = null; this.macroModel = -1; this.macroTrig = false;
+    this.mOut = new Float32Array(RIG_CTRL); this.mAux = new Float32Array(RIG_CTRL);
+    this.mp = { trigger: 0, note: 60, timbre: 0.5, morph: 0.5, harmonics: 0.5, accent: 0.8 };
+    this.mLimOut = null; this.mLimAux = null;
     this.q = new Float64Array(RIG_NP);
     this.md = new Float64Array(RIG_NDEST);
     this.src = new Float64Array(RIG_NSRC);
@@ -259,6 +268,7 @@ class RigCore {
   constructor(sampleRate, voices = 24, parts = 16, random = Math.random) {
     this.sr = sampleRate;
     this.random = random;
+    if (typeof plSetSampleRate === 'function') plSetSampleRate(sampleRate);
     this.bpm = 120;
     this.clock = 0;
     // timed messages ({ frame, m }) in time order, and the absolute frame the next block starts on
@@ -441,6 +451,7 @@ class RigCore {
     if (retrig) {
       v.age = this.clock++;
       v.time = 0;
+      v.macroTrig = true;
       v.rand = this.random() * 2 - 1;
       if (a[Q_E1[5]] >= 0.5) v.e1 = 0;
       if (a[Q_E2[5]] >= 0.5) v.e2 = 0;
@@ -685,6 +696,32 @@ class RigCore {
       const offA = fa * tsize, offB = (interp ? fa + 1 : fa) * tsize;
       const ntype = q[Q_NTYPE];
 
+      // OSC 3 in MACRO mode: the engine renders this tick's samples, at OSC 3's pitch, with the macro knobs
+      const macro = RIG_HAS_MACRO && q[Q_O3_MODE] >= 0.5;
+      let mOut = null, mAux = null, auxMix = 0;
+      if (macro) {
+        const model = Math.max(0, Math.min(PL_ENGINES.length - 1, q[Q_O3_MODEL] | 0));
+        const E = PL_ENGINES[model];
+        if (v.macroModel !== model) {
+          v.macro = new E[0](); v.macro.reset(); v.macroModel = model;
+          v.mLimOut = new PlLimiter(); v.mLimAux = new PlLimiter();
+        }
+        const mp = v.mp;
+        mp.note = base + (q[Q_O3_OCT] - 2) * 12 + q[Q_O3_TUNE] + md[D_O3_TUNE] * 64;
+        mp.harmonics = rigClamp(q[Q_O3_HARM], 0, 1);
+        mp.timbre = rigClamp(q[Q_O3_TIMBRE], 0, 1);
+        mp.morph = rigClamp(q[Q_O3_MORPH], 0, 1);
+        mp.accent = v.vel;
+        mp.trigger = v.macroTrig ? PL_TRIGGER_RISING_EDGE | PL_TRIGGER_HIGH : v.gate ? PL_TRIGGER_HIGH : PL_TRIGGER_LOW;
+        v.macroTrig = false;
+        mOut = v.mOut; mAux = v.mAux;
+        v.macro.render(mp, mOut, mAux, len);
+        const go = E[1], ga = E[2];
+        if (go < 0) v.mLimOut.process(-go, mOut, len); else for (let i = 0; i < len; i++) mOut[i] *= go;
+        if (ga < 0) v.mLimAux.process(-ga, mAux, len); else for (let i = 0; i < len; i++) mAux[i] *= ga;
+        auxMix = rigClamp(q[Q_O3_AUX], 0, 1);
+      }
+
       // ---- drive (clean at zero, as on the NINA) and filters
       const dr = rigClamp(q[Q_DRIVE], 0, 1);
       const gd = (1 + 8 * dr * dr) * (q[Q_OD] >= 0.5 ? 4 : 1), gdOut = 2 / (1 + 0.12 * (gd - 1));
@@ -718,11 +755,16 @@ class RigCore {
       let en1 = v.e1, st1 = v.st1, en2 = v.e2, st2 = v.st2, w3 = v.w3;
       for (let i = at; i < at + len; i++) {
         // OSC 3
-        p3 += dt3;
-        if (p3 >= 1) p3 -= 1;
-        const x3 = p3 * tsize, i0 = x3 | 0, fr = x3 - i0, i1 = (i0 + 1) & (tsize - 1);
-        const ra = tdata[offA + i0] + (tdata[offA + i1] - tdata[offA + i0]) * fr;
-        w3 = ff > 0 ? ra + (tdata[offB + i0] + (tdata[offB + i1] - tdata[offB + i0]) * fr - ra) * ff : ra;
+        if (macro) {
+          const k = i - at;
+          w3 = mOut[k] + (mAux[k] - mOut[k]) * auxMix;
+        } else {
+          p3 += dt3;
+          if (p3 >= 1) p3 -= 1;
+          const x3 = p3 * tsize, i0 = x3 | 0, fr = x3 - i0, i1 = (i0 + 1) & (tsize - 1);
+          const ra = tdata[offA + i0] + (tdata[offA + i1] - tdata[offA + i0]) * fr;
+          w3 = ff > 0 ? ra + (tdata[offB + i0] + (tdata[offB + i1] - tdata[offB + i0]) * fr - ra) * ff : ra;
+        }
 
         // OSC 1
         const d1 = fm1 !== 0 ? Math.min(lim, dt1 * Math.pow(2, fm1 * w3)) : dt1;

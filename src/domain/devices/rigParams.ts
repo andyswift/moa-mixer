@@ -32,6 +32,9 @@ const t = (id: string, label: string, def = 0): RigParam => ({ id, label, kind: 
 const OCTAVES = ['-2', '-1', '0', '+1', '+2'] as const;
 
 /** OSC 3's wavetables, built in code by the worklet (see `rigWorklet.ts`): four in the PPG manner and two vocal ones. */
+/** OSC 3's MACRO models: Plaits' engines (ported from Mutable Instruments' code), in the module's order. */
+export const RIG_MACRO_MODELS = ['VA', 'WAVESHAPE', 'FM', 'GRAIN', 'ADDITIVE', 'WAVETABLE', 'CHORDS'] as const;
+export const RIG_OSC3_MODES = ['WAVETABLE', 'MACRO'] as const;
 export const RIG_TABLES = ['PPG RESO', 'PPG SYNC', 'PPG DIGI', 'PPG PULSE', 'VOX AEIOU', 'VOX CHOIR'] as const;
 
 /** LFO divisions when synced to the tempo, and their length in beats. */
@@ -68,6 +71,13 @@ export const RIG_PARAMS: readonly RigParam[] = [
   c('osc3.table', 'Table', RIG_TABLES, 'PPG RESO'),
   n('osc3.pos', 'Position', 0, 1, 0),
   t('osc3.interp', 'Interpolate', 1),
+  // MACRO: a Plaits engine in place of the wavetable, its three macro knobs, and OUT or AUX (or between)
+  c('osc3.mode', 'Mode', RIG_OSC3_MODES, 'WAVETABLE'),
+  c('osc3.model', 'Model', RIG_MACRO_MODELS, 'VA'),
+  n('osc3.harm', 'Harmonics', 0, 1, 0.5),
+  n('osc3.timbre', 'Timbre', 0, 1, 0.5),
+  n('osc3.morph', 'Morph', 0, 1, 0.5),
+  n('osc3.aux', 'Out/aux', 0, 1, 0),
 
   // ---- mixer
   n('mix.osc1', 'OSC 1 level', 0, 1, 0.8),
@@ -150,7 +160,7 @@ export type RigSource = (typeof RIG_SOURCES)[number];
 export const RIG_DESTS = [
   ['osc1.tune', 'pitch'], ['osc1.width', 'lin'], ['osc1.blend', 'lin'], ['mix.osc1', 'lin'],
   ['osc2.tune', 'pitch'], ['osc2.width', 'lin'], ['osc2.blend', 'lin'], ['mix.osc2', 'lin'],
-  ['osc3.tune', 'pitch'], ['osc3.pos', 'lin'], ['mix.osc3', 'lin'], ['mix.noise', 'lin'],
+  ['osc3.tune', 'pitch'], ['osc3.pos', 'lin'], ['osc3.harm', 'lin'], ['osc3.timbre', 'lin'], ['osc3.morph', 'lin'], ['mix.osc3', 'lin'], ['mix.noise', 'lin'],
   ['lfo1.rate', 'rate'], ['lfo1.level', 'lin'], ['lfo2.rate', 'rate'], ['lfo2.level', 'lin'],
   ['lad.cutoff', 'freq'], ['lad.res', 'lin'], ['sem.cutoff', 'freq'], ['sem.res', 'lin'], ['sem.mode', 'lin'], ['drive', 'lin'],
   ['eg1.a', 'time'], ['eg1.d', 'time'], ['eg1.s', 'lin'], ['eg1.r', 'time'], ['eg1.level', 'lin'],
