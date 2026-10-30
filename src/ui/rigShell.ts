@@ -17,6 +17,8 @@ export interface RigShellPages {
   multi: HTMLElement;
   setup: HTMLElement;
   keys: HTMLElement;
+  /** More for the header, before START AUDIO (the TAPE button). */
+  extra?: HTMLElement[];
   /** Starts the audio (the first time) and reports whether it runs. */
   start(): Promise<void>;
   running(): boolean;
@@ -104,7 +106,7 @@ export function renderRigShell(rig: RigSynth, pages: RigShellPages): HTMLElement
   const start = button('rig-key rig-wide rig-start', 'START AUDIO');
   start.addEventListener('click', async () => { await pages.start(); syncHeader(); });
 
-  header.append(logo, tabs, bpm, voices, multi, multiButton, setupButton, keysButton, start);
+  header.append(logo, tabs, bpm, voices, multi, multiButton, setupButton, keysButton, ...(pages.extra ?? []), start);
   const body = el('div', 'rig-pages');
   body.append(pages.synth, pages.seq, pages.mix);
   shell.append(header, ...drops.map(([, box]) => box), body);
@@ -211,7 +213,8 @@ export function renderRigTrackStrip(rig: RigSynth, now: () => number): HTMLEleme
 }
 
 /** The SYNTH page's detail column: a scope of the output, the edited part at a glance, and the patterns. */
-export function renderRigDetail(rig: RigSynth, analyser: () => AnalyserNode | undefined): HTMLElement {
+/** `below`: more for the column, under the patterns (the tape machine). */
+export function renderRigDetail(rig: RigSynth, analyser: () => AnalyserNode | undefined, below: HTMLElement[] = []): HTMLElement {
   const col = el('aside', 'rig-detail');
   const scopeBox = el('section', 'rig-section rig-scope');
   scopeBox.style.setProperty('--rig-accent', '#ecece6');
@@ -251,7 +254,7 @@ export function renderRigDetail(rig: RigSynth, analyser: () => AnalyserNode | un
   const transport = el('div', 'rig-field');
   transport.append(play, rec);
   pats.append(patTitle, pads, transport);
-  col.append(scopeBox, facts, pats);
+  col.append(scopeBox, facts, pats, ...below);
 
   const kv = (k: string, v: string) => [el('dt', '', k), el('dd', '', v)];
   function sync(): void {

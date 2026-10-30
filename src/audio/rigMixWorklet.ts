@@ -79,6 +79,7 @@ class MixStrip {
     this.eqKey = '';
     this.started = false; // the first block starts at the settings rather than gliding up to them
     this.peakL = 0; this.peakR = 0;
+    this.sqL = 0; this.sqR = 0; this.count = 0; // for the RMS since the meters were last read
   }
 }
 
@@ -103,6 +104,7 @@ class RigMixer {
     this.cmp = { gr: 0, hp: 0, hx: 0, minGr: 0 };
     this.masterG = 1;
     this.peak = [0, 0];
+    this.masterSq = [0, 0]; this.masterCount = 0;
   }
 
   set(id, value) {
@@ -144,7 +146,7 @@ class RigMixer {
     const z = st.z, E = st.eq, on = st.on;
     const dL = (tL - st.gL) / n, dR = (tR - st.gR) / n;
     const dS = tSend.map((x, j) => (x - st.send[j]) / n);
-    let gL = st.gL, gR = st.gR, pkL = st.peakL, pkR = st.peakR;
+    let gL = st.gL, gR = st.gR, pkL = st.peakL, pkR = st.peakR, sqL = st.sqL, sqR = st.sqR;
     const snd = st.send.slice();
     for (let i = 0; i < n; i++) {
       let xl = inL[i], xr = inR[i];
@@ -175,9 +177,10 @@ class RigMixer {
       const al = ol < 0 ? -ol : ol, ar = or < 0 ? -or : or;
       if (al > pkL) pkL = al;
       if (ar > pkR) pkR = ar;
+      sqL += ol * ol; sqR += or * or;
     }
     st.gL = tL; st.gR = tR; st.send = tSend;
-    st.peakL = pkL; st.peakR = pkR;
+    st.peakL = pkL; st.peakR = pkR; st.sqL = sqL; st.sqR = sqR; st.count += n;
     if (!Number.isFinite(st.s1[0] + st.s1[1] + st.s2[0] + st.s2[1] + z[0] + z[2] + z[4] + z[6] + z[8] + z[10])) { st.z.fill(0); st.s1 = [0, 0]; st.s2 = [0, 0]; }
   }
 
@@ -425,7 +428,7 @@ class RigMixer {
     const key = Math.round(this.p('cmp.key')) - 1;
     if (this.p('cmp.ratio') > 1.001) this.runComp(this.mixL, this.mixR, key >= 0 ? partL[key] : null, key >= 0 ? partR[key] : null, n);
     const target = this.p('master.fader'), d = (target - this.masterG) / n;
-    let g = this.masterG, pl = this.peak[0], pr = this.peak[1];
+    let g = this.masterG, pl = this.peak[0], pr = this.peak[1], ml = this.masterSq[0], mr = this.masterSq[1];
     for (let i = 0; i < n; i++) {
       g += d;
       // the ceiling: untouched up to 0.9, then bends into 1
@@ -436,17 +439,27 @@ class RigMixer {
       outL[i] = l; outR[i] = r;
       if (al > pl) pl = al;
       if (ar > pr) pr = ar;
+      ml += l * l; mr += r * r;
     }
     this.masterG = target;
     this.peak[0] = pl; this.peak[1] = pr;
+    this.masterSq[0] = ml; this.masterSq[1] = mr; this.masterCount += n;
   }
 
-  // Peaks since the last call (then cleared): per strip [L, R], the master [L, R], and the compressor's reduction (dB).
+  // Peaks and RMS since the last call (then cleared): per strip [L, R], the master [L, R], and the compressor's
+  // deepest reduction (dB).
   meters() {
-    const strips = new Float32Array(this.strips.length * 2);
-    this.strips.forEach((st, s) => { strips[s * 2] = st.peakL; strips[s * 2 + 1] = st.peakR; st.peakL = 0; st.peakR = 0; });
-    const out = { strips, master: [this.peak[0], this.peak[1]], gr: this.cmp.minGr };
+    const strips = new Float32Array(this.strips.length * 2), rms = new Float32Array(this.strips.length * 2);
+    this.strips.forEach((st, s) => {
+      strips[s * 2] = st.peakL; strips[s * 2 + 1] = st.peakR;
+      const c = Math.max(1, st.count);
+      rms[s * 2] = Math.sqrt(st.sqL / c); rms[s * 2 + 1] = Math.sqrt(st.sqR / c);
+      st.peakL = 0; st.peakR = 0; st.sqL = 0; st.sqR = 0; st.count = 0;
+    });
+    const mc = Math.max(1, this.masterCount);
+    const out = { strips, rms, master: [this.peak[0], this.peak[1]], masterRms: [Math.sqrt(this.masterSq[0] / mc), Math.sqrt(this.masterSq[1] / mc)], gr: this.cmp.minGr };
     this.peak = [0, 0];
+    this.masterSq = [0, 0]; this.masterCount = 0;
     this.cmp.minGr = 0;
     return out;
   }

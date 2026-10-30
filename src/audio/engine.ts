@@ -17,6 +17,7 @@ import { PIPE_NAME, PIPE_SOURCE, SPRING_NAME } from './pipeWorklet';
 import { PLAITS_SOURCE } from './plaits';
 import { RIG_MIX_SOURCE } from './rigMixWorklet';
 import { RIG_NAME, RIG_SOURCE } from './rigWorklet';
+import { TAPE_SOURCE } from './tapeWorklet';
 
 const SMOOTHING = 0.01; // seconds; avoids zipper noise on param changes
 
@@ -45,10 +46,13 @@ export interface DuoView {
 }
 
 /** What a 2600 node reports for display: the keyboard gate, LFO and S/H clock lamps, the electronic switch, envelope levels (0-10 V). */
-/** The MOA-RIG mixer's meters: peaks per strip ([L, R] for the parts, then the returns), the master's, and the
- * compressor's gain reduction (dB, 0 or below). */
+/** The MOA-RIG mixer's meters: peaks (and RMS) per strip ([L, R] for the parts, then the returns), the master's,
+ * and the compressor's gain reduction (dB, 0 or below). */
 export interface RigMeters {
   strips: Float32Array;
+  /** RMS since the last reading, per strip [L, R] as `strips`, and the master's. */
+  rms: Float32Array;
+  masterRms: number[];
   master: number[];
   gr: number;
 }
@@ -828,7 +832,7 @@ registerProcessor('${FOLLOWER_NAME}', MoaFollower);
 `;
 
 /** Every processor, as the one script the audio worklet loads. Top-level names must not clash between them. */
-export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE, KIT_SOURCE, SAMPLER_SOURCE, TONE_SOURCE, VOICE_SOURCE, PLAITS_SOURCE, RIG_MIX_SOURCE, RIG_SOURCE].join('\n');
+export const WORKLET_SOURCE = [FOLLOWER_SOURCE, GRANULAR_SOURCE, PIPE_SOURCE, DF_SOURCE, DUO_SOURCE, M2600_SOURCE, FOLD_SOURCE, LADDER_SOURCE, STRING_SOURCE, KIT_SOURCE, SAMPLER_SOURCE, TONE_SOURCE, VOICE_SOURCE, PLAITS_SOURCE, RIG_MIX_SOURCE, RIG_SOURCE, TAPE_SOURCE].join('\n');
 
 /** The processors are one worklet module, loaded from an in-memory script. */
 function workletModuleUrl(): string {

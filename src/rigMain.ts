@@ -8,6 +8,7 @@ import { mountInstrumentPage } from './ui/instrumentPage';
 import { mountKeyboardBed } from './ui/keyboard';
 import { renderRigMultiBar, renderRigPanel } from './ui/rigPanel';
 import { renderRigDetail, renderRigShell, renderRigTrackStrip } from './ui/rigShell';
+import { renderTapeButton, renderTapeDeck, RigTape } from './ui/rigTape';
 import { renderRigMixPanel } from './ui/rigMixPanel';
 import { renderRigSeqPanel } from './ui/rigSeqPanel';
 import * as store from './ui/rigStorage';
@@ -54,7 +55,14 @@ synthPage.className = 'rig-page rig-page-synth';
 const synthMain = document.createElement('div');
 synthMain.className = 'rig-page-main';
 synthMain.append(renderRigPanel(rig, kits), renderRigTrackStrip(rig, () => engine.currentTime));
-synthPage.append(synthMain, renderRigDetail(rig, analyser));
+// record to tape: the master, as heard, into a WAV
+const stamp = () => { // local date and time, as 2026-10-30 23.32
+  const d = new Date(), two = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}.${two(d.getMinutes())}`;
+};
+const tape = new RigTape(engine, () => engine.jackNode('rig', 'out', 'out'), () => `MOA-RIG ${rig.multiName} ${stamp()}`);
+const tapeLevel = () => { const m = engine.readRigMeters('rig', 'synth'); return m ? (m.masterRms[0]! + m.masterRms[1]!) / 2 : undefined; };
+synthPage.append(synthMain, renderRigDetail(rig, analyser, [renderTapeDeck(tape, tapeLevel)]));
 const seqPage = renderRigSeqPanel(rig, () => engine.currentTime);
 seqPage.classList.add('rig-page');
 const mixPage = renderRigMixPanel(rig, () => engine.readRigMeters('rig', 'synth'));
@@ -63,7 +71,7 @@ const setup = document.createElement('div');
 setup.className = 'rig-setup-frame';
 const shell = renderRigShell(rig, {
   synth: synthPage, seq: seqPage, mix: mixPage,
-  multi: renderRigMultiBar(rig, multis), setup, keys: mountKeyboardBed(rig),
+  multi: renderRigMultiBar(rig, multis), setup, keys: mountKeyboardBed(rig), extra: [renderTapeButton(tape)],
   start: () => page.power(true),
   running: () => engine.context?.state === 'running',
 });
@@ -80,7 +88,7 @@ const page = mountInstrumentPage({
 });
 
 // Dev-only handle for poking at the engine from the browser console.
-if (import.meta.env.DEV) Object.assign(window, { __rig: { engine, patch, rig, pcm: page.pcm, midi: page.handleMidiBytes } });
+if (import.meta.env.DEV) Object.assign(window, { __rig: { engine, patch, rig, tape, pcm: page.pcm, midi: page.handleMidiBytes } });
 
 // Every change is kept: the working multi a moment after it settles, the saved sounds when they change. Sound and
 // part edits come through the synth's onEdit, pattern edits through the sequencer's onChange.

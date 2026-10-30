@@ -1,5 +1,6 @@
 import type { Control } from '../domain/devices/controls';
 import { RIG_DESTS, RIG_MACRO_AUX, RIG_SOURCES, type RigDest, type RigSource } from '../domain/devices/rigParams';
+import { RIG_FACTORY_MULTIS } from '../domain/devices/rigFactory';
 import type { RigMulti } from '../domain/devices/rigMulti';
 import { RIG_PARTS, type RigSynth } from '../domain/devices/rigSynth';
 import { renderRigKitPanel, type RigKitSource } from './rigKitPanel';
@@ -369,12 +370,25 @@ export function renderRigMultiBar(rig: RigSynth, store?: RigMultiStore): HTMLEle
     if (store) store.slot = -1;
     say('New multi');
   });
+  // the factory multis: a set-up to start from, or a tune
+  const factory = el('select');
+  factory.setAttribute('aria-label', 'Factory multi');
+  factory.add(new Option('Factory…', ''));
+  RIG_FACTORY_MULTIS.forEach((f, i) => factory.add(new Option(f.name, String(i))));
+  factory.addEventListener('change', () => {
+    const f = RIG_FACTORY_MULTIS[Number(factory.value)];
+    factory.value = '';
+    if (!f || !confirm(`Load ${f.name}? Save this multi first if you want to keep it.`)) return;
+    rig.loadMulti(f.build());
+    if (store) store.slot = -1;
+    say(`Loaded ${f.name}`);
+  });
   for (const b of [load, save, fresh]) b.type = 'button';
   const follow = el('button', 'rig-small rig-wide rig-follow', 'MIDI → EDITED PART');
   follow.type = 'button';
   follow.title = 'On: MIDI on any channel plays only the part being edited. Off: each part plays its own channel.';
   follow.addEventListener('click', () => { rig.midiToEdited = !rig.midiToEdited; });
-  multiBar.append(el('span', 'knob-label', 'Multi'), multiName, slotSelect, load, save, fresh, status, follow);
+  multiBar.append(el('span', 'knob-label', 'Multi'), multiName, slotSelect, load, save, fresh, factory, status, follow);
   if (!store) multiBar.hidden = true;
   fillSlots();
   const sync = () => {

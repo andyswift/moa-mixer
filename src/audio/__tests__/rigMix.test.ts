@@ -4,7 +4,7 @@ import { RIG_MIX_SOURCE } from '../rigMixWorklet';
 interface MixerI {
   set(id: string, value: number): void;
   process(pl: Float32Array[], pr: Float32Array[], l: Float32Array, r: Float32Array, n: number, bpm: number): void;
-  meters(): { strips: Float32Array; master: number[]; gr: number };
+  meters(): { strips: Float32Array; rms: Float32Array; master: number[]; masterRms: number[]; gr: number };
 }
 const { RigMixer } = new Function(`${RIG_MIX_SOURCE}; return { RigMixer };`)() as { RigMixer: new (sr: number, parts?: number) => MixerI };
 
@@ -221,4 +221,16 @@ describe('MOA-RIG mixer: drive, compressor, master', () => {
     for (let b = 0; b < SR / B; b++) m.process(pl, pl, l, r, B, 120);
     expect(1000 / (performance.now() - t0)).toBeGreaterThan(3);
   });
+
+  it('meters RMS as well as peaks: a sine at 0.5 reads 0.354 on its strip and the master', () => {
+    const m = fresh();
+    run(m, 0.05, { 0: sine(440) });
+    m.meters();
+    run(m, 0.2, { 0: sine(440) });
+    const r = m.meters();
+    expect(r.rms[0]).toBeCloseTo(0.5 / Math.SQRT2, 2);
+    expect(r.strips[0]).toBeCloseTo(0.5, 2);
+    expect(r.masterRms[0]).toBeCloseTo(0.5 / Math.SQRT2, 2);
+  });
 });
+
