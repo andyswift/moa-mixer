@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RigRoute } from '../../domain/devices/rigParams';
 import { defaultPad } from '../../domain/devices/mpc60';
+import { BRAIDS_SOURCE } from '../braids';
 import { PLAITS_SOURCE } from '../plaits';
 import { RIG_MIX_SOURCE } from '../rigMixWorklet';
 import { RIG_SOURCE } from '../rigWorklet';
@@ -413,6 +414,52 @@ describe('MOA-RIG robustness', () => {
     // TIMBRE: from a saw and a thin square to a hard-synced square; the highs move against the lows by decibels
     const tilt = (spec: Float64Array) => band(spec, 2000, 6000) - band(spec, 150, 500);
     expect(Math.abs(tilt(sb) - tilt(sd))).toBeGreaterThan(3);
+  });
+
+  it('OSC 3 in BRAIDS mode plays a Braids model at its pitch, in tune at 44.1 kHz too, and TIMBRE changes its sound', () => {
+    const { RigCore } = new Function(`${BRAIDS_SOURCE}; ${RIG_SOURCE}; return { RigCore };`)() as { RigCore: new (sr: number) => CoreI };
+    // the strongest partial between 100 and 1000 Hz, to a hertz
+    const peak = (x: Float32Array, sr: number) => {
+      const seg = x.subarray(Math.round(sr / 10), Math.round(sr / 10) + sr / 4);
+      let best = 0, at = 0;
+      for (let f = 100; f < 1000; f += 1) {
+        let re = 0, im = 0;
+        for (let i = 0; i < seg.length; i++) { re += seg[i]! * Math.cos(2 * Math.PI * f * i / sr); im += seg[i]! * Math.sin(2 * Math.PI * f * i / sr); }
+        if (Math.hypot(re, im) > best) { best = Math.hypot(re, im); at = f; }
+      }
+      return at;
+    };
+    const braids = (sr: number, timbre: number) => {
+      const core = new RigCore(sr);
+      core.setPatch(0, side({ 'mix.osc1': 0, 'mix.osc3': 1, 'osc3.mode': 2, 'osc3.braids': 2, 'osc3.timbre': timbre, 'osc3.morph': 0 }));
+      core.noteOn(0, 57, 1); // A3: 220 Hz
+      const n = Math.floor(0.5 * sr), l = new Float32Array(n);
+      for (let at = 0; at < n; at += 128) core.process(l.subarray(at, at + 128), new Float32Array(128), Math.min(128, n - at));
+      return l;
+    };
+    const dull = braids(SR, 0), bright = braids(SR, 0.9);
+    expect(rms(dull, 4800)).toBeGreaterThan(0.02);
+    expect(peak(dull, SR)).toBeCloseTo(220, 0);
+    expect(peak(braids(44100, 0), 44100)).toBeCloseTo(220, -0.5); // Braids at 88.2 kHz, its pitch moved to stay in tune
+    // TIMBRE (on SAW/SQUARE, the saw's shape): the highs move against the lows
+    const sd = spectrum(dull), sb = spectrum(bright);
+    const tilt = (spec: Float64Array) => band(spec, 2000, 6000) - band(spec, 150, 500);
+    expect(Math.abs(tilt(sb) - tilt(sd))).toBeGreaterThan(1);
+  });
+
+  // (quiet, so the ladder's saturation, which gives any lop-sided wave a little DC of its own, stays out of it)
+  it('OSC 3 in BRAIDS mode leaves no DC, as the module\'s AC-coupled output does not (VOSIM sits off zero inside)', () => {
+    const { RigCore } = new Function(`${BRAIDS_SOURCE}; ${RIG_SOURCE}; return { RigCore };`)() as { RigCore: new (sr: number) => CoreI };
+    const core = new RigCore(SR);
+    core.setPatch(0, side({ 'mix.osc1': 0, 'mix.osc3': 0.05, 'osc3.mode': 2, 'osc3.braids': 21, 'osc3.timbre': 0.5, 'osc3.morph': 0.5 }));
+    core.noteOn(0, 45, 1);
+    const n = SR, l = new Float32Array(n);
+    for (let at = 0; at < n; at += 128) core.process(l.subarray(at, at + 128), new Float32Array(128), 128);
+    let mean = 0;
+    for (let i = SR / 2; i < n; i++) mean += l[i]!;
+    mean /= n - SR / 2;
+    expect(rms(l, SR / 2)).toBeGreaterThan(0.001);
+    expect(Math.abs(mean) / rms(l, SR / 2)).toBeLessThan(0.02);
   });
 });
 

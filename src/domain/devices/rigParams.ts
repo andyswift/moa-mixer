@@ -40,7 +40,9 @@ export const RIG_MACRO_AUX: Readonly<Record<(typeof RIG_MACRO_MODELS)[number], s
   SPEECH: 'EXCITE', SWARM: 'SINES', NOISE: 'BANDS', PARTICLE: 'RAW', STRING: 'EXCITE', MODAL: 'EXCITE',
   'BASS DRUM': 'SYNTH', SNARE: 'SYNTH', 'HI-HAT': 'RING',
 };
-export const RIG_OSC3_MODES = ['WAVETABLE', 'MACRO'] as const;
+export const RIG_OSC3_MODES = ['WAVETABLE', 'MACRO', 'BRAIDS'] as const;
+/** OSC 3's BRAIDS models: Braids' (ported from Mutable Instruments' code), in the module's order, as far as ported. */
+export const RIG_BRAIDS_MODELS = ['CSAW', 'MORPH', 'SAW/SQUARE', 'FOLD', 'BUZZ', 'SQUARE SUB', 'SAW SUB', 'SQUARE SYNC', 'SAW SYNC', 'SAW x3', 'SQUARE x3', 'TRIANGLE x3', 'SINE x3', 'RING MOD', 'SAW SWARM', 'SAW COMB', 'TOY', 'FILTER LP', 'FILTER PEAK', 'FILTER BP', 'FILTER HP', 'VOSIM', 'VOWEL', 'VOWEL FOF', 'HARMONICS', 'FM', 'FEEDBACK FM', 'CHAOTIC FM', 'PLUCKED', 'BOWED', 'BLOWN', 'FLUTED', 'BELL', 'DRUM', 'KICK', 'CYMBAL', 'SNARE', 'WAVETABLES', 'WAVE MAP', 'WAVE LINE', 'WAVE PARAPHONIC', 'FILTERED NOISE', 'TWIN PEAKS', 'CLOCKED NOISE', 'GRANULAR CLOUD', 'PARTICLE NOISE', 'DIGITAL MODULATION', '???'] as const;
 export const RIG_TABLES = ['PPG RESO', 'PPG SYNC', 'PPG DIGI', 'PPG PULSE', 'VOX AEIOU', 'VOX CHOIR'] as const;
 
 /** LFO divisions when synced to the tempo, and their length in beats. */
@@ -77,9 +79,11 @@ export const RIG_PARAMS: readonly RigParam[] = [
   c('osc3.table', 'Table', RIG_TABLES, 'PPG RESO'),
   n('osc3.pos', 'Position', 0, 1, 0),
   t('osc3.interp', 'Interpolate', 1),
-  // MACRO: a Plaits engine in place of the wavetable, its three macro knobs, and OUT or AUX (or between)
+  // MACRO: a Plaits engine in place of the wavetable, its three macro knobs, and OUT or AUX (or between); BRAIDS: a
+  // Braids model, TIMBRE and MORPH as its TIMBRE and COLOR
   c('osc3.mode', 'Mode', RIG_OSC3_MODES, 'WAVETABLE'),
   c('osc3.model', 'Model', RIG_MACRO_MODELS, 'VA'),
+  c('osc3.braids', 'Braids model', RIG_BRAIDS_MODELS, 'CSAW'),
   n('osc3.harm', 'Harmonics', 0, 1, 0.5),
   n('osc3.timbre', 'Timbre', 0, 1, 0.5),
   n('osc3.morph', 'Morph', 0, 1, 0.5),

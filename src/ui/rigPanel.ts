@@ -12,13 +12,18 @@ import { el, renderKnob } from './widgets';
  * source and every knob it can reach shows and sets its amount on a ring.
  */
 const DEST_IDS = new Set<string>(RIG_DESTS.map((d) => d[0]));
-/** OSC 3 shows the wavetable's controls or the macro oscillator's, as its MODE says. */
-const WAVETABLE_ONLY = new Set(['osc3.table', 'osc3.pos', 'osc3.interp']);
-const MACRO_ONLY = new Set(['osc3.model', 'osc3.harm', 'osc3.timbre', 'osc3.morph', 'osc3.aux']);
+/** OSC 3 shows the wavetable's controls, Plaits' (MACRO) or Braids', as its MODE says; TIMBRE and MORPH are both
+ * oscillators' (on Braids, MORPH is its COLOR). */
+const OSC3_SHOWN: Record<string, Set<string>> = {
+  WAVETABLE: new Set(['osc3.table', 'osc3.pos', 'osc3.interp']),
+  MACRO: new Set(['osc3.model', 'osc3.harm', 'osc3.timbre', 'osc3.morph', 'osc3.aux']),
+  BRAIDS: new Set(['osc3.braids', 'osc3.timbre', 'osc3.morph']),
+};
+const OSC3_MODAL = new Set(Object.values(OSC3_SHOWN).flatMap((ids) => [...ids]));
 const SECTIONS: [title: string, colour: string, ids: string[]][] = [
   ['OSC 1', '#ffb84d', ['osc1.oct', 'osc1.tune', 'osc1.width', 'osc1.blend', 'osc1.sub']],
   ['OSC 2', '#ffb84d', ['osc2.oct', 'osc2.tune', 'osc2.width', 'osc2.blend', 'osc2.sync']],
-  ['OSC 3', '#ffb84d', ['osc3.mode', 'osc3.table', 'osc3.model', 'osc3.oct', 'osc3.tune', 'osc3.pos', 'osc3.harm', 'osc3.timbre', 'osc3.morph', 'osc3.aux', 'osc3.interp']],
+  ['OSC 3', '#ffb84d', ['osc3.mode', 'osc3.table', 'osc3.model', 'osc3.braids', 'osc3.oct', 'osc3.tune', 'osc3.pos', 'osc3.harm', 'osc3.timbre', 'osc3.morph', 'osc3.aux', 'osc3.interp']],
   ['MIX', '#ffb84d', ['mix.osc1', 'mix.osc2', 'mix.osc3', 'mix.noise', 'noise.type']],
   ['LADDER', '#ff8466', ['lad.cutoff', 'lad.res', 'lad.eg1', 'filter.key', 'drive', 'overdrive']],
   ['SEM', '#ff8466', ['filter.route', 'sem.cutoff', 'sem.res', 'sem.mode', 'sem.eg1', 'sem.bp']],
@@ -231,8 +236,10 @@ export function renderRigPanel(rig: RigSynth, kits?: RigKitSource): HTMLElement 
   // ---- the sections
   const modal: [string, HTMLElement][] = [];
   const showMode = () => {
-    const isMacro = (rig.control('osc3.mode') as { value: string }).value === 'MACRO';
-    for (const [id, node] of modal) node.hidden = MACRO_ONLY.has(id) ? !isMacro : isMacro;
+    const mode = (rig.control('osc3.mode') as { value: string }).value;
+    for (const [id, node] of modal) node.hidden = !OSC3_SHOWN[mode]?.has(id);
+    const morphLabel = modal.find(([id]) => id === 'osc3.morph')?.[1].querySelector('.knob-label');
+    if (morphLabel) morphLabel.textContent = mode === 'BRAIDS' ? 'Color' : 'Morph';
     // OUT/AUX says what AUX is for the model
     const model = (rig.control('osc3.model') as { value: string }).value as keyof typeof RIG_MACRO_AUX;
     const auxLabel = modal.find(([id]) => id === 'osc3.aux')?.[1].querySelector('.knob-label');
@@ -255,7 +262,7 @@ export function renderRigPanel(rig: RigSynth, kits?: RigKitSource): HTMLElement 
       else if (c.kind === 'toggle') node = renderToggle(c, title);
       if (!node) continue;
       body.append(node);
-      if (WAVETABLE_ONLY.has(id) || MACRO_ONLY.has(id)) modal.push([id, node]);
+      if (OSC3_MODAL.has(id)) modal.push([id, node]);
     }
     sec.append(body);
     grid.append(sec);

@@ -52,6 +52,24 @@ const Q_O3_MODE = RIG_P['osc3.mode'], Q_O3_MODEL = RIG_P['osc3.model'], Q_O3_HAR
 const Q_O3_TIMBRE = RIG_P['osc3.timbre'], Q_O3_MORPH = RIG_P['osc3.morph'], Q_O3_AUX = RIG_P['osc3.aux'];
 // Plaits' engines (PL_ENGINES, from the Plaits worklet source), if the module has them
 const RIG_HAS_MACRO = typeof PL_ENGINES !== 'undefined';
+// Braids' macro oscillator (BrMacroOscillator, from the Braids worklet source), if the module has it. It runs at twice
+// the host's rate in its own 24-sample blocks, on its own 96 kHz tables: at 48 kHz exactly the module's rate, at
+// another the pitch moved so it plays in tune; a half-band filter (31 taps, Blackman) brings it down to the host's,
+// and a DC blocker stands in for the module's AC-coupled output (some models, VOSIM, the LP filter, sit off zero).
+const RIG_HAS_BRAIDS = typeof BrMacroOscillator !== 'undefined';
+const Q_O3_BRAIDS = RIG_P['osc3.braids'];
+const RIG_BR_SYNC = new Uint8Array(24);
+const RIG_BR_HALF = (() => {
+  const n = 15, h = new Float64Array(2 * n + 1);
+  for (let k = -n; k <= n; k++) {
+    const w = 0.42 + 0.5 * Math.cos(Math.PI * k / (n + 1)) + 0.08 * Math.cos(2 * Math.PI * k / (n + 1));
+    h[k + n] = (k === 0 ? 0.5 : Math.sin(Math.PI * k / 2) / (Math.PI * k)) * w;
+  }
+  let sum = 0;
+  for (let i = 0; i < h.length; i++) sum += h[i];
+  for (let i = 0; i < h.length; i++) h[i] /= sum;
+  return h;
+})();
 const Q_O3_OCT = RIG_P['osc3.oct'], Q_O3_TUNE = RIG_P['osc3.tune'], Q_O3_TAB = RIG_P['osc3.table'], Q_O3_POS = RIG_P['osc3.pos'], Q_O3_INT = RIG_P['osc3.interp'];
 const Q_M1 = RIG_P['mix.osc1'], Q_M2 = RIG_P['mix.osc2'], Q_M3 = RIG_P['mix.osc3'], Q_MN = RIG_P['mix.noise'], Q_NTYPE = RIG_P['noise.type'];
 const Q_DRIVE = RIG_P['drive'], Q_OD = RIG_P['overdrive'];
@@ -250,6 +268,10 @@ class RigVoice {
     this.mOut = new Float32Array(RIG_CTRL); this.mAux = new Float32Array(RIG_CTRL);
     this.mp = { trigger: 0, note: 60, timbre: 0.5, morph: 0.5, harmonics: 0.5, accent: 0.8 };
     this.mLimOut = null; this.mLimAux = null;
+    // OSC 3 in BRAIDS mode: a Braids macro oscillator of this voice's own (made when first played), its block, the
+    // half-band's history
+    this.braids = null; this.brStrike = false; this.brBlock = null; this.brPos = 24; this.brHist = null; this.brAt = 0;
+    this.brDcIn = 0; this.brDcOut = 0;
     this.q = new Float64Array(RIG_NP);
     this.md = new Float64Array(RIG_NDEST);
     this.src = new Float64Array(RIG_NSRC);
@@ -452,6 +474,7 @@ class RigCore {
       v.age = this.clock++;
       v.time = 0;
       v.macroTrig = true;
+      v.brStrike = true;
       v.rand = this.random() * 2 - 1;
       if (a[Q_E1[5]] >= 0.5) v.e1 = 0;
       if (a[Q_E2[5]] >= 0.5) v.e2 = 0;
@@ -697,7 +720,9 @@ class RigCore {
       const ntype = q[Q_NTYPE];
 
       // OSC 3 in MACRO mode: the engine renders this tick's samples, at OSC 3's pitch, with the macro knobs
-      const macro = RIG_HAS_MACRO && q[Q_O3_MODE] >= 0.5;
+      const mode3 = q[Q_O3_MODE];
+      const macro = RIG_HAS_MACRO && mode3 >= 0.5 && mode3 < 1.5;
+      const braids = RIG_HAS_BRAIDS && mode3 >= 1.5;
       let mOut = null, mAux = null, auxMix = 0;
       if (macro) {
         const model = Math.max(0, Math.min(PL_ENGINES.length - 1, q[Q_O3_MODEL] | 0));
@@ -720,6 +745,33 @@ class RigCore {
         if (go < 0) v.mLimOut.process(-go, mOut, len); else for (let i = 0; i < len; i++) mOut[i] *= go;
         if (ga < 0) v.mLimAux.process(-ga, mAux, len); else for (let i = 0; i < len; i++) mAux[i] *= ga;
         auxMix = rigClamp(q[Q_O3_AUX], 0, 1);
+      }
+      // OSC 3 in BRAIDS mode: two of Braids' samples a tick sample, through the half-band
+      if (braids) {
+        if (!v.braids) {
+          v.braids = new BrMacroOscillator(); v.braids.init();
+          v.brBlock = new Int16Array(24); v.brPos = 24; v.brHist = new Float64Array(RIG_BR_HALF.length); v.brAt = 0;
+        }
+        const br = v.braids;
+        br.setShape(Math.max(0, Math.min(BR_MODELS - 1, q[Q_O3_BRAIDS] | 0)));
+        const note = base + (q[Q_O3_OCT] - 2) * 12 + q[Q_O3_TUNE] + md[D_O3_TUNE] * 64;
+        const offset = Math.round(1536 * Math.log2(96000 / (2 * sr)));
+        br.setPitch(Math.max(0, Math.min(16383, Math.round(note * 128) + offset)));
+        br.setParameters(Math.round(rigClamp(q[Q_O3_TIMBRE], 0, 1) * 32767), Math.round(rigClamp(q[Q_O3_MORPH], 0, 1) * 32767));
+        if (v.brStrike) { br.strike(); v.brStrike = false; }
+        mOut = v.mOut; mAux = mOut; auxMix = 0;
+        const hist = v.brHist, H = RIG_BR_HALF, L = H.length, block = v.brBlock, dcPole = 1 - 2 * Math.PI * 10 / sr;
+        for (let k = 0; k < len; k++) {
+          for (let j = 0; j < 2; j++) {
+            if (v.brPos >= 24) { br.render(RIG_BR_SYNC, block, 24); v.brPos = 0; }
+            hist[v.brAt] = block[v.brPos++] / 32768;
+            v.brAt = v.brAt + 1 === L ? 0 : v.brAt + 1;
+          }
+          let y = 0;
+          for (let t = 0, at = v.brAt; t < L; t++) { y += H[t] * hist[at]; at = at + 1 === L ? 0 : at + 1; }
+          v.brDcOut = y - v.brDcIn + dcPole * v.brDcOut; v.brDcIn = y;
+          mOut[k] = v.brDcOut;
+        }
       }
 
       // ---- drive (clean at zero, as on the NINA) and filters
@@ -755,7 +807,7 @@ class RigCore {
       let en1 = v.e1, st1 = v.st1, en2 = v.e2, st2 = v.st2, w3 = v.w3;
       for (let i = at; i < at + len; i++) {
         // OSC 3
-        if (macro) {
+        if (macro || braids) {
           const k = i - at;
           w3 = mOut[k] + (mAux[k] - mOut[k]) * auxMix;
         } else {
