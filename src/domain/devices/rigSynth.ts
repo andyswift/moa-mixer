@@ -11,7 +11,7 @@ import { RIG_PRESETS, type RigPreset } from './rigPresets';
 
 export const RIG_PARTS = 16;
 /** The pool of voices the parts share. */
-export const RIG_VOICES = 24;
+export const RIG_VOICES = 32;
 
 /** A sound for a kit's pads, as the page makes or loads it. */
 export interface RigKitSound {
@@ -62,7 +62,7 @@ export function freshPart(p: number): RigPart {
 
 /**
  * MOA-RIG: a multitimbral synth after the Melbourne Instruments NINA, with sixteen parts instead of four. Each part is
- * a patch on the same voice (`rigWorklet.ts`) and takes a fixed share of a pool of 24 voices. The panel edits one part
+ * a patch on the same voice (`rigWorklet.ts`) and takes a fixed share of a pool of 32 voices. The panel edits one part
  * and one side (A or B) at a time: the controls are the patch's params (`RIG_PARAMS`) and always show the part and
  * side being edited. The keyboard bed plays the edited part; MIDI plays every part listening on the event's channel,
  * within its key range. The sound is one worklet node; its `state` option holds the whole multi for a worklet built

@@ -24,7 +24,8 @@ import { freshPart } from './rigSynth';
  *   hats hammering the offbeat, metal and toms in loops of seven and ten against the bar, a stab beaten into the dub
  *   delay, a screaming acid line from the first drop on, a noise riser and a kick roll into each drop.
  * - DUB PRESSURE · 140: old-school dubstep, half-time, heavy on the dub: a sine sub, an offbeat skank, a siren, a voice,
- *   and throw parts: chosen hits sent whole into a long, saturating dub delay whose echoes fall into the spring.
+ *   and throw parts: chosen hits sent whole into a long, saturating dub delay whose echoes fall into the spring. Now and
+ *   then SCALPEL's tape strings swell up loud and are cut dead, leaving the echoes the space.
  */
 export interface RigFactoryMulti {
   name: string;
@@ -895,7 +896,7 @@ const noMercy: RigFactoryMulti = {
 // Old-school dubstep, 140 BPM in half time (the snare on the third beat), on E with F leaning in. The dub is in the
 // mix: the delay long and saturating, its echoes into the spring, and a part of throws, the hits a dub engineer
 // would send whole into the delay (the sends are after the fader, so a throw is its own part, its send all the way up).
-const DP = { DRUMS: 0, THROWS: 1, SUB: 2, SKANK: 4, SIREN: 5, VOX: 6, PAD: 7, SHAKER: 8, NOISE: 9 };
+const DP = { DRUMS: 0, THROWS: 1, SUB: 2, STRINGS: 3, SKANK: 4, SIREN: 5, VOX: 6, PAD: 7, SHAKER: 8, NOISE: 9 };
 const E1 = 28, G1 = 31, D1 = 26, F1 = 29;
 
 /** The half-time kit: the kick on one (and a second one moving from bar to bar), the snare with the clap on three,
@@ -937,6 +938,14 @@ const dsSkank = (sparse = false): RigTrack => track(sparse
   : [0, 16, 32, 48].flatMap((bar): Steps => [
     [bar + 6, bar === 48 ? FM : EM, { vel: 0.9, gate: 0.4 }], [bar + 13, bar === 48 ? FM : EM, { vel: 0.65, gate: 0.3 }],
   ]), 64);
+/** The strings' swells: a chord bowed for a bar (the attack is the swell), cut dead at its end so the echoes have the
+ * next bar to themselves. E minor nine, or C major seven over the E (`warm`); `prob` for one that only sometimes comes. */
+const EM9 = [52, 55, 59, 62, 66], CMAJ7 = [48, 52, 55, 59, 64];
+const dsSwell = (at: [step: number, warm?: boolean][], prob = 1): RigTrack => {
+  const t = track(at.map(([i, warm]): Steps[number] => [i, warm ? CMAJ7 : EM9, { vel: 0.9, gate: 16 }]), 64);
+  for (const [i] of at) t.steps[i]!.prob = prob;
+  return t;
+};
 /** The siren, held, wherever `at` puts it (steps, and how long). */
 const dsSiren = (at: [number, number][] = [[32, 12]]): RigTrack => track(at.map(([i, g]): Steps[number] => [i, 71, { vel: 0.85, gate: g }]), 64);
 /** Voice fragments, each a word (MORPH, locked) cut short, in the space after the snare. */
@@ -969,15 +978,28 @@ const dubPressure: RigFactoryMulti = {
     Object.assign(kit.pads[OH - 36]!, { analog: { 'openHat.decay': 0.3 }, cutoff: 8000 });
     parts[DP.DRUMS] = { name: 'Drums', kind: 'kit', kit, channel: 10 };
     parts[DP.THROWS] = { name: 'Throws', kind: 'kit', kit: cloneKit(kit), channel: 11 };
-    // the sub: a triangle under a shut ladder, nearly a sine; mono, a little glide
+    // the sub: a triangle and a pulse an octave up, driven into a ladder shut down to 71 Hz, a touch of envelope and
+    // noise; LFO 1 (half notes, free-running) bending its pitch and fading the triangle; a long release (as the user
+    // set it). Mono, a little glide
     parts[DP.SUB] = {
       name: 'Sub', voices: 1, channel: 1,
       ...sound('Init', {
-        'voice.mode': 1, 'voice.glide': 0.04, 'osc1.width': 1, 'mix.osc1': 1, 'lad.cutoff': 140, 'lad.eg1': 0, 'filter.key': 0,
-        'eg2.a': 0.005, 'eg2.d': 1, 'eg2.s': 1, 'eg2.r': 0.12, 'out.level': 1,
-      }),
+        'voice.mode': 1, 'voice.glide': 0.04, 'osc1.width': 1, 'mix.osc1': 1, 'osc2.oct': 3, 'osc2.blend': 1, 'osc2.width': 0.718, 'mix.osc2': 0.866,
+        'mix.noise': 0.023, drive: 1, 'lad.cutoff': 71, 'lad.eg1': 0.146, 'filter.key': 0,
+        'eg2.a': 0.005, 'eg2.d': 1, 'eg2.s': 1, 'eg2.r': 1.65, 'lfo1.sync': 1, 'lfo1.div': 3, 'lfo1.level': 0.863, 'lfo1.retrig': 1, 'out.level': 1,
+      }, [{ source: 'lfo1', dest: 'osc1.tune', amount: 0.077 }, { source: 'lfo1', dest: 'mix.osc1', amount: -0.256 }]),
     };
-    parts[DP.SKANK] = { name: 'Skank', voices: 6, channel: 3, ...sound('Dub Chord', { 'out.level': 1 }) };
+    // the strings: SCALPEL's tape strings, swelling in over a second and a half (brightening as they rise) and cut
+    // dead: the dub delay and the spring carry what was cut off
+    parts[DP.STRINGS] = {
+      name: 'Strings', voices: 10, channel: 9,
+      ...sound('Tape Strings', { 'lad.cutoff': 1800, 'eg2.a': 1.5, 'eg2.d': 1, 'eg2.s': 1, 'eg2.r': 0.03, 'out.level': 1 }, [
+        { source: 'lfo1', dest: 'osc1.tune', amount: 0.002 }, { source: 'lfo1', dest: 'osc2.tune', amount: 0.002 },
+        { source: 'lfo2', dest: 'osc1.tune', amount: 0.003 }, { source: 'lfo2', dest: 'osc2.tune', amount: 0.003 },
+        { source: 'eg2', dest: 'lad.cutoff', amount: 0.3 },
+      ]),
+    };
+    parts[DP.SKANK] = { name: 'Skank', voices: 3, channel: 3, ...sound('Dub Chord', { 'out.level': 1 }) };
     // the siren: a narrow pulse, a falling sweep (LFO 1, ramp down) on its pitch, and the pitch rising as it is held (EG 1)
     parts[DP.SIREN] = {
       name: 'Siren', voices: 1, channel: 4,
@@ -988,7 +1010,7 @@ const dubPressure: RigFactoryMulti = {
     };
     parts[DP.VOX] = { name: 'Vox', voices: 3, channel: 5, ...sound('Dub Words', { 'out.level': 1 }) };
     parts[DP.PAD] = {
-      name: 'Pad', voices: 9, channel: 6,
+      name: 'Pad', voices: 6, channel: 6,
       ...sound('String Machine', { 'lad.cutoff': 700, 'out.level': 1 }, [
         { source: 'lfo1', dest: 'osc1.tune', amount: 0.0015 }, { source: 'lfo1', dest: 'osc2.tune', amount: 0.0015 }, { source: 'seq', dest: 'lad.cutoff', amount: 0.35 },
       ]),
@@ -996,13 +1018,13 @@ const dubPressure: RigFactoryMulti = {
     parts[DP.SHAKER] = { name: 'Shaker', voices: 1, channel: 7, ...sound('Shaker', { 'out.level': 1 }) };
     parts[DP.NOISE] = { name: 'Noise', voices: 1, channel: 8, ...sound('Noise Sweep', { 'out.level': 1 }) };
 
-    const { DRUMS, THROWS, SUB, SKANK, SIREN, VOX, PAD, SHAKER, NOISE } = DP;
+    const { DRUMS, THROWS, SUB, STRINGS, SKANK, SIREN, VOX, PAD, SHAKER, NOISE } = DP;
     const ramp = (from: number, to: number) => (x: number) => from + (to - from) * x;
     const patterns = [
       // 0 intro: the pad swelling, the siren, a voice, a rim thrown into the dub
       pattern({ [PAD]: dsPad(), [SIREN]: dsSiren([[40, 14]]), [VOX]: dsVox(), [THROWS]: dsThrows([[27, RS, 0.7], [59, RS, 0.6]]) }),
       // 1 intro: the shaker, the sub coming in halfway, the snare thrown at the end
-      pattern({ [PAD]: dsPad(), [SHAKER]: dyn(dsShaker(), 0.8), [SUB]: dsSub(32), [VOX]: dsVox(true), [THROWS]: dsThrows() }),
+      pattern({ [PAD]: dsPad(), [SHAKER]: dyn(dsShaker(), 0.8), [SUB]: dsSub(32), [VOX]: dsVox(true), [THROWS]: dsThrows(), [STRINGS]: dsSwell([[32]]) }),
       // 2 the riddim: the drums, the sub, the skank once a bar or two, the throws
       pattern({ [DRUMS]: dyn(dsDrums(), 0.95), [SUB]: dsSub(), [SKANK]: dsSkank(true), [SHAKER]: dyn(dsShaker(), 0.8), [THROWS]: dsThrows() }),
       // 3 the skank on every offbeat, the voice in the gaps
@@ -1012,27 +1034,29 @@ const dubPressure: RigFactoryMulti = {
       pattern({ [DRUMS]: dsDrums(), [SUB]: dsSub(), [SKANK]: dsSkank(true), [SIREN]: dsSiren([[16, 10]]), [THROWS]: dsThrows([[24, SD, 0.9], [56, SD, 1]]) }),
       // 6 the break: no kick, no hats; the snare thrown every bar, the sub held, the pad, the voice
       pattern({ [THROWS]: dsThrows([[8, SD, 0.9], [24, SD, 0.85], [40, SD, 0.9], [56, SD, 1], [59, RS, 0.6]]), [SUB]: dsSubHeld(), [PAD]: dsPad(),
-        [VOX]: dsVox(true), [SHAKER]: dyn(dsShaker(), 0.7) }),
+        [VOX]: dsVox(true), [SHAKER]: dyn(dsShaker(), 0.7), [STRINGS]: dsSwell([[0], [32, true]]) }),
       // 7 the build: the noise rising, the drums back with toms down the end, the sub held under it
       pattern({ [DRUMS]: dyn(dsDrums({ kick: false, fill: true }), ramp(0.75, 1)), [NOISE]: mods(scNoise(), (i) => (i / 63) ** 2), [SUB]: dsSubHeld() }),
       // 8 the drop: the sub, the drums, the siren, the throws
       pattern({ [DRUMS]: dsDrums(), [SUB]: dsSub(), [SIREN]: dsSiren([[0, 8]]), [SHAKER]: dsShaker(), [THROWS]: dsThrows() }),
       // 9 the drop again: the skank, the voice
-      pattern({ [DRUMS]: dsDrums(), [SUB]: dsSub(), [SKANK]: dsSkank(), [VOX]: dsVox(true), [SHAKER]: dsShaker(),
+      pattern({ [DRUMS]: dsDrums(), [SUB]: dsSub(), [SKANK]: dsSkank(), [VOX]: dsVox(true), [SHAKER]: dsShaker(), [STRINGS]: dsSwell([[32, true]], 0.4),
         [THROWS]: dsThrows([[27, RS, 0.7], [44, MT, 0.8], [56, SD, 1]]) }),
       // 10 the dub-out: the kick and snare alone under the skank and voice, everything thrown
-      pattern({ [DRUMS]: dyn(dsDrums({ hats: false }), 0.9), [SUB]: dsSub(), [SKANK]: dsSkank(), [VOX]: dsVox(),
+      pattern({ [DRUMS]: dyn(dsDrums({ hats: false }), 0.9), [SUB]: dsSub(), [SKANK]: dsSkank(), [VOX]: dsVox(), [STRINGS]: dsSwell([[32]]),
         [THROWS]: dsThrows([[8, SD, 0.8], [27, RS, 0.7], [40, SD, 0.85], [44, MT, 0.8], [56, SD, 1], [60, LT, 0.8]]) }),
       // 11 out: the pad, the sub, a rim and the siren into the delay
-      pattern({ [PAD]: dsPad((x) => 0.6 * (1 - x)), [SUB]: dsSubHeld(), [SIREN]: dsSiren([[8, 12]]), [THROWS]: dsThrows([[27, RS, 0.6], [59, RS, 0.5]]) }),
+      pattern({ [PAD]: dsPad((x) => 0.6 * (1 - x)), [SUB]: dsSubHeld(), [STRINGS]: dsSwell([[0, true]]), [SIREN]: dsSiren([[8, 12]]), [THROWS]: dsThrows([[27, RS, 0.6], [59, RS, 0.5]]) }),
     ];
 
     const mix: Record<string, number> = {
       // the kit nearly dry (a touch of spring), the throws all the way into the dub; the sub dry, mono, in the middle
       'p1.fader': 1, 'p1.a': 0.06, 'p1.c': 0.12,
       'p2.fader': 0.8, 'p2.a': 1, 'p2.c': 0.35, 'p2.hi': -2,
-      'p3.fader': 0.85,
+      'p3.fader': 2,
       // the skank deep in the dub, ping-ponging in B, into the spring
+      // the strings loud, well into the dub and the spring (the echoes are where the cut swell goes)
+      'p4.fader': 1.4, 'p4.a': 0.6, 'p4.c': 0.35, 'p4.lo': -8,
       'p5.fader': 1.3, 'p5.a': 0.7, 'p5.b': 0.3, 'p5.c': 0.3, 'p5.lo': -10, 'p5.pan': 0.2,
       'p6.fader': 0.9, 'p6.a': 0.8, 'p6.c': 0.3, 'p6.pan': -0.3, 'p6.lo': -12,
       'p7.fader': 1.3, 'p7.a': 0.85, 'p7.c': 0.35, 'p7.lo': -8,

@@ -287,7 +287,7 @@ class RigVoice {
 function rigClamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
 
 class RigCore {
-  constructor(sampleRate, voices = 24, parts = 16, random = Math.random) {
+  constructor(sampleRate, voices = 32, parts = 16, random = Math.random) {
     this.sr = sampleRate;
     this.random = random;
     if (typeof plSetSampleRate === 'function') plSetSampleRate(sampleRate);

@@ -136,10 +136,10 @@ describe('MOA-RIG device', () => {
     rig.setVoices(1, 10);
     expect(rig.parts[1]!.voices).toBe(0);
     rig.setVoices(0, 16);
-    rig.setVoices(1, 10);
-    expect(rig.parts[1]!.voices).toBe(8);
+    rig.setVoices(1, RIG_VOICES);
+    expect(rig.parts[1]!.voices).toBe(RIG_VOICES - 16);
     expect(rig.freeVoices).toBe(0);
-    expect(sent.filter((m) => m.type === 'layout').at(-1)!.counts!.slice(0, 2)).toEqual([16, 8]);
+    expect(sent.filter((m) => m.type === 'layout').at(-1)!.counts!.slice(0, 2)).toEqual([16, RIG_VOICES - 16]);
   });
 
   it('sends the wheels to every part', () => {
