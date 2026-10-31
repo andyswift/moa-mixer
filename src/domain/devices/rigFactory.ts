@@ -380,6 +380,9 @@ const scalpel: RigFactoryMulti = {
       'rev.type': 2, 'rev.size': 0.7, 'rev.damp': 0.75, 'rev.pre': 0.02,
       'rA.lo': -8, 'rA.hi': -4, 'rA.filter': 0.15, 'rA.fader': 1, 'rC.fader': 0.8, 'rC.lo': -6, 'rC.hi': -5,
       'cmp.key': 1, 'cmp.ratio': 3, 'cmp.thresh': -22, 'cmp.atk': 2, 'cmp.rel': 140, 'cmp.mix': 0.8,
+      // the master onto tape, hard: dense as the set is (its peaks some 8 dB over its level, the kick and bass one
+      // block rather than spikes), and a little darker
+      'tape.drive': 12, 'tape.tone': 0.5,
     };
     return multi('Scalpel', 135, parts, patterns, [0, 7, 1, 2, 2, 3, 4, 4, 5, 6, 5, 6], mix);
   },

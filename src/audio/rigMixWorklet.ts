@@ -8,7 +8,7 @@ const DEFS = RIG_MIX_PARAMS.map((p) => [p.id, p.def]);
  * The MOA-RIG's mixer and effects, as worklet source text (`RigMixer`). The rig's worklet hands it every part's
  * stereo bus each block and takes the master out of it; tests evaluate the same text.
  *
- *   part bus -> [drive, if it is the drive's part] -> strip -> master bus -> compressor -> master fader -> ceiling
+ *   part bus -> [drive, if it is the drive's part] -> strip -> master bus -> compressor -> tape -> master fader -> ceiling
  *                                                        \-> sends A-D (after the fader and pan)
  *   send A -> dub delay, B -> BBD, C -> reverb, D -> chorus -> return strips A-D -> master bus
  *                                                                  \-> sends A-D (themselves too)
@@ -102,6 +102,7 @@ class RigMixer {
     this.cho = { line: new MixLine(Math.ceil(sr * 0.05)), ph: 0, lp: [0, 0] };
     this.drv = { lp: [0, 0] };
     this.cmp = { gr: 0, hp: 0, hx: 0, minGr: 0 };
+    this.tape = { lpL: 0, lpR: 0, dcL: 0, dcR: 0 };
     this.masterG = 1;
     this.peak = [0, 0];
     this.masterSq = [0, 0]; this.masterCount = 0;
@@ -395,6 +396,24 @@ class RigMixer {
     if (minGr < e.minGr) e.minGr = minGr; // the deepest since the meters were last read
   }
 
+  // ---- the tape: the master driven into a soft curve, a little lop-sided (tape's even harmonics), half the drive
+  // given back, so quiet passages come up a little and peaks are rounded; then tape's loss of highs (TONE) and a DC
+  // blocker for the lop-side. At 0 dB of drive the master passes untouched.
+
+  runTape(L, R, n) {
+    const drive = this.p('tape.drive');
+    if (drive <= 0) return;
+    const t = this.tape, g = Math.pow(10, drive / 20), out = 1 / Math.sqrt(g), bias = 0.1, off = Math.tanh(bias);
+    const fc = Math.min(20000 * Math.pow(0.3, this.p('tape.tone')), this.sr * 0.45);
+    const a = 1 - Math.exp(-2 * Math.PI * fc / this.sr), dc = 1 - Math.exp(-2 * Math.PI * 10 / this.sr);
+    for (let i = 0; i < n; i++) {
+      const l = (Math.tanh(L[i] * g + bias) - off) * out, r = (Math.tanh(R[i] * g + bias) - off) * out;
+      t.lpL += (l - t.lpL) * a; t.lpR += (r - t.lpR) * a;
+      t.dcL += (t.lpL - t.dcL) * dc; t.dcR += (t.lpR - t.dcR) * dc;
+      L[i] = t.lpL - t.dcL; R[i] = t.lpR - t.dcR;
+    }
+  }
+
   // ---- a block: every part's bus in, the master out
 
   process(partL, partR, outL, outR, n, bpm) {
@@ -427,6 +446,7 @@ class RigMixer {
     for (let r = 0; r < 4; r++) this.runStrip(this.parts + r, this.retL[r], this.retR[r], n, soloed, this.carryL, this.carryR);
     const key = Math.round(this.p('cmp.key')) - 1;
     if (this.p('cmp.ratio') > 1.001) this.runComp(this.mixL, this.mixR, key >= 0 ? partL[key] : null, key >= 0 ? partR[key] : null, n);
+    this.runTape(this.mixL, this.mixR, n);
     const target = this.p('master.fader'), d = (target - this.masterG) / n;
     let g = this.masterG, pl = this.peak[0], pr = this.peak[1], ml = this.masterSq[0], mr = this.masterSq[1];
     for (let i = 0; i < n; i++) {

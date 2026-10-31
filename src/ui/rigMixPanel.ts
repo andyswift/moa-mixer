@@ -142,6 +142,7 @@ export function renderRigMixPanel(rig: RigSynth, meters: () => RigMeters | undef
   const grField = el('div', 'rig-field');
   grField.append(el('span', 'knob-label', 'GR'), gr);
   module('COMPRESSOR', 'MASTER · SIDECHAIN', WHITE, ['cmp.thresh', 'cmp.ratio', 'cmp.atk', 'cmp.rel', 'cmp.makeup', 'cmp.mix', 'cmp.key', 'cmp.hpf'], [grField]);
+  module('TAPE', 'MASTER · SATURATION', WHITE, ['tape.drive', 'tape.tone']);
 
   function sync(): void {
     bankButtons.forEach((b, i) => b.classList.toggle('on', i === bank));

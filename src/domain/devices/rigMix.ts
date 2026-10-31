@@ -78,6 +78,9 @@ export const RIG_MIX_PARAMS: readonly RigMixParam[] = [
   n('cmp.atk', 'Attack', 0.1, 100, 10, 'ms', 'log'), n('cmp.rel', 'Release', 20, 1000, 150, 'ms', 'log'),
   n('cmp.makeup', 'Make-up', 0, 18, 0, 'dB'), n('cmp.mix', 'Mix', 0, 1, 1), c('cmp.key', 'Key', KEY_CHOICES, 'self'),
   n('cmp.hpf', 'Key HPF', 20, 500, 20, 'Hz', 'log'),
+  // the tape on the master, after the compressor: DRIVE (dB) into a soft, lop-sided curve, half of it given back, so
+  // quiet passages come up a little and peaks are rounded; TONE takes off highs as tape does. Off at 0 dB.
+  n('tape.drive', 'Drive', 0, 18, 0, 'dB'), n('tape.tone', 'Tone', 0, 1, 0),
   // the master: its fader, and a soft limit in the send buses so a return fed back into itself stays bounded
   n('master.fader', 'Master', 0, 2, 1), t('master.limit', 'Feedback limit', 1),
 ];

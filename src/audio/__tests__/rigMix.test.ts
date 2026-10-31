@@ -234,3 +234,36 @@ describe('MOA-RIG mixer: drive, compressor, master', () => {
   });
 });
 
+
+describe('MOA-RIG mixer: tape', () => {
+  const peak = (a: Float32Array, from = 0) => { let p = 0; for (let i = from; i < a.length; i++) p = Math.max(p, Math.abs(a[i]!)); return p; };
+
+  it('is off at 0 dB of drive: the master passes untouched', () => {
+    const m = fresh();
+    expect(m.set('tape.drive', 0)).toBeUndefined();
+    expect(rms(run(m, 0.3, { 2: sine(440) }).l, 4800)).toBeCloseTo(0.5 / Math.SQRT2, 3);
+  });
+
+  it('driven, brings quiet passages up by half the drive and rounds the peaks, so the mix is less peaky', () => {
+    const quiet = (drive: number) => { const m = fresh(); m.set('tape.drive', drive); return rms(run(m, 0.3, { 0: sine(220, 0.02) }).l, 4800); };
+    expect(db(quiet(12) / quiet(0))).toBeCloseTo(6, 0);
+    // a kick's spike every half second over a quiet bed: its peak over its level falls
+    const kicky: Source = (t) => 0.05 * Math.sin(2 * Math.PI * 330 * t) + (t % 0.5 < 0.02 ? 0.9 * Math.sin(2 * Math.PI * 55 * t) : 0);
+    const crest = (drive: number) => { const m = fresh(); m.set('tape.drive', drive); const { l } = run(m, 2, { 0: kicky }); return db(peak(l, SR) / rms(l, SR)); };
+    expect(crest(12)).toBeLessThan(crest(0) - 1.5);
+    const m = fresh();
+    m.set('tape.drive', 18);
+    expect(peak(run(m, 0.5, { 0: sine(100, 1) }).l)).toBeLessThan(1);
+  });
+
+  it('TONE takes off the highs, and the lop-sided curve leaves no DC', () => {
+    const high = (tone: number) => { const m = fresh(); m.set('tape.drive', 6); m.set('tape.tone', tone); return rms(run(m, 0.3, { 0: sine(12000, 0.05) }).l, 4800); };
+    expect(db(high(1) / high(0))).toBeLessThan(-4);
+    const m = fresh();
+    m.set('tape.drive', 18);
+    const { l } = run(m, 2, { 0: sine(100, 0.8) });
+    let sum = 0;
+    for (let i = SR; i < 2 * SR; i++) sum += l[i]!;
+    expect(Math.abs(sum / SR)).toBeLessThan(1e-3);
+  });
+});
