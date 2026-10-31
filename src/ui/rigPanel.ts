@@ -1,8 +1,9 @@
 import type { Control } from '../domain/devices/controls';
 import { RIG_DESTS, RIG_MACRO_AUX, RIG_SOURCES, type RigDest, type RigSource } from '../domain/devices/rigParams';
 import { RIG_FACTORY_MULTIS } from '../domain/devices/rigFactory';
+import { hasTune, readTuneFile, tuneFile, tuneFileName, tuneFromHash, tuneHash } from '../domain/devices/rigShare';
 import type { RigMulti } from '../domain/devices/rigMulti';
-import { RIG_PARTS, type RigSynth } from '../domain/devices/rigSynth';
+import { freshPart, RIG_PARTS, type RigSynth } from '../domain/devices/rigSynth';
 import { renderRigKitPanel, type RigKitSource } from './rigKitPanel';
 import { el, renderKnob } from './widgets';
 
@@ -334,7 +335,10 @@ export function renderRigPanel(rig: RigSynth, kits?: RigKitSource): HTMLElement 
   return panel;
 }
 
-/** The multi: its name, the slots it is saved in and loaded from, NEW, and whether MIDI follows the edited part. */
+/**
+ * The multi: its name, the slots it is saved in and loaded from, NEW, sharing (a link, a file), and whether MIDI follows
+ * the edited part. A link to the page with a tune in it (`#tune=…`), or a tune file dropped on the page, opens that tune.
+ */
 export function renderRigMultiBar(rig: RigSynth, store?: RigMultiStore): HTMLElement {
   // ---- the multi: its name, and the slots it is saved in and loaded from
   const multiBar = el('div', 'rig-setup rig-multi');
@@ -390,12 +394,79 @@ export function renderRigMultiBar(rig: RigSynth, store?: RigMultiStore): HTMLEle
     if (store) store.slot = -1;
     say(`Loaded ${f.name}`);
   });
-  for (const b of [load, save, fresh]) b.type = 'button';
+  // sharing: a link with the tune in it, or a file; a shared tune opens as the working multi (no slot is written over)
+  const open = (m: RigMulti, from: string) => {
+    if (!confirm(`Open ${m.name}${from}? It replaces the multi you are working on (your saved slots are kept).`)) return false;
+    rig.loadMulti(m);
+    if (store) store.slot = -1;
+    say(`Opened ${m.name}${from}`);
+    return true;
+  };
+  const share = el('button', 'rig-small rig-wide', 'SHARE LINK');
+  share.title = 'Copy a link with this multi in it: opening it loads the tune';
+  share.addEventListener('click', () => {
+    void tuneHash(rig.toMulti()).then(async (hash) => {
+      const url = `${location.origin}${location.pathname}${hash}`;
+      const kb = `${(url.length / 1024).toFixed(1)} KB`;
+      try {
+        await navigator.clipboard.writeText(url);
+        say(`Link copied · ${kb}`);
+      } catch {
+        prompt(`Copy this link (${kb}):`, url);
+      }
+    });
+  });
+  const exportFile = el('button', 'rig-small rig-wide', 'EXPORT');
+  exportFile.title = 'Download this multi as a tune file';
+  exportFile.addEventListener('click', () => {
+    const m = rig.toMulti();
+    const a = el('a');
+    a.href = URL.createObjectURL(new Blob([tuneFile(m)], { type: 'application/json' }));
+    a.download = tuneFileName(m);
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    say(`Exported ${a.download}`);
+  });
+  const picker = el('input');
+  picker.type = 'file';
+  picker.accept = '.json,application/json';
+  picker.hidden = true;
+  const openFile = async (file: File) => {
+    const m = readTuneFile(await file.text(), freshPart);
+    if (!m) { say(`${file.name} is not a MOA-RIG tune`); return; }
+    open(m, ` from ${file.name}`);
+  };
+  picker.addEventListener('change', () => { const f = picker.files?.[0]; picker.value = ''; if (f) void openFile(f); });
+  const importFile = el('button', 'rig-small rig-wide', 'IMPORT');
+  importFile.title = 'Open a tune file (or drop one on the page)';
+  importFile.addEventListener('click', () => picker.click());
+  if (store) {
+    const fileOf = (e: DragEvent) => [...(e.dataTransfer?.items ?? [])].some((i) => i.kind === 'file');
+    document.addEventListener('dragover', (e) => { if (fileOf(e)) e.preventDefault(); });
+    document.addEventListener('drop', (e) => {
+      const f = e.dataTransfer?.files[0];
+      if (!f || !/\.json$/i.test(f.name)) return;
+      e.preventDefault();
+      void openFile(f);
+    });
+    // a link's tune: now, and when a link is opened in the page already open; then out of the address, so a reload
+    // does not open it again
+    const fromLink = async () => {
+      if (!hasTune(location.hash)) return;
+      const m = await tuneFromHash(location.hash, freshPart);
+      history.replaceState(null, '', location.pathname + location.search);
+      if (!m) { alert('That link’s tune could not be read (it may have been cut short).'); return; }
+      open(m, ' from the link');
+    };
+    window.addEventListener('hashchange', () => void fromLink());
+    void fromLink();
+  }
+  for (const b of [load, save, fresh, share, exportFile, importFile]) b.type = 'button';
   const follow = el('button', 'rig-small rig-wide rig-follow', 'MIDI → EDITED PART');
   follow.type = 'button';
   follow.title = 'On: MIDI on any channel plays only the part being edited. Off: each part plays its own channel.';
   follow.addEventListener('click', () => { rig.midiToEdited = !rig.midiToEdited; });
-  multiBar.append(el('span', 'knob-label', 'Multi'), multiName, slotSelect, load, save, fresh, factory, status, follow);
+  multiBar.append(el('span', 'knob-label', 'Multi'), multiName, slotSelect, load, save, fresh, factory, share, exportFile, importFile, picker, status, follow);
   if (!store) multiBar.hidden = true;
   fillSlots();
   const sync = () => {
