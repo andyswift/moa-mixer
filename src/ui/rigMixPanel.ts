@@ -127,14 +127,27 @@ export function renderRigMixPanel(rig: RigSynth, meters: () => RigMeters | undef
     const sec = el('section', 'rig-section');
     sec.style.setProperty('--rig-accent', accent);
     const body = el('div', 'rig-controls');
-    body.append(...ids.map((id) => renderControl(d(id), title)), ...extra);
+    body.append(...ids.map((id) => { const node = renderControl(d(id), title); node.dataset.param = id; return node; }), ...extra);
     sec.append(el('h3', 'rig-title', title), el('div', 'rig-strip-sub', sub), body);
     fxRow.append(sec);
     return sec;
   };
-  module('DUB DELAY', 'SEND A · TAPE ECHO', BLUE, ['dub.time', 'dub.fdbk', 'dub.tone', 'dub.wow', 'dub.sat', 'dub.sync', 'dub.div'],
+  module('DUB DELAY', 'SEND A · TAPE ECHO', BLUE, ['dub.time', 'dub.fdbk', 'dub.tone', 'dub.wow', 'dub.flutter', 'dub.sat', 'dub.sync', 'dub.div'],
     [momentary(d('dub.throw') as ToggleControl, 'THROW', 'Dub delay')]);
-  module('BBD DELAY', 'SEND B · BUCKET BRIGADE', BLUE, ['bbd.time', 'bbd.fdbk', 'bbd.mod', 'bbd.rate', 'bbd.age', 'bbd.sync', 'bbd.div', 'bbd.ping']);
+  // send B: the bucket brigade or Beads' delay, each showing its own controls (TIME, sync and FEEDBACK are both's)
+  const bbd = module('BBD DELAY', 'SEND B · BUCKET BRIGADE', BLUE, ['bbd.mode', 'bbd.time', 'bbd.fdbk', 'bbd.sync', 'bbd.div',
+    'bbd.mod', 'bbd.rate', 'bbd.age', 'bbd.ping', 'bds.density', 'bds.multiply', 'bds.shape', 'bds.pitch', 'bds.filter']);
+  const showBbd = () => {
+    const beads = (d('bbd.mode') as { value: string }).value === 'BEADS';
+    for (const node of bbd.querySelectorAll<HTMLElement>('[data-param]')) {
+      const id = node.dataset.param!;
+      node.hidden = id.startsWith('bds.') ? !beads : ['bbd.mod', 'bbd.rate', 'bbd.age', 'bbd.ping'].includes(id) && beads;
+    }
+    bbd.querySelector('.rig-title')!.textContent = beads ? 'BEADS DELAY' : 'BBD DELAY';
+    bbd.querySelector('.rig-strip-sub')!.textContent = beads ? 'SEND B · MUTABLE INSTRUMENTS' : 'SEND B · BUCKET BRIGADE';
+  };
+  d('bbd.mode').onChange(showBbd);
+  showBbd();
   module('REVERB', 'SEND C', BLUE, ['rev.size', 'rev.damp', 'rev.pre', 'rev.tone', 'rev.shimmer', 'rev.type', 'rev.freeze']);
   module('CHORUS', 'SEND D · STEREO', BLUE, ['cho.rate', 'cho.depth', 'cho.width', 'cho.mode']);
   module('DRIVE', 'INSERT ON ONE PART', '#ff8466', ['drv.part', 'drv.drive', 'drv.tone', 'drv.blend', 'drv.level', 'drv.type']);
@@ -142,7 +155,7 @@ export function renderRigMixPanel(rig: RigSynth, meters: () => RigMeters | undef
   const grField = el('div', 'rig-field');
   grField.append(el('span', 'knob-label', 'GR'), gr);
   module('COMPRESSOR', 'MASTER · SIDECHAIN', WHITE, ['cmp.thresh', 'cmp.ratio', 'cmp.atk', 'cmp.rel', 'cmp.makeup', 'cmp.mix', 'cmp.key', 'cmp.hpf'], [grField]);
-  module('TAPE', 'MASTER · SATURATION', WHITE, ['tape.drive', 'tape.tone']);
+  module('TAPE', 'MASTER · SATURATION', WHITE, ['tape.drive', 'tape.tone', 'tape.wow']);
 
   function sync(): void {
     bankButtons.forEach((b, i) => b.classList.toggle('on', i === bank));

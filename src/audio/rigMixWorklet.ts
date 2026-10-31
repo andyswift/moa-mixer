@@ -1,3 +1,4 @@
+import { MUTABLE_FX_SOURCE } from './mutable';
 import {
   RIG_DELAY_DIV_BEATS, RIG_MIX_PARAMS, RIG_MIX_PARTS, RIG_STRIPS,
 } from '../domain/devices/rigMix';
@@ -8,7 +9,7 @@ const DEFS = RIG_MIX_PARAMS.map((p) => [p.id, p.def]);
  * The MOA-RIG's mixer and effects, as worklet source text (`RigMixer`). The rig's worklet hands it every part's
  * stereo bus each block and takes the master out of it; tests evaluate the same text.
  *
- *   part bus -> [drive, if it is the drive's part] -> strip -> master bus -> compressor -> tape -> master fader -> ceiling
+ *   part bus -> [drive, if it is the drive's part] -> strip -> master bus -> compressor -> tape (and its wow) -> master fader -> ceiling
  *                                                        \-> sends A-D (after the fader and pan)
  *   send A -> dub delay, B -> BBD, C -> reverb, D -> chorus -> return strips A-D -> master bus
  *                                                                  \-> sends A-D (themselves too)
@@ -20,6 +21,7 @@ const DEFS = RIG_MIX_PARAMS.map((p) => [p.id, p.def]);
  * Every effect is fully wet; the dry sound stays on its strip.
  */
 export const RIG_MIX_SOURCE = `
+${MUTABLE_FX_SOURCE}
 const MIX_DEFS = ${JSON.stringify(DEFS)};
 const MIX_N = MIX_DEFS.length;
 const MIX_P = {};
@@ -51,6 +53,8 @@ function mixBiquad(type, f, q, db, sr) {
 }
 
 // soft clipper: unity for small signals, bounded at +-1
+// the CLOUDS reverb's level against the delay network's, matched by ear and RMS (see the mixer tests)
+const CLOUDS_GAIN = 0.75;
 function mixSoft(x) { return x > 3 ? 1 : x < -3 ? -1 : x * (27 + x * x) / (27 + 9 * x * x); }
 
 // a delay line that reads between samples
@@ -99,6 +103,12 @@ class RigMixer {
     this.dub = { L: new MixLine(Math.ceil(sr * 2.2)), R: new MixLine(Math.ceil(sr * 2.2)), d: sr * 0.375, ph: 0, ph2: 0, tL: 0, tR: 0, hL: 0, hR: 0, drift: 0 };
     this.bbd = { L: new MixLine(Math.ceil(sr * 0.7)), R: new MixLine(Math.ceil(sr * 0.7)), d: sr * 0.32, ph: 0, a1: [0, 0], a2: [0, 0], seed: 22222 };
     this.rev = this.makeReverb();
+    // Mutable Instruments' (src/audio/mutable): the CLOUDS reverb, the ENSEMBLE chorus, wow and flutter in the dub's loop
+    // and on the tape; blocks of the reverb's in and out
+    this.miReverb = new MiReverb(sr); this.miEnsemble = new MiEnsemble(); this.miEnsemble.spread = true;
+    this.beads = null; // Beads' delay (8 s of stereo line): made when first chosen
+    this.dubFlutter = new MiWowAndFlutter(sr); this.tapeWow = new MiWowAndFlutter(sr);
+    this.miL = new Float64Array(MIX_BLOCK); this.miR = new Float64Array(MIX_BLOCK); this.miOut = [0, 0];
     this.cho = { line: new MixLine(Math.ceil(sr * 0.05)), ph: 0, lp: [0, 0] };
     this.drv = { lp: [0, 0] };
     this.cmp = { gr: 0, hp: 0, hx: 0, minGr: 0 };
@@ -220,6 +230,8 @@ class RigMixer {
     const wow = this.p('dub.wow') * 0.0025 * sr, sat = 1 + this.p('dub.sat') * 5;
     const glide = 1 - Math.exp(-1 / (0.15 * sr)); // tape: a new time glides, pitching what is in the loop
     if (!e.started) { e.started = true; e.d = target; }
+    const flutter = this.p('dub.flutter');
+    if (flutter > 0) { this.runDubFlutter(inL, inR, outL, outR, n, target, fb, lc, hc, wow, sat, glide, flutter); return; }
     for (let i = 0; i < n; i++) {
       e.d += (target - e.d) * glide;
       e.ph += 0.45 / sr; e.ph2 += 5.3 / sr;
@@ -240,11 +252,45 @@ class RigMixer {
     if (!Number.isFinite(e.tL + e.tR)) { e.L.buf.fill(0); e.R.buf.fill(0); e.tL = e.tR = e.hL = e.hR = 0; }
   }
 
+  // the dub delay with Beads' wow and flutter in its loop: the same, with both sides' repeats through the transport
+  // before they go round again (so each repeat wanders further than the one before)
+  runDubFlutter(inL, inR, outL, outR, n, target, fb, lc, hc, wow, sat, glide, flutter) {
+    const e = this.dub, sr = this.sr, wf = this.dubFlutter, o = this.miOut;
+    wf.amount = flutter;
+    wf.begin(n);
+    for (let i = 0; i < n; i++) {
+      e.d += (target - e.d) * glide;
+      e.ph += 0.45 / sr; e.ph2 += 5.3 / sr;
+      if (e.ph > 1) e.ph -= 1;
+      if (e.ph2 > 1) e.ph2 -= 1;
+      const w = wow * (Math.sin(MIX_TAU * e.ph) + 0.15 * Math.sin(MIX_TAU * e.ph2));
+      const x = (inL[i] + inR[i]) * 0.5;
+      let yL = e.L.read(Math.max(1, e.d + w)), yR = e.R.read(Math.max(1, e.d * 1.012 - w));
+      e.tL += (yL - e.tL) * lc; e.hL += (e.tL - e.hL) * hc; yL = e.tL - e.hL;
+      e.tR += (yR - e.tR) * lc; e.hR += (e.tR - e.hR) * hc; yR = e.tR - e.hR;
+      wf.process(mixSoft(yL * sat) / sat, mixSoft(yR * sat) / sat, o);
+      e.L.push(x + o[0] * fb); e.R.push(x + o[1] * fb);
+      outL[i] = o[0]; outR[i] = o[1];
+    }
+    if (!Number.isFinite(e.tL + e.tR + o[0] + o[1])) { e.L.buf.fill(0); e.R.buf.fill(0); e.tL = e.tR = e.hL = e.hR = 0; wf.lpL = wf.lpR = 0; wf.lines[0].fill(0); wf.lines[1].fill(0); }
+  }
+
   // ---- B: bucket-brigade delay
 
   runBbd(inL, inR, outL, outR, n, bpm) {
     const e = this.bbd, sr = this.sr;
     const time = this.p('bbd.sync') >= 0.5 ? 60 / bpm * MIX_DIV_BEATS[Math.round(this.p('bbd.div'))] : this.p('bbd.time');
+    if (this.p('bbd.mode') >= 0.5) {
+      // Beads' delay, its clock ticked at B's time
+      if (!this.beads) this.beads = new MiBeadsDelay(sr);
+      const p = this.beadsParams || (this.beadsParams = {});
+      p.interval = Math.max(MI_MIN_DELAY, time * sr);
+      p.density = this.p('bds.density'); p.multiply = this.p('bds.multiply'); p.shape = this.p('bds.shape');
+      p.pitch = this.p('bds.pitch'); p.bandwidth = this.p('bds.filter'); p.feedback = Math.min(1, this.p('bbd.fdbk'));
+      this.beads.process(inL, inR, outL, outR, n, p);
+      if (!Number.isFinite(outL[n - 1] + outR[n - 1])) this.beads.clear();
+      return;
+    }
     const target = Math.min(0.6, Math.max(0.005, time)) * sr;
     const fb = this.p('bbd.fdbk'), age = this.p('bbd.age'), ping = this.p('bbd.ping') >= 0.5;
     const depth = this.p('bbd.mod') * 0.006 * sr, rate = this.p('bbd.rate');
@@ -292,6 +338,7 @@ class RigMixer {
   runReverb(inL, inR, outL, outR, n) {
     const r = this.rev, sr = this.sr;
     const type = Math.round(this.p('rev.type')), size = this.p('rev.size'), freeze = this.p('rev.freeze') >= 0.5;
+    if (type === 3) { this.runCloudsReverb(inL, inR, outL, outR, n); return; }
     // line lengths (ms) and decay range per type: spring, plate, hall
     const LEN = [[9.1, 11.3, 13.7, 15.1, 17.9, 19.3, 21.1, 23.7], [10.3, 12.9, 15.7, 18.1, 21.3, 23.9, 27.1, 30.7], [29.7, 37.1, 41.1, 43.7, 53.3, 59.9, 67.1, 73.9]][type];
     const RT = [[0.6, 4], [0.5, 6], [1.2, 12]][type];
@@ -352,10 +399,62 @@ class RigMixer {
     if (!Number.isFinite(r.lp[0] + r.lp[7])) { for (const ln of r.lines) ln.buf.fill(0); r.lp.fill(0); r.disp.fill(0); }
   }
 
-  // ---- D: chorus, after the Juno's: two taps on one line, swept in opposite directions
+  // ---- C as CLOUDS: Beads' reverb (src/audio/mutable) in place of the delay network, with the same pre-delay, shimmer,
+  // tone and freeze around it. SIZE is its time, as on Clouds (0.35 to 0.98), DAMP closes its loop's low-pass (0.97 to
+  // 0.6); FREEZE holds it, the loop lossless and nothing coming in. The shimmer hears the last block's output.
+
+  runCloudsReverb(inL, inR, outL, outR, n) {
+    const r = this.rev, m = this.miReverb, sr = this.sr, L = this.miL, R = this.miR;
+    const freeze = this.p('rev.freeze') >= 0.5, size = this.p('rev.size'), damp = this.p('rev.damp');
+    m.mix = 1;
+    m.time = freeze ? 1 : 0.35 + 0.63 * size;
+    m.lpCoefficient = freeze ? 1 : 0.97 - 0.37 * damp;
+    const pre = Math.max(1, this.p('rev.pre') * sr), shimmer = this.p('rev.shimmer'), tone = this.p('rev.tone');
+    const tlc = tone < 0.5 ? 1 - Math.exp(-MIX_TAU * 1500 * Math.pow(13, tone * 2) / sr) : 1;
+    const thc = tone > 0.5 ? 1 - Math.exp(-MIX_TAU * 20 * Math.pow(25, (tone - 0.5) * 2) / sr) : 0;
+    const inGain = freeze ? 0 : 1;
+    for (let i = 0; i < n; i++) {
+      r.pre.push((inL[i] + inR[i]) * 0.5 * inGain);
+      let u = r.pre.read(pre);
+      if (shimmer > 0) {
+        r.shPh = (r.shPh + 1 / (0.05 * sr)) % 1;
+        const win = 0.05 * sr, p1 = r.shPh, p2 = (r.shPh + 0.5) % 1;
+        const s = r.sh.read(1 + (1 - p1) * win) * Math.sin(Math.PI * p1) + r.sh.read(1 + (1 - p2) * win) * Math.sin(Math.PI * p2);
+        r.shLp += (s - r.shLp) * 0.3;
+        u += r.shLp * shimmer * 0.6;
+      }
+      L[i] = u; R[i] = u;
+    }
+    m.process(L, R, n);
+    for (let i = 0; i < n; i++) {
+      let l = L[i] * CLOUDS_GAIN, rr = R[i] * CLOUDS_GAIN;
+      r.sh.push((l + rr) * 0.5);
+      r.toneL[0] += (l - r.toneL[0]) * tlc; r.toneL[1] += (rr - r.toneL[1]) * tlc;
+      l = r.toneL[0]; rr = r.toneL[1];
+      if (thc > 0) { r.toneH[0] += (l - r.toneH[0]) * thc; r.toneH[1] += (rr - r.toneH[1]) * thc; l -= r.toneH[0]; rr -= r.toneH[1]; }
+      outL[i] = l; outR[i] = rr;
+    }
+    if (!Number.isFinite(L[n - 1] + R[n - 1])) m.clear();
+  }
+
+  // ---- D: chorus, after the Juno's: two taps on one line, swept in opposite directions; or ENSEMBLE, Rings'
 
   runChorus(inL, inR, outL, outR, n) {
     const e = this.cho, sr = this.sr, mode = Math.round(this.p('cho.mode'));
+    if (mode === 3) {
+      // Rings' ensemble, wet only (the dry stays on its strip): RATE scales its LFOs, DEPTH their sweep, WIDTH as below
+      const en = this.miEnsemble, w = this.p('cho.width');
+      en.setDepth(this.p('cho.depth'));
+      en.rate = Math.pow(4, (this.p('cho.rate') - 0.5) * 2);
+      for (let i = 0; i < n; i++) { outL[i] = inL[i]; outR[i] = inR[i]; }
+      en.process(outL, outR, n, true);
+      for (let i = 0; i < n; i++) {
+        const l = outL[i], r = outR[i];
+        outL[i] = l * (1 + w) / 2 + r * (1 - w) / 2;
+        outR[i] = r * (1 + w) / 2 + l * (1 - w) / 2;
+      }
+      return;
+    }
     const rate = [0.513, 0.863, 9.75][mode] * Math.pow(4, (this.p('cho.rate') - 0.5) * 2);
     const depth = [1.85, 1.85, 0.3][mode] * 2 * this.p('cho.depth') * sr / 1000;
     const centre = 3.5 * sr / 1000, w = this.p('cho.width');
@@ -447,6 +546,12 @@ class RigMixer {
     const key = Math.round(this.p('cmp.key')) - 1;
     if (this.p('cmp.ratio') > 1.001) this.runComp(this.mixL, this.mixR, key >= 0 ? partL[key] : null, key >= 0 ? partR[key] : null, n);
     this.runTape(this.mixL, this.mixR, n);
+    if (this.p('tape.wow') > 0) {
+      const wf = this.tapeWow, o = this.miOut;
+      wf.amount = this.p('tape.wow');
+      wf.begin(n);
+      for (let i = 0; i < n; i++) { wf.process(this.mixL[i], this.mixR[i], o); this.mixL[i] = o[0]; this.mixR[i] = o[1]; }
+    }
     const target = this.p('master.fader'), d = (target - this.masterG) / n;
     let g = this.masterG, pl = this.peak[0], pr = this.peak[1], ml = this.masterSq[0], mr = this.masterSq[1];
     for (let i = 0; i < n; i++) {

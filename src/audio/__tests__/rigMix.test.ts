@@ -267,3 +267,112 @@ describe('MOA-RIG mixer: tape', () => {
     expect(Math.abs(sum / SR)).toBeLessThan(1e-3);
   });
 });
+
+describe('MOA-RIG mixer: Mutable Instruments\' effects', () => {
+  const burst: Source = (t, i) => (t < 0.3 ? ((Math.imul(i + 1, 2654435761) >>> 0) / 2 ** 32 - 0.5) * 0.5 : 0);
+  const energy = (a: Float32Array, from: number, to: number) => rms(a, Math.round(from * SR), Math.round(to * SR));
+  const cloudsTail = (settings: Record<string, number>, seconds = 2.5) => {
+    const m = fresh();
+    m.set('p1.c', 1); m.set('rev.type', 3); m.set('rev.pre', 0);
+    for (const [k, v] of Object.entries(settings)) m.set(k, v);
+    return run(m, seconds, { 0: burst });
+  };
+
+  it('CLOUDS rings on after the sound stops, longer with SIZE, darker with DAMP, in stereo; FREEZE holds it', () => {
+    const short = cloudsTail({ 'rev.size': 0.2 }), long = cloudsTail({ 'rev.size': 0.9 });
+    expect(db(energy(long.l, 1, 1.5))).toBeGreaterThan(-60);
+    expect(db(energy(long.l, 1, 1.5) / energy(short.l, 1, 1.5))).toBeGreaterThan(10);
+    // the two sides are different taps of the loop
+    let d = 0, s = 0;
+    for (let i = Math.round(0.4 * SR); i < SR; i++) { d += (long.l[i]! - long.r[i]!) ** 2; s += long.l[i]! ** 2; }
+    expect(d / s).toBeGreaterThan(0.2);
+    // DAMP: the loop's low-pass takes the highs out of the tail
+    const hi = (x: Float32Array) => { let e = 0; for (let i = Math.round(0.6 * SR); i < SR; i++) e += (x[i]! - x[i - 1]!) ** 2; return e / energy(x, 0.6, 1) ** 2; };
+    expect(hi(cloudsTail({ 'rev.size': 0.7, 'rev.damp': 1 }, 1).l)).toBeLessThan(hi(cloudsTail({ 'rev.size': 0.7, 'rev.damp': 0 }, 1).l) * 0.7);
+    // FREEZE from half a second on: two seconds later it is still there, as loud as it was
+    const m = fresh();
+    m.set('p1.c', 1); m.set('rev.type', 3); m.set('rev.pre', 0); m.set('rev.size', 0.5);
+    const { l } = run(m, 3, { 0: burst }, { during: (t) => m.set('rev.freeze', t >= 0.5 ? 1 : 0) });
+    // (it fades a little, as Clouds' does: the modulated taps' interpolation and the 16-bit memory lose a hair each pass)
+    expect(Math.abs(db(energy(l, 2.5, 3) / energy(l, 0.6, 1.1)))).toBeLessThan(10);
+  });
+
+  it('ENSEMBLE adds a moving copy of a held note, a mono one spread left to right; the dry stays on the strip', () => {
+    const m = fresh();
+    m.set('p1.d', 1); m.set('cho.mode', 3); m.set('cho.depth', 1); m.set('cho.width', 1);
+    const dry = run(fresh(), 1, { 0: sine(440, 0.3) }).l;
+    const { l, r } = run(m, 1, { 0: sine(440, 0.3) });
+    const wetL = l.map((v, i) => v - dry[i]!), wetR = r.map((v, i) => v - dry[i]!);
+    expect(rms(wetL, SR / 2)).toBeGreaterThan(0.02);
+    let d = 0, s = 0;
+    for (let i = SR / 2; i < SR; i++) { d += (wetL[i]! - wetR[i]!) ** 2; s += wetL[i]! ** 2; }
+    expect(d / s).toBeGreaterThan(0.05);
+  });
+
+  it('FLUTTER bends the dub delay\'s repeats, and at zero leaves the delay exactly as it was', () => {
+    const echo = (flutter: number) => {
+      const m = fresh();
+      m.set('p1.a', 1); m.set('p1.fader', 0.0001); m.set('dub.sync', 0); m.set('dub.time', 0.1); m.set('dub.fdbk', 0.6); m.set('dub.wow', 0);
+      if (flutter >= 0) m.set('dub.flutter', flutter);
+      return run(m, 1.5, { 0: (t) => (t < 0.05 ? 0.4 * Math.sin(2 * Math.PI * 600 * t) : 0) }).l;
+    };
+    const plain = echo(-1), off = echo(0), on = echo(1);
+    expect(off).toEqual(plain);
+    let d = 0, s = 0;
+    for (let i = Math.round(0.3 * SR); i < Math.round(1.2 * SR); i++) { d += (on[i]! - plain[i]!) ** 2; s += plain[i]! ** 2; }
+    expect(d / s).toBeGreaterThan(0.05);
+  });
+
+  it('the tape\'s WOW wavers the master\'s pitch; at zero the master is untouched', () => {
+    const play = (w: number) => { const m = fresh(); m.set('tape.wow', w); return run(m, 4, { 2: sine(1000) }).l; };
+    const off = play(0), on = play(1);
+    expect(rms(off, 4800)).toBeCloseTo(0.5 / Math.SQRT2, 3);
+    // the period between upward zero crossings wanders when the tape does
+    const periods = (x: Float32Array) => { const p: number[] = []; let last = -1; for (let i = SR; i < 4 * SR; i++) if (x[i - 1]! < 0 && x[i]! >= 0) { const at = i - x[i]! / (x[i]! - x[i - 1]!); if (last >= 0) p.push(at - last); last = at; } return p; };
+    const spread = (p: number[]) => Math.max(...p) - Math.min(...p);
+    expect(spread(periods(off))).toBeLessThan(0.01);
+    expect(spread(periods(on))).toBeGreaterThan(0.1);
+  });
+});
+
+describe('MOA-RIG mixer: Beads\' delay on send B', () => {
+  /** A click of 1 kHz at 2 s (after the clock has learnt B's time), through send B in BEADS mode. */
+  const beads = (settings: Record<string, number>, seconds = 3.5, tone = 1000) => {
+    const m = fresh();
+    m.set('p1.b', 1); m.set('p1.fader', 0.0001); m.set('bbd.mode', 1); m.set('bbd.sync', 0); m.set('bbd.time', 0.25); m.set('bbd.fdbk', 0);
+    for (const [k, v] of Object.entries(settings)) m.set(k, v);
+    const click: Source = (t) => (t >= 2 && t < 2.02 ? 0.5 * Math.sin(2 * Math.PI * tone * t) : 0);
+    // the send is after the fader: a fader near zero would send nothing, so the send goes at full and the dry is muted by level
+    m.set('p1.fader', 1);
+    return run(m, seconds, { 0: click });
+  };
+  const at = (x: Float32Array, from: number, to: number) => rms(x, Math.round(from * SR), Math.round(to * SR));
+
+  it('repeats at B\'s time, and again with FEEDBACK; BBD mode is as it was', () => {
+    const once = beads({}).l, again = beads({ 'bbd.fdbk': 0.7 }).l;
+    // the dry click at 2 s, its repeat a quarter of a second later; nothing in between
+    expect(db(at(once, 2.25, 2.28) / at(once, 2.0, 2.02))).toBeGreaterThan(-12);
+    expect(db(at(once, 2.1, 2.2) / at(once, 2.0, 2.02))).toBeLessThan(-40);
+    expect(db(at(once, 2.5, 2.53) / at(once, 2.0, 2.02))).toBeLessThan(-40);
+    expect(db(at(again, 2.5, 2.53) / at(again, 2.0, 2.02))).toBeGreaterThan(-24);
+  });
+
+  it('PITCH +12 plays the repeats an octave up; MULTIPLY moves them to a multiple of the time; FILTER low darkens them', () => {
+    const zeroCrossingRate = (x: Float32Array, from: number, to: number) => {
+      let c = 0;
+      for (let i = Math.round(from * SR) + 1; i < to * SR; i++) if ((x[i - 1]! < 0) !== (x[i]! < 0)) c++;
+      return c / 2 / (to - from);
+    };
+    const up = beads({ 'bds.pitch': 12 }).l;
+    // the shifted repeat (a 20 ms click, through the pitch window's crossfades) sounds near 2 kHz at its middle
+    const f = zeroCrossingRate(up, 2.25, 2.27);
+    expect(f).toBeGreaterThan(1600);
+    expect(f).toBeLessThan(2400);
+    // MULTIPLY moves the repeat to a multiple of the time: at a quarter, five times it (1.25 s), none at one time
+    const more = beads({ 'bds.multiply': 0.25 }).l;
+    expect(db(at(more, 3.25, 3.28) / at(more, 2.0, 2.02))).toBeGreaterThan(-12);
+    expect(db(at(more, 2.25, 2.28) / at(more, 2.0, 2.02))).toBeLessThan(-40);
+    const dark = beads({ 'bds.filter': 0.1 }, 3.5, 3000).l, open = beads({}, 3.5, 3000).l;
+    expect(db(at(dark, 2.25, 2.28) / at(open, 2.25, 2.28))).toBeLessThan(-6);
+  });
+});

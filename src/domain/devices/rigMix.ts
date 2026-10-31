@@ -31,9 +31,13 @@ export const RIG_RETURN_NAMES = ['DUB DELAY', 'BBD', 'REVERB', 'CHORUS'] as cons
 /** Delay divisions when synced to the tempo, in beats. */
 export const RIG_DELAY_DIVS = ['1/16', '1/8T', '1/8', '3/16', '1/4T', '1/4', '3/8', '1/2', '3/4', '1'] as const;
 export const RIG_DELAY_DIV_BEATS = [0.25, 1 / 3, 0.5, 0.75, 2 / 3, 1, 1.5, 2, 3, 4] as const;
-export const RIG_REVERB_TYPES = ['SPRING', 'PLATE', 'HALL'] as const;
-export const RIG_CHORUS_MODES = ['I', 'II', 'I+II'] as const;
+/** CLOUDS: Mutable Instruments' reverb (Beads', as in Clouds, Rings and Elements), in place of the delay network. */
+export const RIG_REVERB_TYPES = ['SPRING', 'PLATE', 'HALL', 'CLOUDS'] as const;
+/** ENSEMBLE: Rings' string ensemble (three taps a side, a slow and a fast LFO) in place of the Juno's chorus. */
+export const RIG_CHORUS_MODES = ['I', 'II', 'I+II', 'ENSEMBLE'] as const;
 export const RIG_DRIVE_TYPES = ['TUBE', 'DIODE', 'FUZZ'] as const;
+/** Send B: the bucket brigade, or Beads' delay (Mutable Instruments'), clocked by B's time. */
+export const RIG_BBD_MODES = ['BBD', 'BEADS'] as const;
 const PART_CHOICES = ['off', ...Array.from({ length: RIG_MIX_PARTS }, (_, i) => String(i + 1))];
 const KEY_CHOICES = ['self', ...Array.from({ length: RIG_MIX_PARTS }, (_, i) => String(i + 1))];
 
@@ -59,10 +63,17 @@ export const RIG_MIX_PARAMS: readonly RigMixParam[] = [
   n('dub.time', 'Time', 0.02, 2, 0.375, 's', 'log'), t('dub.sync', 'Sync', 1), c('dub.div', 'Division', RIG_DELAY_DIVS, '3/16'),
   n('dub.fdbk', 'Feedback', 0, 1.2, 0.5), n('dub.tone', 'Tone', 300, 8000, 2500, 'Hz', 'log'),
   n('dub.wow', 'Wow', 0, 1, 0.25), n('dub.sat', 'Saturation', 0, 1, 0.3), t('dub.throw', 'Throw'),
+  // a worn transport in the loop (Beads' wow and flutter), each repeat wandering further
+  n('dub.flutter', 'Flutter', 0, 1, 0),
   // B: a bucket-brigade delay, modulated, ageing to dark and gritty, mono or ping-pong
   n('bbd.time', 'Time', 0.02, 0.6, 0.32, 's', 'log'), t('bbd.sync', 'Sync'), c('bbd.div', 'Division', RIG_DELAY_DIVS, '1/8'),
   n('bbd.fdbk', 'Feedback', 0, 1.1, 0.4), n('bbd.mod', 'Mod', 0, 1, 0.25), n('bbd.rate', 'Rate', 0.05, 5, 0.6, 'Hz', 'log'),
   n('bbd.age', 'Age', 0, 1, 0.3), t('bbd.ping', 'Ping-pong', 1),
+  // ... or Beads' delay: TIME (synced or not) is its clock, FEEDBACK its feedback; DENSITY a ratio of the clock, MULTIPLY
+  // how many multiples of it sound, SHAPE each repeat's envelope, PITCH its repeats' pitch, FILTER low-pass to high-pass
+  c('bbd.mode', 'Mode', RIG_BBD_MODES, 'BBD'),
+  n('bds.density', 'Density', 0, 1, 0.42), n('bds.multiply', 'Multiply', 0, 1, 0), n('bds.shape', 'Shape', 0, 1, 0),
+  n('bds.pitch', 'Pitch', -24, 24, 0, 'st'), n('bds.filter', 'Filter', 0, 1, 0.5),
   // C: reverb
   n('rev.size', 'Size', 0, 1, 0.5), n('rev.damp', 'Damp', 0, 1, 0.4), n('rev.pre', 'Pre-delay', 0, 0.2, 0.02, 's'),
   n('rev.tone', 'Tone', 0, 1, 0.5), n('rev.shimmer', 'Shimmer', 0, 1, 0), c('rev.type', 'Type', RIG_REVERB_TYPES, 'PLATE'),
@@ -81,6 +92,8 @@ export const RIG_MIX_PARAMS: readonly RigMixParam[] = [
   // the tape on the master, after the compressor: DRIVE (dB) into a soft, lop-sided curve, half of it given back, so
   // quiet passages come up a little and peaks are rounded; TONE takes off highs as tape does. Off at 0 dB.
   n('tape.drive', 'Drive', 0, 18, 0, 'dB'), n('tape.tone', 'Tone', 0, 1, 0),
+  // and the tape's transport (Beads' wow and flutter) on the master
+  n('tape.wow', 'Wow', 0, 1, 0),
   // the master: its fader, and a soft limit in the send buses so a return fed back into itself stays bounded
   n('master.fader', 'Master', 0, 2, 1), t('master.limit', 'Feedback limit', 1),
 ];
