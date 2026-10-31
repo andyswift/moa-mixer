@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CircuitChange } from '../circuit/circuit';
-import { padSoundId, RIG_KITS, rigDrumParams, type RigPad } from '../devices/rigKit';
+import { padSoundId, RIG_KITS, RIG_PAD_ORDER, rigDrumParams, type RigPad } from '../devices/rigKit';
 import { sanitiseMulti } from '../devices/rigMulti';
 import { freshPart, RIG_VOICES, RigSynth } from '../devices/rigSynth';
 
@@ -158,25 +158,34 @@ describe('MOA-RIG kits', () => {
     expect(steps[4]!.vels).toBeUndefined();
   });
 
-  it('moves drum-grid rows up and down, swapping past the rows they pass instead of overwriting them', () => {
+  it('moves drum-grid rows up and down as they are shown, swapping past the rows they pass instead of overwriting them', () => {
     const { rig } = setup();
     const steps = rig.seq.pattern.tracks[0]!.steps;
-    const rows = () => Array.from({ length: 4 }, (_, pad) => steps.slice(0, 8).flatMap((s, i) => (s.notes.includes(36 + pad) ? [i] : [])));
-    rig.toggleHit(0, 0, 36); // pad 1 (BD) on step 0
-    rig.toggleHit(0, 2, 37); // pad 2 on step 2
-    rig.toggleHit(0, 4, 38); // pad 3 on steps 4 and 6
-    rig.toggleHit(0, 6, 38);
-    rig.setHitVelocity(0, 6, 38, 0.3);
-    // pad 3 up: it swaps with pad 2, which is not lost
-    expect(rig.moveRows(0, [2], -1)).toEqual([1]);
+    // the first four rows as shown: BD, BD2, SD, SD2 (pads 1, 12, 3 and 5: notes 36, 47, 38 and 40)
+    const shown = RIG_PAD_ORDER.slice(0, 4), note = (q: number) => 36 + shown[q]!;
+    expect(shown).toEqual([0, 11, 2, 4]);
+    const rows = () => shown.map((pad) => steps.slice(0, 8).flatMap((s, i) => (s.notes.includes(36 + pad) ? [i] : [])));
+    rig.toggleHit(0, 0, note(0)); // row 1 on step 0
+    rig.toggleHit(0, 2, note(1)); // row 2 on step 2
+    rig.toggleHit(0, 4, note(2)); // row 3 on steps 4 and 6
+    rig.toggleHit(0, 6, note(2));
+    rig.setHitVelocity(0, 6, note(2), 0.3);
+    // row 3 up: it swaps with row 2, which is not lost
+    expect(rig.moveRows(0, [shown[2]!], -1)).toEqual([shown[1]]);
     expect(rows()).toEqual([[0], [4, 6], [2], []]);
-    expect(steps[6]!.vels).toEqual({ 37: 0.3 });
-    // pads 1 and 2 down together: pad 3's row comes up above them
-    expect(rig.moveRows(0, [0, 1], 1)).toEqual([1, 2]);
+    expect(steps[6]!.vels).toEqual({ [note(1)]: 0.3 });
+    // rows 1 and 2 down together: row 3 comes up above them
+    expect(rig.moveRows(0, [shown[0]!, shown[1]!], 1)).toEqual([shown[1], shown[2]]);
     expect(rows()).toEqual([[2], [0], [4, 6], []]);
     // at the top, nothing moves
-    expect(rig.moveRows(0, [0, 2], -1)).toEqual([0, 2]);
+    expect(rig.moveRows(0, [shown[0]!, shown[2]!], -1)).toEqual([shown[0], shown[2]]);
     expect(rows()).toEqual([[2], [0], [4, 6], []]);
+  });
+
+  it('shows the pads in a drum machine\'s order, the toms together, every pad once', () => {
+    expect([...RIG_PAD_ORDER].sort((x, y) => x - y)).toEqual(Array.from({ length: 16 }, (_, i) => i));
+    const names = RIG_PAD_ORDER.map((i) => RIG_KITS[0]!.pads[i]!.name);
+    expect(names).toEqual(['BD', 'BD2', 'SD', 'SD2', 'RS', 'CP', 'CP2', 'LT', 'MT', 'HT', 'CH', 'PH', 'OH', 'CR', 'RD', 'CB']);
   });
 });
 

@@ -1,6 +1,6 @@
 import { NumberControl } from '../domain/devices/controls';
 import { DECAY_OFF } from '../domain/devices/mpc60';
-import { DRUM_NAMES, DRUM_SHORT, DRUM_VOICES, RIG_KITS, RIG_PADS, rigDrumParams, type RigKit, type RigPad } from '../domain/devices/rigKit';
+import { DRUM_NAMES, DRUM_SHORT, DRUM_VOICES, RIG_KITS, RIG_PAD_ORDER, RIG_PADS, rigDrumParams, type RigKit, type RigPad } from '../domain/devices/rigKit';
 import type { RigSynth } from '../domain/devices/rigSynth';
 import { el, renderKnob } from './widgets';
 
@@ -72,9 +72,10 @@ export function renderRigKitPanel(rig: RigSynth, source?: RigKitSource): HTMLEle
     b.addEventListener('pointerup', up);
     b.addEventListener('pointerleave', up);
     b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); rig.selectPad(i); rig.keyDown(60 + i); setTimeout(() => rig.keyUp(60 + i), 150); } });
-    padRow.append(b);
     return b;
   });
+  // shown in a drum machine's order (each pad keeps its note), numbered as they stand
+  padRow.append(...RIG_PAD_ORDER.map((i) => padButtons[i]!));
 
   // ---- the selected pad (rebuilt when another pad, source or voice is chosen, not while its knobs turn)
   const editor = el('div', 'rig-controls rig-kit-editor');
@@ -162,7 +163,7 @@ export function renderRigKitPanel(rig: RigSynth, source?: RigKitSource): HTMLEle
     title.textContent = `KIT · ${pt.kit?.name ?? ''}`;
     pt.kit?.pads.forEach((p, i) => {
       const b = padButtons[i]!;
-      b.replaceChildren(el('span', 'rig-kit-pad-num', String(i + 1)), el('span', 'rig-kit-pad-name', p.name), el('span', 'rig-kit-pad-src', p.src === 'analog' ? 'ANA' : 'SMP'));
+      b.replaceChildren(el('span', 'rig-kit-pad-num', String(RIG_PAD_ORDER.indexOf(i) + 1)), el('span', 'rig-kit-pad-name', p.name), el('span', 'rig-kit-pad-src', p.src === 'analog' ? 'ANA' : 'SMP'));
       b.classList.toggle('selected', i === rig.pad);
       b.classList.toggle('sample', p.src === 'sample');
     });

@@ -1,5 +1,5 @@
 import { NumberControl } from '../domain/devices/controls';
-import { RIG_FIRST_PAD_NOTE } from '../domain/devices/rigKit';
+import { RIG_FIRST_PAD_NOTE, RIG_PAD_ORDER } from '../domain/devices/rigKit';
 import { RIG_PARAMS } from '../domain/devices/rigParams';
 import { RIG_PARTS, type RigSynth } from '../domain/devices/rigSynth';
 import {
@@ -185,9 +185,10 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
     const steps = el('div', 'rig-seq-cells');
     steps.append(...cells);
     row.append(name, steps);
-    drumRows.append(row);
     return { row, name, cells };
   });
+  // the rows in a drum machine's order (each pad keeps its note)
+  drumRows.append(...RIG_PAD_ORDER.map((pad) => drumRow[pad]!.row));
   drums.append(drumTitle, drumRows, el('p', 'rig-seq-hint', 'Click a cell to put a hit in or take it out. Mouse wheel over a hit: its velocity (brighter is harder). Press a pad’s name to hear it and select its row (shift or ⌘ for more rows). Backspace clears the selected rows; ↑ ↓ move them (a row they pass swaps past, it is not overwritten). Space starts and stops.'));
   let drumLit = -1;
   /** The selected rows (pads): Backspace or Delete clears their hits, up and down move them. */
@@ -342,7 +343,8 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
       drumRow.forEach((r, pad) => {
         const note = RIG_FIRST_PAD_NOTE + pad;
         const padName = kitPart.kit?.pads[pad]?.name ?? '';
-        r.name.textContent = padName && padName !== String(pad + 1) ? `${pad + 1} ${padName}` : String(pad + 1);
+        const num = String(RIG_PAD_ORDER.indexOf(pad) + 1);
+        r.name.textContent = padName && padName !== String(pad + 1) ? `${num} ${padName}` : num;
         r.cells.forEach((c, k) => {
           const i = page * PAGE + k;
           const st = t.steps[i]!;

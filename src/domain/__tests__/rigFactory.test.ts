@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { RIG_FACTORY_MULTIS } from '../devices/rigFactory';
 import { RIG_MACRO_MODELS } from '../devices/rigParams';
+import { RIG_PRESETS } from '../devices/rigPresets';
 import { sanitiseMulti } from '../devices/rigMulti';
 import { freshPart, RIG_VOICES, RigSynth } from '../devices/rigSynth';
 
@@ -72,8 +73,11 @@ describe('MOA-RIG factory multis', () => {
     const plays = (part: number) => m.chain.some((i) => m.patterns[i]!.tracks[part]!.steps.some((s) => s.notes.length));
     for (let p = 0; p < 8; p++) expect(plays(p), `part ${p + 1}`).toBe(true);
     expect([m.mix['drv.part'], m.mix['cmp.key']]).toEqual([1, 1]);
-    const model = (p: number) => RIG_MACRO_MODELS[m.parts[p]!.a.params['osc3.model']!];
-    expect([model(5), model(6), model(7)]).toEqual(['MODAL', 'CHORDS', 'NOISE']);
+    // the synth parts are the RIG's techno sounds
+    expect([4, 5, 6, 7].map((p) => RIG_PRESETS[m.parts[p]!.slot]!.name)).toEqual(['Techno Bass', 'Metal Hit', 'Techno Stab', 'Noise Sweep']);
+    // and the dub delay is deep in it: the stabs and metal sent hard, feeding back long
+    expect(Math.min(m.mix['p6.a']!, m.mix['p7.a']!)).toBeGreaterThanOrEqual(0.5);
+    expect(m.mix['dub.fdbk']).toBeGreaterThanOrEqual(0.7);
   });
 });
 

@@ -112,4 +112,117 @@ export const RIG_PRESETS: readonly RigPreset[] = [
       'lad.cutoff': 600, 'lad.res': 0.6, 'lad.eg1': 0, 'lfo1.rate': 0.05, 'lfo1.shape': 0,
     }, [{ source: 'lfo1', dest: 'lad.cutoff', amount: 0.3 }]),
   },
+  // ---- techno: short, dry and driven, to sit in a loop with a kick (SCALPEL is built on them)
+  {
+    // a saw and the sub an octave down, the ladder snapping shut in 90 ms, overdriven: a thud with a bark on top
+    name: 'Techno Bass',
+    a: side({
+      'voice.mode': 1, 'osc1.oct': 1, 'osc1.blend': 0.25, 'osc1.sub': 1, 'mix.osc1': 1,
+      drive: 0.7, overdrive: 1, 'lad.cutoff': 90, 'lad.res': 0.35, 'lad.eg1': 0.42, 'filter.key': 0.3,
+      'eg1.a': 0.001, 'eg1.d': 0.09, 'eg1.s': 0, 'eg1.reset': 1,
+      'eg2.a': 0.001, 'eg2.d': 0.18, 'eg2.s': 0, 'eg2.r': 0.05, 'eg2.reset': 1,
+    }, [{ source: 'vel', dest: 'lad.cutoff', amount: 0.12 }]),
+  },
+  {
+    // two pulses at a clashing interval, ring-modulated (XOR), through a resonant band-pass: a clang, gone in 110 ms
+    name: 'Metal Hit',
+    a: side({
+      'mix.osc1': 0, 'mix.noise': 1, 'noise.type': 2, 'osc1.width': 0.3, 'osc2.oct': 3, 'osc2.tune': 5.6, 'osc2.width': 0.55,
+      drive: 0.4, 'lad.cutoff': 14000, 'lad.eg1': 0, 'filter.route': 1, 'sem.bp': 1, 'sem.cutoff': 3200, 'sem.res': 0.55, 'sem.eg1': 0.1,
+      'eg1.d': 0.05, 'eg2.a': 0.001, 'eg2.d': 0.11, 'eg2.s': 0, 'eg2.r': 0.08,
+    }, [{ source: 'rand', dest: 'sem.cutoff', amount: 0.08 }]),
+  },
+  {
+    // Plaits' CHORDS (a minor seventh), the low end high-passed away, the ladder closing fast, driven: for the delay
+    name: 'Techno Stab',
+    a: side({
+      'osc3.mode': 1, 'osc3.model': 6, 'osc3.harm': 0.41, 'osc3.timbre': 0.55, 'osc3.morph': 0.1, 'mix.osc1': 0, 'mix.osc3': 1,
+      drive: 0.7, overdrive: 1, 'lad.cutoff': 900, 'lad.res': 0.2, 'lad.eg1': 0.3, 'filter.route': 1, 'sem.mode': 1, 'sem.cutoff': 250, 'sem.res': 0.2,
+      'eg1.d': 0.12, 'eg2.a': 0.001, 'eg2.d': 0.14, 'eg2.s': 0, 'eg2.r': 0.12,
+    }),
+  },
+  {
+    // white noise into a resonant ladder held shut; the SEQ mod lane (or MOD) opens it
+    name: 'Noise Sweep',
+    a: side({
+      'mix.osc1': 0, 'mix.noise': 1, drive: 0.3, 'lad.cutoff': 200, 'lad.res': 0.55, 'lad.eg1': 0, 'filter.key': 0,
+      'eg2.a': 0.5, 'eg2.s': 1, 'eg2.r': 0.8,
+    }, [{ source: 'seq', dest: 'lad.cutoff', amount: 0.85 }, { source: 'mod', dest: 'lad.cutoff', amount: 0.85 }]),
+  },
+  {
+    // a rolling sixteenth bass that bubbles: a resonant ladder snapping on each note, velocity opening it (the accents
+    // pop), a little glide between notes
+    name: 'Bubbly Bass',
+    a: side({
+      'voice.mode': 2, 'voice.glide': 0.03, 'osc1.blend': 0.3, 'osc1.sub': 1, 'mix.osc1': 1, drive: 0.5,
+      'lad.cutoff': 180, 'lad.res': 0.72, 'lad.eg1': 0.38, 'filter.key': 0.5,
+      'eg1.a': 0.001, 'eg1.d': 0.11, 'eg1.s': 0, 'eg1.reset': 1,
+      'eg2.a': 0.001, 'eg2.d': 0.16, 'eg2.s': 0.25, 'eg2.r': 0.05,
+    }, [{ source: 'vel', dest: 'lad.cutoff', amount: 0.2 }]),
+  },
+  {
+    // a wavetable poly whose envelopes are played: the SEQ mod lane (or MOD) stretches the filter's and the amp's
+    // decay and lifts the sustain, from short stabs at 0 to a lush wash at 1. PPG RESO over a saw and a pulse an
+    // octave down, with a breath of pink noise, overdriven; the ladder held almost shut and a snappy envelope
+    // opening it wide on each note; each note sweeping the table, the table drifting with a slow LFO, a band-pass on
+    // the mids drifting with another; two voices a note, detuned and spread
+    name: 'Table Poly',
+    a: side({
+      // (the oscillators, drive and ladder as the user set them by ear)
+      'mix.osc1': 0.84, 'osc1.width': 0.22, 'osc1.blend': 0.06, 'mix.osc2': 0.37, 'osc2.oct': 1, 'osc2.blend': 0.55, 'osc2.width': 0.66,
+      'mix.osc3': 0.8, 'osc3.table': 0, 'osc3.pos': 0.25, 'mix.noise': 0.18, 'noise.type': 1, drive: 0.74, overdrive: 1,
+      'lad.cutoff': 140, 'lad.res': 0.33, 'lad.eg1': 0.59, 'filter.key': 0.4,
+      'eg1.a': 0.002, 'eg1.d': 0.06, 'eg1.s': 0, 'eg1.r': 0.15, 'eg2.a': 0.002, 'eg2.d': 0.15, 'eg2.s': 0, 'eg2.r': 0.1,
+      'lfo1.rate': 0.11, 'lfo1.retrig': 2, 'voice.unison': 1, 'voice.detune': 0.2, 'panner.mode': 1, 'panner.width': 0.8,
+      // the SEM after the ladder, a band-pass round the mids, drifting a little with its own LFO against the table's
+      'filter.route': 1, 'sem.bp': 1, 'sem.mode': 1, 'sem.cutoff': 940, 'sem.res': 0, 'lfo2.rate': 0.23, 'lfo2.retrig': 2,
+    }, [
+      { source: 'lfo2', dest: 'sem.cutoff', amount: 0.08 }, { source: 'seq', dest: 'sem.cutoff', amount: -0.05 },
+      { source: 'seq', dest: 'eg1.d', amount: 0.45 }, { source: 'seq', dest: 'eg2.d', amount: 0.45 },
+      { source: 'seq', dest: 'eg2.s', amount: 0.6 }, { source: 'seq', dest: 'eg2.r', amount: 0.35 },
+      { source: 'mod', dest: 'eg1.d', amount: 0.45 }, { source: 'mod', dest: 'eg2.d', amount: 0.45 },
+      { source: 'eg1', dest: 'osc3.pos', amount: 0.3 }, { source: 'lfo1', dest: 'osc3.pos', amount: 0.2 },
+      { source: 'vel', dest: 'lad.cutoff', amount: 0.12 },
+    ]),
+  },
+  {
+    // aliased digital blips: PPG DIGI stepped (no interpolation between frames) an octave up, so it aliases; every
+    // note lands on another frame; short and dry, for polyrhythms; a low high-pass (the SEM) breathing under it
+    name: 'Digi Blip',
+    a: side({
+      'mix.osc1': 0, 'mix.osc3': 1, 'osc3.table': 2, 'osc3.interp': 0, 'osc3.oct': 3, 'osc3.pos': 0.4, drive: 0.3,
+      'lad.cutoff': 9000, 'lad.eg1': 0, 'eg2.a': 0.001, 'eg2.d': 0.09, 'eg2.s': 0, 'eg2.r': 0.05,
+      'filter.route': 1, 'sem.mode': 1, 'sem.cutoff': 250, 'sem.res': 0.1, 'lfo2.rate': 0.4, 'lfo2.retrig': 2,
+    }, [
+      { source: 'rand', dest: 'osc3.pos', amount: 0.5 }, { source: 'vel', dest: 'osc3.pos', amount: 0.2 },
+      { source: 'lfo2', dest: 'sem.cutoff', amount: 0.08 },
+    ]),
+  },
+  {
+    // a shaker: noise through a band-pass up high, the beads' soft attack and a short fall; velocity is the hand
+    // (accents louder and brighter), and every shake a little different
+    name: 'Shaker',
+    a: side({
+      'mix.osc1': 0, 'mix.noise': 1, 'lad.cutoff': 20000, 'lad.eg1': 0, 'filter.route': 1, 'sem.bp': 1, 'sem.cutoff': 7000, 'sem.res': 0.2,
+      'filter.key': 0, 'eg2.a': 0.006, 'eg2.d': 0.07, 'eg2.s': 0, 'eg2.r': 0.04,
+    }, [
+      { source: 'vel', dest: 'eg2.level', amount: 0.7 }, { source: 'vel', dest: 'sem.cutoff', amount: 0.06 },
+      { source: 'rand', dest: 'sem.cutoff', amount: 0.04 }, { source: 'rand', dest: 'eg2.d', amount: 0.05 },
+    ]),
+  },
+  {
+    // Mellotron-style strings: two saws a little apart, band-limited like tape (no lows, no highs), a slow bow, and
+    // the tape's wow (0.7 Hz) and flutter (5.8 Hz) on the pitch, free-running so the voices drift apart
+    name: 'Tape Strings',
+    a: side({
+      'osc1.width': 0.3, 'mix.osc1': 0.6, 'mix.osc2': 0.6, 'osc2.width': 0.3, 'osc2.tune': 0.06, 'mix.noise': 0.03, 'noise.type': 1,
+      drive: 0.15, 'lad.cutoff': 4500, 'lad.res': 0.1, 'lad.eg1': 0, 'filter.route': 1, 'sem.mode': 1, 'sem.cutoff': 180,
+      'eg2.a': 0.15, 'eg2.d': 1, 'eg2.s': 0.9, 'eg2.r': 0.45,
+      'lfo1.rate': 5.8, 'lfo1.shape': 0, 'lfo1.retrig': 1, 'lfo2.rate': 0.7, 'lfo2.shape': 0, 'lfo2.retrig': 1,
+      'voice.unison': 1, 'voice.detune': 0.15, 'panner.mode': 1,
+    }, [
+      { source: 'lfo1', dest: 'osc1.tune', amount: 0.002 }, { source: 'lfo1', dest: 'osc2.tune', amount: 0.002 },
+      { source: 'lfo2', dest: 'osc1.tune', amount: 0.003 }, { source: 'lfo2', dest: 'osc2.tune', amount: 0.003 },
+    ]),
+  },
 ];

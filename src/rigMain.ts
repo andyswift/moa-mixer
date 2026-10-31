@@ -101,6 +101,10 @@ const changed = () => {
     store.saveCurrent(rig.toMulti(), multis.slot);
     const sounds = JSON.stringify(rig.savedSounds);
     if (sounds !== soundsSaved) { store.saveSounds(rig.savedSounds); soundsSaved = sounds; }
+    // in dev, mirrored to the server too (see vite.rig.config.ts)
+    if (import.meta.env.DEV) {
+      void fetch('/__rig-state', { method: 'POST', body: JSON.stringify({ multi: rig.toMulti(), sounds: rig.savedSounds }) }).catch(() => {});
+    }
   }, AUTOSAVE_MS);
 };
 rig.onEdit(changed);

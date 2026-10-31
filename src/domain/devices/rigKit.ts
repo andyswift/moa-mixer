@@ -10,6 +10,12 @@ import { DECAY_OFF } from './mpc60';
  */
 export const RIG_PADS = 16;
 export const RIG_FIRST_PAD_NOTE = 36;
+/**
+ * The order the pads are shown in, as a drum machine lays them out: kicks, snares, rim and claps, the toms together,
+ * the hats, the cymbals, the cowbell (as pad indices). The pads keep their General MIDI notes (pad i is note 36 + i,
+ * which is why a GM kit has its toms between its hats), so MIDI and saved patterns play the same sounds.
+ */
+export const RIG_PAD_ORDER: readonly number[] = [0, 11, 2, 4, 1, 3, 14, 5, 7, 9, 6, 8, 10, 13, 15, 12];
 
 export interface RigPad {
   /** Two or three letters, for the pads and the sequencer's lanes. */

@@ -4,7 +4,7 @@ import { ChoiceControl, type Control, NumberControl, ToggleControl } from './con
 import { Device } from './device';
 import type { Playable } from './playable';
 import { RIG_DEFAULTS, RIG_PARAMS, type RigRoute, type RigSide } from './rigParams';
-import { cloneKit, padSoundId, RIG_FIRST_PAD_NOTE, RIG_KITS, RIG_PADS, type RigKit, type RigPad } from './rigKit';
+import { cloneKit, padSoundId, RIG_FIRST_PAD_NOTE, RIG_KITS, RIG_PAD_ORDER, RIG_PADS, type RigKit, type RigPad } from './rigKit';
 import { RIG_MIX_DEFAULTS, RIG_MIX_PARAMS } from './rigMix';
 import { RIG_MULTI_VERSION, type RigMulti } from './rigMulti';
 import { RIG_PRESETS, type RigPreset } from './rigPresets';
@@ -650,17 +650,20 @@ export class RigSynth extends Device implements Playable {
    */
   moveRows(track: number, pads: number[], dir: -1 | 1): number[] {
     const t = this.seq.pattern.tracks[track];
-    const sel = [...new Set(pads)].sort((x, y) => (x - y) * -dir); // the row leading the way moves first
-    if (!t || !sel.length || sel.some((p) => p + dir < 0 || p + dir >= RIG_PADS)) return pads;
-    const row = Array.from({ length: RIG_PADS }, (_, i) => i); // row[i]: the row whose hits end up on pad i
-    for (const p of sel) [row[p], row[p + dir]] = [row[p + dir]!, row[p]!];
-    const to = new Map(row.map((from, i) => [RIG_FIRST_PAD_NOTE + from, RIG_FIRST_PAD_NOTE + i]));
+    // up and down as the rows are shown (RIG_PAD_ORDER), not by pad number
+    const at = (pad: number) => RIG_PAD_ORDER.indexOf(pad);
+    const sel = [...new Set(pads.map(at))].sort((x, y) => (x - y) * -dir); // the row leading the way moves first
+    if (!t || !sel.length || sel.some((q) => q < 0 || q + dir < 0 || q + dir >= RIG_PADS)) return pads;
+    const row = Array.from({ length: RIG_PADS }, (_, q) => q); // row[q]: the row whose hits end up in row q
+    for (const q of sel) [row[q], row[q + dir]] = [row[q + dir]!, row[q]!];
+    const note = (q: number) => RIG_FIRST_PAD_NOTE + RIG_PAD_ORDER[q]!;
+    const to = new Map(row.map((from, q) => [note(from), note(q)]));
     for (const s of t.steps) {
       s.notes = s.notes.map((n) => to.get(n) ?? n);
       if (s.vels) s.vels = Object.fromEntries(Object.entries(s.vels).map(([n, v]) => [to.get(Number(n)) ?? Number(n), v]));
     }
     this.seq.notify();
-    return sel.map((p) => p + dir).sort((x, y) => x - y);
+    return sel.map((q) => RIG_PAD_ORDER[q + dir]!).sort((x, y) => at(x) - at(y));
   }
 
   /** A hit's own velocity, 0..1. */
