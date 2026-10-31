@@ -1,6 +1,7 @@
 import './ui/style.css';
 import './ui/rig.css';
 import { AudioEngine } from './audio/engine';
+import { playClick, RigMetronome } from './audio/rigMetronome';
 import type { RigSynth } from './domain/devices/rigSynth';
 import { MidiClock } from './domain/midi/clock';
 import { Patch } from './domain/patch/patch';
@@ -28,6 +29,8 @@ const kits = { breakKits: RIG_BREAK_KITS.map((k) => k.name), loadBreakKit, sampl
 rig.setSavedSounds(store.loadSounds());
 rig.midiToEdited = store.loadMidiToEdited();
 rig.onPartChange(() => store.saveMidiToEdited(rig.midiToEdited));
+rig.metronome = store.loadMetronome();
+rig.onPartChange(() => store.saveMetronome(rig.metronome));
 const restored = store.loadCurrent();
 if (restored) rig.loadMulti(restored.multi);
 const multis = {
@@ -80,7 +83,9 @@ const shell = renderRigShell(rig, {
 const SCHEDULE_MS = 25;
 rig.now = () => engine.currentTime;
 rig.latency = () => engine.context ? engine.context.outputLatency || engine.context.baseLatency || 0 : 0;
-setInterval(() => rig.seq.schedule(engine.currentTime), SCHEDULE_MS);
+// the metronome clicks on the same clock, straight to the speakers (so not onto the tape)
+const metronome = new RigMetronome(rig.seq, () => rig.metronome, (when, accent) => { if (engine.context) playClick(engine.context, when, accent); });
+setInterval(() => { rig.seq.schedule(engine.currentTime); metronome.schedule(engine.currentTime); }, SCHEDULE_MS);
 const page = mountInstrumentPage({
   id: 'rig', patch, engine, clock, self: '/rig/', panel: shell, chrome: setup,
   ports: [{ device: 'rig', jack: 'out', name: 'MOA-RIG' }],

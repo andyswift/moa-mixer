@@ -74,6 +74,16 @@ export function freshPart(p: number): RigPart {
  * edited part sets the selected step's notes (a chord is the keys held together; with REC the step then moves on).
  * Playing with REC on writes onto the nearest step, gate and all.
  */
+/** A note's length on a step: its own, or the step's gate. */
+export const noteGate = (s: RigStep, note: number): number => s.gates?.[note] ?? s.gate;
+const clampGate = (g: number) => Math.round(Math.max(0.25, Math.min(16, g)) * 100) / 100;
+const clampVelocity = (v: number) => Math.round(Math.max(0.05, Math.min(1, v)) * 100) / 100;
+/** Drops a note's own velocity and length from a step (the note itself already gone). */
+function forgetNote(s: RigStep, note: number): void {
+  if (s.vels) { delete s.vels[note]; if (!Object.keys(s.vels).length) delete s.vels; }
+  if (s.gates) { delete s.gates[note]; if (!Object.keys(s.gates).length) delete s.gates; }
+}
+
 export class RigSynth extends Device implements Playable {
   readonly name: string;
   /** The sounds a part can load: the factory ones, then the ones saved with `saveSound`. */
@@ -364,6 +374,17 @@ export class RigSynth extends Device implements Playable {
     this.notifyParts();
   }
 
+  /** The metronome: a click on each beat while the sequencer plays. A setting of the machine, not of the multi. */
+  get metronome(): boolean {
+    return this.clickOn;
+  }
+
+  set metronome(on: boolean) {
+    this.clickOn = on;
+    this.notifyParts();
+  }
+  private clickOn = false;
+
   /** Called after anything that a multi or the saved sounds keep has changed (for saving). */
   onEdit(fn: () => void): () => void {
     this.editListeners.add(fn);
@@ -583,7 +604,7 @@ export class RigSynth extends Device implements Playable {
       if (!near) return;
       const step = track.steps[near.step]!;
       // a synth's first note held replaces the step; a kit adds its hits, so the drums go in a pass at a time
-      if (!this.takes.size && this.parts[this.editPart]!.kind !== 'kit') { step.notes = []; delete step.vels; }
+      if (!this.takes.size && this.parts[this.editPart]!.kind !== 'kit') { step.notes = []; delete step.vels; delete step.gates; }
       if (!step.notes.includes(note)) step.notes.push(note);
       // each hit keeps its own velocity (a kit's pads recorded over several passes)
       step.vels = { ...step.vels, [note]: velocity };
@@ -594,7 +615,7 @@ export class RigSynth extends Device implements Playable {
       if (this.selStep < 0 && !this.recording) return;
       if (this.selStep < 0) this.selStep = 0;
       const step = track.steps[this.selStep]!;
-      if (this.entryHeld.size === 0) { step.notes = []; delete step.vels; }
+      if (this.entryHeld.size === 0) { step.notes = []; delete step.vels; delete step.gates; }
       this.entryHeld.add(note);
       if (!step.notes.includes(note)) step.notes.push(note);
       step.vel = velocity;
@@ -606,7 +627,10 @@ export class RigSynth extends Device implements Playable {
     const take = this.takes.get(note);
     if (take) {
       this.takes.delete(note);
-      take.step.gate = Math.max(0.25, Math.min(16, Math.round(((this.seq.tickAt(this.heard()) - take.tick) / take.clock) * 4) / 4));
+      // each note held its own length (a chord's notes let go one by one); the step's gate is the last's
+      const gate = Math.max(0.25, Math.min(16, Math.round(((this.seq.tickAt(this.heard()) - take.tick) / take.clock) * 4) / 4));
+      take.step.gate = gate;
+      if (take.step.notes.length > 1 || take.step.gates) take.step.gates = { ...take.step.gates, [note]: gate };
       this.seq.notify();
     }
     if (this.entryHeld.delete(note) && this.entryHeld.size === 0 && this.recording && !this.seq.isPlaying) {
@@ -627,7 +651,7 @@ export class RigSynth extends Device implements Playable {
     if (!s) return;
     if (s.notes.includes(note)) {
       s.notes = s.notes.filter((n) => n !== note);
-      if (s.vels) { delete s.vels[note]; if (!Object.keys(s.vels).length) delete s.vels; }
+      forgetNote(s, note);
     } else s.notes.push(note);
     this.seq.notify();
   }
@@ -639,7 +663,7 @@ export class RigSynth extends Device implements Playable {
     for (const s of t.steps) {
       if (!s.notes.includes(note)) continue;
       s.notes = s.notes.filter((n) => n !== note);
-      if (s.vels) { delete s.vels[note]; if (!Object.keys(s.vels).length) delete s.vels; }
+      forgetNote(s, note);
     }
     this.seq.notify();
   }
@@ -661,6 +685,7 @@ export class RigSynth extends Device implements Playable {
     for (const s of t.steps) {
       s.notes = s.notes.map((n) => to.get(n) ?? n);
       if (s.vels) s.vels = Object.fromEntries(Object.entries(s.vels).map(([n, v]) => [to.get(Number(n)) ?? Number(n), v]));
+      if (s.gates) s.gates = Object.fromEntries(Object.entries(s.gates).map(([n, g]) => [to.get(Number(n)) ?? Number(n), g]));
     }
     this.seq.notify();
     return sel.map((q) => RIG_PAD_ORDER[q + dir]!).sort((x, y) => at(x) - at(y));
@@ -670,7 +695,7 @@ export class RigSynth extends Device implements Playable {
   setHitVelocity(track: number, step: number, note: number, velocity: number): void {
     const s = this.seq.pattern.tracks[track]?.steps[step];
     if (!s?.notes.includes(note)) return;
-    s.vels = { ...s.vels, [note]: Math.round(Math.max(0.05, Math.min(1, velocity)) * 100) / 100 };
+    s.vels = { ...s.vels, [note]: clampVelocity(velocity) };
     this.seq.notify();
   }
 
@@ -683,6 +708,50 @@ export class RigSynth extends Device implements Playable {
     if (!by) return;
     s.notes = s.notes.map((n) => n + by);
     if (s.vels) s.vels = Object.fromEntries(Object.entries(s.vels).map(([n, v]) => [Number(n) + by, v]));
+    if (s.gates) s.gates = Object.fromEntries(Object.entries(s.gates).map(([n, g]) => [Number(n) + by, g]));
+    this.seq.notify();
+  }
+
+  // ---- the piano roll: notes with their own lengths and velocities
+
+  /** Puts a note on a step, its own length (steps) and velocity (0..1); a note already there takes them. */
+  addNote(track: number, step: number, note: number, gate: number, velocity?: number): void {
+    const s = this.seq.pattern.tracks[track]?.steps[step];
+    if (!s || note < 0 || note > 127) return;
+    if (!s.notes.includes(note)) s.notes.push(note);
+    s.gates = { ...s.gates, [note]: clampGate(gate) };
+    if (velocity !== undefined) s.vels = { ...s.vels, [note]: clampVelocity(velocity) };
+    this.seq.notify();
+  }
+
+  /** Takes a note off a step. */
+  removeNote(track: number, step: number, note: number): void {
+    const s = this.seq.pattern.tracks[track]?.steps[step];
+    if (!s?.notes.includes(note)) return;
+    s.notes = s.notes.filter((n) => n !== note);
+    forgetNote(s, note);
+    this.seq.notify();
+  }
+
+  /** A note's own length, in steps (0.25 to 16). */
+  setNoteGate(track: number, step: number, note: number, gate: number): void {
+    const s = this.seq.pattern.tracks[track]?.steps[step];
+    if (!s?.notes.includes(note)) return;
+    s.gates = { ...s.gates, [note]: clampGate(gate) };
+    this.seq.notify();
+  }
+
+  /** Moves a note to another step and pitch, with its length and velocity; onto a note already there, it replaces it. */
+  moveNote(track: number, step: number, note: number, toStep: number, toNote: number): void {
+    const t = this.seq.pattern.tracks[track];
+    const s = t?.steps[step], d = t?.steps[toStep];
+    if (!s?.notes.includes(note) || !d || toNote < 0 || toNote > 127 || (step === toStep && note === toNote)) return;
+    const gate = noteGate(s, note), velocity = s.vels?.[note] ?? s.vel;
+    s.notes = s.notes.filter((n) => n !== note);
+    forgetNote(s, note);
+    if (!d.notes.includes(toNote)) d.notes.push(toNote);
+    d.gates = { ...d.gates, [toNote]: gate };
+    d.vels = { ...d.vels, [toNote]: velocity };
     this.seq.notify();
   }
 

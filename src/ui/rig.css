@@ -199,7 +199,7 @@ body:has(.rig-shell) { background: #1b1c1f; }
 .rig-routes { max-height: 84px; overflow: auto; }
 
 /* SEQUENCER: the lanes, then the drum grid and the step editor side by side */
-.rig-pages > .rig-seq { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto 1fr; gap: 6px; }
+.rig-pages > .rig-seq { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto auto 1fr; gap: 6px; }
 .rig-pages > .rig-seq[hidden] { display: none; }
 .rig-pages > .rig-seq > .rig-seq-bar, .rig-pages > .rig-seq > .rig-seq-lanes { grid-column: 1 / -1; }
 .rig-pages > .rig-seq .rig-seq-lane { padding: 1px 4px; }
@@ -207,7 +207,8 @@ body:has(.rig-shell) { background: #1b1c1f; }
 .rig-pages > .rig-seq .rig-seq-lanes { gap: 2px; }
 .rig-pages > .rig-seq .rig-drum-grid { grid-column: 1; }
 .rig-pages > .rig-seq .rig-seq-step { grid-column: 2; align-self: start; }
-.rig-pages > .rig-seq .rig-drum-grid[hidden] + .rig-seq-step { grid-column: 1 / -1; }
+.rig-pages > .rig-seq .rig-piano-roll { grid-column: 1 / -1; align-self: start; }
+.rig-pages > .rig-seq .rig-piano-roll:not([hidden]) + .rig-seq-step { grid-column: 1 / -1; }
 .rig-pages > .rig-seq .rig-drum-rows { gap: 1px; }
 .rig-pages > .rig-seq .rig-drum-cell, .rig-pages > .rig-seq .rig-drum-name { height: 15px; }
 .rig-pages > .rig-seq .rig-drum-name { font-size: 10.5px; }
@@ -259,3 +260,28 @@ body:has(.rig-shell) { background: #1b1c1f; }
 .rig-tape.recording .rig-tape-status { color: #ff4a32; animation: rig-tape-blink 1s steps(2) infinite; }
 @keyframes rig-tape-blink { 50% { opacity: 0.35; } }
 .rig-header .rig-tape-button { width: auto; height: 28px; padding: 0 10px; --rig-accent: #ff4a32; font-family: 'Share Tech Mono', ui-monospace, monospace; }
+
+/* the piano roll: keys down the side, the steps across, notes as long as they last */
+.rig-piano-roll { --rig-accent: #d6ef6a; }
+.rig-roll-view { display: grid; grid-template-columns: 46px minmax(0, 1fr); height: 312px; overflow-y: auto; border-radius: 4px; background: #2a2b2f; }
+.rig-roll-keys { display: flex; flex-direction: column; }
+.rig-roll-key { flex: none; height: 12px; padding: 0 4px; border: 0; border-bottom: 1px solid #b9bab5; background: #e9e9e4; color: #1b1c1f; font: 600 8.5px/11px 'Share Tech Mono', ui-monospace, monospace; text-align: right; cursor: pointer; }
+.rig-roll-key.black { background: #1b1c1f; color: #e9e9e4; border-bottom-color: #000; }
+.rig-roll-grid { position: relative; cursor: crosshair; touch-action: none; user-select: none;
+  background-image: repeating-linear-gradient(to right, rgba(255, 255, 255, 0.2) 0 1px, transparent 1px calc(400% / var(--steps, 16))),
+    repeating-linear-gradient(to right, rgba(255, 255, 255, 0.07) 0 1px, transparent 1px calc(100% / var(--steps, 16))); }
+.rig-roll-lines { position: absolute; inset: 0; display: flex; flex-direction: column; pointer-events: none; }
+.rig-roll-row { flex: none; height: 12px; box-sizing: border-box; border-bottom: 1px solid rgba(0, 0, 0, 0.25); }
+.rig-roll-row.black { background: rgba(0, 0, 0, 0.2); }
+.rig-roll-row.c { border-bottom-color: rgba(255, 255, 255, 0.2); }
+.rig-roll-notes { position: absolute; inset: 0; }
+.rig-roll-note { position: absolute; height: 11px; box-sizing: border-box; border-radius: 2px; cursor: grab;
+  background: color-mix(in srgb, #d6ef6a calc(35% + var(--vel, 0.8) * 65%), #34363a); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); }
+.rig-roll-note.selected { box-shadow: inset 0 0 0 2px #fff, 0 0 6px rgba(255, 255, 255, 0.5); z-index: 1; }
+.rig-roll-grid.draw { cursor: copy; }
+.rig-roll-box { position: absolute; border: 1px dashed #fff; background: rgba(255, 255, 255, 0.08); pointer-events: none; z-index: 2; }
+.rig-roll-tools { flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 4px; }
+.rig-roll-tool.on { background: #d6ef6a; color: #1b1c1f; }
+.rig-roll-tool:disabled { opacity: 0.4; cursor: default; }
+.rig-roll-edge { position: absolute; top: 0; right: 0; bottom: 0; width: 6px; cursor: ew-resize; }
+.rig-roll-playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #ff8466; pointer-events: none; }

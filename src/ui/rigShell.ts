@@ -251,8 +251,10 @@ export function renderRigDetail(rig: RigSynth, analyser: () => AnalyserNode | un
   play.addEventListener('click', () => (rig.seq.isPlaying ? rig.stop() : rig.play()));
   const rec = button('rig-key rig-wide rig-seq-rec', 'REC');
   rec.addEventListener('click', () => rig.setRecording(!rig.isRecording));
+  const click = button('rig-key rig-wide rig-seq-click', 'CLICK', 'Metronome: a click on each beat while playing');
+  click.addEventListener('click', () => { rig.metronome = !rig.metronome; });
   const transport = el('div', 'rig-field');
-  transport.append(play, rec);
+  transport.append(play, rec, click);
   pats.append(patTitle, pads, transport);
   col.append(scopeBox, facts, pats, ...below);
 
@@ -277,6 +279,7 @@ export function renderRigDetail(rig: RigSynth, analyser: () => AnalyserNode | un
     play.textContent = rig.seq.isPlaying ? 'STOP' : 'PLAY';
     play.classList.toggle('on', rig.seq.isPlaying);
     rec.classList.toggle('on', rig.isRecording);
+    click.classList.toggle('on', rig.metronome);
   }
   rig.onPartChange(sync);
   rig.onEdit(sync);

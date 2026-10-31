@@ -64,3 +64,8 @@ const MIDI_TO_EDITED_KEY = 'moa-rig.midiToEdited';
 /** Whether MIDI plays the edited part (a setting of the machine, kept apart from the multis). */
 export const loadMidiToEdited = (): boolean => get(MIDI_TO_EDITED_KEY) === true;
 export const saveMidiToEdited = (on: boolean): boolean => put(MIDI_TO_EDITED_KEY, on);
+
+const METRONOME_KEY = 'moa-rig.metronome';
+/** Whether the metronome clicks (a setting of the machine). */
+export const loadMetronome = (): boolean => get(METRONOME_KEY) === true;
+export const saveMetronome = (on: boolean): boolean => put(METRONOME_KEY, on);

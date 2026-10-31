@@ -55,6 +55,21 @@ describe('MOA-RIG sequencer', () => {
     expect(offs.get(48)!).toBeGreaterThan(3); // still held when 50 starts: a legato part slides
   });
 
+  it('lets each note of a step go after its own length, where it has one (the piano roll), else the step\'s gate', () => {
+    const { seq, ev } = make();
+    const t = seq.pattern.tracks[0]!;
+    t.length = 16;
+    t.steps[0]!.notes = [60, 64, 67];
+    t.steps[0]!.gate = 1;
+    t.steps[0]!.gates = { 60: 4, 67: 2 };
+    seq.play(0);
+    runFor(seq, 0, 1);
+    const offAt = (note: number) => +(((ev.find((e) => e.type === 'off' && e.note === note)!.when! - START) / 0.125)).toFixed(2);
+    expect(offAt(60)).toBeCloseTo(4, 1);
+    expect(offAt(67)).toBeCloseTo(2, 1);
+    expect(offAt(64)).toBeCloseTo(1, 1);
+  });
+
   it('lets go of a note held over from an earlier step before playing it again', () => {
     const { seq, ev } = make();
     const t = seq.pattern.tracks[0]!;

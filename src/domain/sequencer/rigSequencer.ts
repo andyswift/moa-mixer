@@ -35,6 +35,8 @@ export interface RigStep {
   vel: number;
   /** A note's own velocity, where it has one (a kit's hits: a ghost snare beside an accented kick). */
   vels?: Record<number, number>;
+  /** A note's own length in steps, where it has one (the piano roll's notes); otherwise the step's gate. */
+  gates?: Record<number, number>;
   /** How long the notes last, in steps: 1 is the whole step, more ties into the steps after. */
   gate: number;
   /** Chance the step plays, 0..1. */
@@ -308,8 +310,8 @@ export class RigSequencer {
         }
         const audible = !t.muted && (!solo || t.solo) && !this.skip.delete(`${part}:${idx}`);
         if (audible && step.notes.length && this.random() < step.prob * t.prob) {
-          const end = tick + Math.max(1, Math.min(MAX_GATE, step.gate) * t.clock - 1);
           for (const note of step.notes) {
+            const end = tick + Math.max(1, Math.min(MAX_GATE, step.gates?.[note] ?? step.gate) * t.clock - 1);
             // the same note still held from an earlier step is let go first, so its off does not cut this one
             const held = run.offs.findIndex((o) => o.note === note);
             if (held >= 0) { run.offs.splice(held, 1); this.sendOff(part, run, note, when); }

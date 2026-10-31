@@ -129,6 +129,11 @@ function sanitiseStep(raw: unknown): RigStep {
     for (const [n, v] of Object.entries(raw.vels)) if (s.notes.includes(Number(n))) vels[Number(n)] = num(v, 0, 1, s.vel);
     if (Object.keys(vels).length) s.vels = vels;
   }
+  if (isObject(raw.gates)) {
+    const gates: Record<number, number> = {};
+    for (const [n, g] of Object.entries(raw.gates)) if (s.notes.includes(Number(n))) gates[Number(n)] = num(g, 0.1, 16, s.gate);
+    if (Object.keys(gates).length) s.gates = gates;
+  }
   return s;
 }
 
