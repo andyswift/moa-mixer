@@ -103,6 +103,15 @@ export function renderRigMixPanel(rig: RigSynth, meters: () => RigMeters | undef
     return { sec, title, sub };
   };
   const parts = Array.from({ length: RIG_MIX_PARTS }, (_, p) => strip(`p${p + 1}`, LIME, false));
+  // a click on a part's strip (not on its controls) makes it the edited part: MIDI follows it, with MIDI → EDITED PART
+  parts.forEach(({ sec }, p) => {
+    sec.classList.add('rig-strip-part');
+    sec.title = `Part ${p + 1}: click to play and edit it`;
+    sec.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('.knob-wrap, .rig-fader, button, input, select, label')) return;
+      rig.selectPart(p);
+    });
+  });
   const returns = RIG_RETURNS.map((r, i) => {
     const s = strip(`r${r}`, BLUE, true);
     s.sec.classList.add('rig-return');
@@ -117,7 +126,11 @@ export function renderRigMixPanel(rig: RigSynth, meters: () => RigMeters | undef
   meterEls.push(masterFader.meters);
   const peakField = el('div', 'rig-field');
   peakField.append(el('span', 'knob-label', 'PEAK'), peak);
+  // the tape is the master's own: driven, its tone, its transport's wow
+  const tapeKnob = (id: string, label: string) => renderKnob(d(id) as NumberControl, 'Master', label, 22);
+  const tapeRow = (...nodes: HTMLElement[]) => { const r = el('div', 'rig-strip-row'); r.append(...nodes); return r; };
   master.append(el('h3', 'rig-title', 'MASTER'), el('div', 'rig-strip-sub', 'OUT'),
+    el('div', 'rig-strip-label', 'TAPE'), tapeRow(tapeKnob('tape.drive', 'DRIVE'), tapeKnob('tape.tone', 'TONE')), tapeRow(tapeKnob('tape.wow', 'WOW')),
     renderToggle(d('master.limit') as ToggleControl, 'Master'), peakField, masterFader.node);
   desk.append(master);
 
@@ -155,7 +168,6 @@ export function renderRigMixPanel(rig: RigSynth, meters: () => RigMeters | undef
   const grField = el('div', 'rig-field');
   grField.append(el('span', 'knob-label', 'GR'), gr);
   module('COMPRESSOR', 'MASTER · SIDECHAIN', WHITE, ['cmp.thresh', 'cmp.ratio', 'cmp.atk', 'cmp.rel', 'cmp.makeup', 'cmp.mix', 'cmp.key', 'cmp.hpf'], [grField]);
-  module('TAPE', 'MASTER · SATURATION', WHITE, ['tape.drive', 'tape.tone', 'tape.wow']);
 
   function sync(): void {
     bankButtons.forEach((b, i) => b.classList.toggle('on', i === bank));
@@ -164,6 +176,7 @@ export function renderRigMixPanel(rig: RigSynth, meters: () => RigMeters | undef
       s.sec.hidden = Math.floor(p / BANK) !== bank;
       s.sec.style.setProperty('--rig-accent', pt.kind === 'kit' ? PINK : LIME);
       s.title.textContent = `P${p + 1}`;
+      s.sec.classList.toggle('selected', p === rig.part);
       s.sub.textContent = pt.voices > 0 || pt.kind === 'kit' ? (pt.name || 'PART').toUpperCase() : 'EMPTY';
     });
   }
