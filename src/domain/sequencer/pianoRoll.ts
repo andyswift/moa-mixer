@@ -50,16 +50,21 @@ export function writeNotes(t: RigTrack, notes: RollNote[]): void {
 
 /**
  * Moves the selected notes by steps and semitones, together: as far as the furthest of them can go (none leaves the
- * track or the keyboard). With `copy`, the originals stay. Returns the notes and the moved ones' new keys.
+ * track or the keyboard). With `copy`, the originals stay. With `order` (the rows' pitches, lowest row first, as a
+ * kit's pads are laid out), up and down go by rows of it instead of semitones. Returns the notes and the moved ones' new keys.
  */
-export function moveNotes(notes: RollNote[], selected: Set<string>, steps: number, semitones: number, length: number, copy = false) {
+export function moveNotes(notes: RollNote[], selected: Set<string>, steps: number, semitones: number, length: number, copy = false, order?: number[]) {
   const sel = notes.filter((n) => selected.has(rollKey(n)));
   if (!sel.length) return { notes, selected };
   const minStep = Math.min(...sel.map((n) => n.step)), maxStep = Math.max(...sel.map((n) => n.step));
-  const lo = Math.min(...sel.map((n) => n.note)), hi = Math.max(...sel.map((n) => n.note));
+  const at = order ? (n: number) => order.indexOf(n) : (n: number) => n;
+  const top = order ? order.length - 1 : 127;
+  if (order && sel.some((n) => at(n.note) < 0)) return { notes, selected };
+  const lo = Math.min(...sel.map((n) => at(n.note))), hi = Math.max(...sel.map((n) => at(n.note)));
   const ds = Math.max(-minStep, Math.min(length - 1 - maxStep, Math.round(steps)));
-  const dn = Math.max(-lo, Math.min(127 - hi, Math.round(semitones)));
-  const moved = sel.map((n) => ({ ...n, step: n.step + ds, note: n.note + dn }));
+  const dn = Math.max(-lo, Math.min(top - hi, Math.round(semitones)));
+  const to = order ? (n: number) => order[at(n) + dn]! : (n: number) => n + dn;
+  const moved = sel.map((n) => ({ ...n, step: n.step + ds, note: to(n.note) }));
   const movedKeys = new Set(moved.map(rollKey));
   const rest = notes.filter((n) => (copy || !selected.has(rollKey(n))) && !movedKeys.has(rollKey(n)));
   return { notes: [...rest, ...moved], selected: movedKeys };
@@ -100,9 +105,9 @@ export function pasteNotes(notes: RollNote[], clip: RollClip, at: number, length
   return { notes: [...notes.filter((n) => !keys.has(rollKey(n))), ...pasted], selected: keys };
 }
 
-/** The notes inside a box of steps (from, to: where they start) and pitches (lo..hi). */
-export function notesIn(notes: RollNote[], from: number, to: number, lo: number, hi: number): Set<string> {
-  return new Set(notes.filter((n) => n.step + n.gate > from && n.step <= to && n.note >= lo && n.note <= hi).map(rollKey));
+/** The notes inside a box of steps (from, to: sounding there) and rows (their pitches). */
+export function notesIn(notes: RollNote[], from: number, to: number, pitches: number[]): Set<string> {
+  return new Set(notes.filter((n) => n.step + n.gate > from && n.step <= to && pitches.includes(n.note)).map(rollKey));
 }
 
 /** Every note of some pitches. */

@@ -161,69 +161,10 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
     changed();
   }
 
-  // ---- the drum grid: a kit's pads down, the steps across; click a cell for a hit, the wheel over one for its velocity
-  const drums = el('section', 'rig-section rig-drum-grid');
-  drums.style.setProperty('--rig-accent', '#ffa3c7');
-  const drumTitle = el('h3', 'rig-title');
-  const drumRows = el('div', 'rig-drum-rows');
-  const drumRow = Array.from({ length: 16 }, (_, pad) => {
-    const row = el('div', 'rig-drum-row');
-    const note = RIG_FIRST_PAD_NOTE + pad;
-    const name = button('rig-drum-name', '', `Hear pad ${pad + 1}`);
-    name.addEventListener('pointerdown', (e) => { pickRow(pad, e); rig.audition(note, true); });
-    for (const ev of ['pointerup', 'pointerleave'] as const) name.addEventListener(ev, () => rig.audition(note, false));
-    const cells = Array.from({ length: PAGE }, (_, c) => {
-      const b = button('rig-seq-cell rig-drum-cell', '');
-      b.addEventListener('click', () => {
-        const i = page * PAGE + c;
-        selectRows([pad]);
-        if (i < track().length) rig.toggleHit(rig.part, i, note);
-      });
-      b.addEventListener('wheel', (e) => {
-        const st = track().steps[page * PAGE + c];
-        if (!st?.notes.includes(note)) return;
-        e.preventDefault();
-        const v = st.vels?.[note] ?? st.vel;
-        rig.setHitVelocity(rig.part, page * PAGE + c, note, v + Math.sign(-e.deltaY) * 0.05);
-      }, { passive: false });
-      return b;
-    });
-    const steps = el('div', 'rig-seq-cells');
-    steps.append(...cells);
-    row.append(name, steps);
-    return { row, name, cells };
-  });
-  // the rows in a drum machine's order (each pad keeps its note)
-  drumRows.append(...RIG_PAD_ORDER.map((pad) => drumRow[pad]!.row));
-  drums.append(drumTitle, drumRows, el('p', 'rig-seq-hint', 'Click a cell to put a hit in or take it out. Mouse wheel over a hit: its velocity (brighter is harder). Press a pad’s name to hear it and select its row (shift or ⌘ for more rows). Backspace clears the selected rows; ↑ ↓ move them (a row they pass swaps past, it is not overwritten). Space starts and stops.'));
-  let drumLit = -1;
-  /** The selected rows (pads): Backspace or Delete clears their hits, up and down move them. */
-  let drumSel: number[] = [];
-  let drumPart = -1;
-  const selectRows = (pads: number[]) => {
-    drumSel = pads;
-    drumRow.forEach((r, k) => r.row.classList.toggle('selected', pads.includes(k)));
-  };
-  /** A click picks a row; with shift or cmd/ctrl it adds the row to the selection (or takes it out). */
-  const pickRow = (pad: number, e: MouseEvent | PointerEvent) => {
-    if (e.shiftKey || e.metaKey || e.ctrlKey) selectRows(drumSel.includes(pad) ? drumSel.filter((p) => p !== pad) : [...drumSel, pad]);
-    else selectRows([pad]);
-  };
   const typing = (e: KeyboardEvent) => {
     const t = e.target as HTMLElement | null;
     return !!t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
   };
-  // on the page, as Safari does not focus a clicked button; not while typing in a field
-  document.addEventListener('keydown', (e) => {
-    if (e.defaultPrevented || !drumSel.length || drums.hidden || typing(e)) return;
-    if (e.key === 'Backspace' || e.key === 'Delete') {
-      e.preventDefault();
-      for (const pad of drumSel) rig.clearHits(rig.part, RIG_FIRST_PAD_NOTE + pad);
-    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      selectRows(rig.moveRows(rig.part, drumSel, e.key === 'ArrowUp' ? -1 : 1));
-    }
-  });
   // space starts and stops the sequencer (not on a key of the keyboard bed, which plays it, nor in a field)
   let spaceHandled = false;
   document.addEventListener('keydown', (e) => {
@@ -238,7 +179,11 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   // ---- the piano roll: a synth part's notes, pitch up the side and the track's steps across, each note as long as it
   // lasts. Edits go on a selection, as in a DAW: pick notes (a click, shift-click, a box dragged round them, a key of
   // the keyboard for every note of its pitch, ⌘A), then move, stretch, copy or delete them together; ⌘Z takes it back.
-  const ROLL_LO = 24, ROLL_HI = 108, ROW = 12; // C1 to C8
+  // A kit's part gets the same roll as a drum roll: its pads down the side (in a drum machine's order), its hits a step
+  // wide, DRAW on to start (a click puts a hit in or takes it out, a drag paints along the row).
+  const ROLL_LO = 24, ROLL_HI = 108, ROW = 12, PAD_ROW = 20; // C1 to C8
+  /** A kit's rows, top first: its pads as a drum machine lays them out. */
+  const PAD_ROWS = RIG_PAD_ORDER.map((pad) => RIG_FIRST_PAD_NOTE + pad);
   const roll = el('section', 'rig-section rig-piano-roll');
   const rollTitle = el('h3', 'rig-title');
   const rollView = el('div', 'rig-roll-view');
@@ -261,13 +206,28 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   const selInfo = el('span', 'rig-readout');
   const rollTools = el('div', 'rig-field rig-roll-tools');
   rollTools.append(drawBtn, foldBtn, dupBtn, delBtn, undoBtn, redoBtn, selInfo);
-  roll.append(rollTitle, rollTools, rollView, el('p', 'rig-seq-hint',
-    'Select: click a note (shift: more), drag a box round notes, click a key for every note of its pitch, ⌘A for all, Esc for none. '
+  const rollHint = el('p', 'rig-seq-hint');
+  roll.append(rollTitle, rollTools, rollView, rollHint);
+  const NOTE_HINT = 'Select: click a note (shift: more), drag a box round notes, click a key for every note of its pitch, ⌘A for all, Esc for none. '
     + 'Drag the selection to move it (alt: a copy), its right edge to lengthen it; ← → a step, ↑ ↓ a semitone (shift: an octave; shift ← →: length); '
     + 'the wheel over it is its velocity. Double-click: a note in, or a note out. ⌘C ⌘X ⌘V (where you last clicked), ⌘D duplicates, ⌫ deletes, ⌘Z / ⇧⌘Z undo and redo. '
-    + 'DRAW (B): a click puts a note in.'));
+    + 'DRAW (B): a click puts a note in.';
+  const KIT_HINT = 'DRAW (B): click a cell for a hit or to take one out; drag along a row to paint hits (or rub them out). '
+    + 'Press a pad’s name to hear it and select its hits (shift: more pads); ↑ ↓ then move whole rows (a row they pass swaps past). '
+    + 'DRAW off: click a hit (shift: more), drag a box round hits, ⌘A, Esc; drag the selection to move it (alt: a copy); ← → a step, ↑ ↓ a pad. '
+    + 'Wheel over a hit (or the selection): velocity. ⌘C ⌘X ⌘V, ⌘D duplicates, ⌫ deletes, ⌘Z / ⇧⌘Z undo and redo.';
 
-  let draw = false, fold = false;
+  let draw = false, drawKit = true, fold = false;
+  const isKit = () => rig.parts[rig.part]!.kind === 'kit';
+  const drawing = () => (isKit() ? drawKit : draw);
+  const toggleDraw = () => { if (isKit()) drawKit = !drawKit; else draw = !draw; drawRoll(); };
+  /** Up and down go by these rows (lowest first) on a kit; by semitones (undefined) on a synth. */
+  const order = () => (isKit() ? [...PAD_ROWS].reverse() : undefined);
+  /** A kit's hits show (and are picked) a step wide, whatever their gate. */
+  const shown = (notes: RollNote[]) => (isKit() ? notes.map((n) => ({ ...n, gate: 1 })) : notes);
+  /** Pads picked by their names: while the selection is all their hits, ↑ ↓ swap the rows (as a drum machine does). */
+  let rowSel: number[] = [];
+  let rowH = ROW, rowsSig = '';
   let selected = new Set<string>();
   let clip: RollClip | undefined;
   let insertAt = -1; // where a paste goes: where the grid was last clicked (a step), or after what was copied
@@ -297,6 +257,7 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
     if (!notes) return;
     to.push(notesNow());
     selected = new Set();
+    rowSel = [];
     apply(notes);
   };
   let heard = -1;
@@ -306,7 +267,7 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   const rollAt = (e: MouseEvent) => {
     const r = rollGrid.getBoundingClientRect();
     const x = Math.min(0.9999, Math.max(0, (e.clientX - r.left) / r.width)) * track().length;
-    const row = Math.min(pitches.length - 1, Math.max(0, Math.floor((e.clientY - r.top) / ROW)));
+    const row = Math.min(pitches.length - 1, Math.max(0, Math.floor((e.clientY - r.top) / rowH)));
     return { x, step: Math.floor(x), note: pitches[row] ?? 60, row };
   };
   const noteAt = (e: Event) => {
@@ -322,7 +283,8 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   type Drag =
     | { mode: 'move'; x0: number; row0: number; note0: number; before: RollNote[]; sel: Set<string>; copy: boolean; moved: boolean; key: string }
     | { mode: 'length'; x0: number; before: RollNote[]; sel: Set<string>; moved: boolean; drawn: boolean }
-    | { mode: 'box'; x0: number; y0: number; base: Set<string>; notes: RollNote[] };
+    | { mode: 'box'; x0: number; y0: number; base: Set<string>; notes: RollNote[] }
+    | { mode: 'paint'; note: number; on: boolean; last: number; before: RollNote[] };
   let drag: Drag | undefined;
   document.addEventListener('pointerdown', (e) => { rollActive = roll.contains(e.target as Node); }, true);
   // a double-click, told by hand: the browser's needs both clicks on one element, and the first click redraws the notes
@@ -335,16 +297,24 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   rollGrid.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     const at = rollAt(e), hit = noteAt(e);
-    if (doubleClick(e) && !draw && !e.shiftKey) {
+    rowSel = [];
+    if (doubleClick(e) && !drawing() && !e.shiftKey) {
       // a note out, or (on an empty place) a note in
       drag = undefined;
-      const under = notesNow().find((n) => n.note === at.note && at.x >= n.step && at.x < n.step + Math.max(n.gate, 0.25));
+      const under = shown(notesNow()).find((n) => n.note === at.note && at.x >= n.step && at.x < n.step + Math.max(n.gate, 0.25));
       if (under) { const before = notesNow(); commit(before, deleteNotes(before, new Set([rollKey(under)])), new Set()); }
       else addAt(at.step, at.note);
       return;
     }
     rollGrid.setPointerCapture(e.pointerId);
-    if (hit) {
+    if (isKit() && drawKit && !e.shiftKey) {
+      // a hit in or out, and on along the row as the pointer goes
+      insertAt = at.step;
+      const before = notesNow(), on = !before.some((n) => n.step === at.step && n.note === at.note);
+      drag = { mode: 'paint', note: at.note, on, last: at.step, before };
+      paint(at.step, at.step);
+      if (on) hear(at.note);
+    } else if (hit) {
       const key = rollKey(hit);
       if (e.shiftKey && !hit.edge) {
         // shift: in or out of the selection
@@ -362,7 +332,7 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
       }
       rig.selectStep(rig.part, hit.step);
       drawRoll();
-    } else if (draw) {
+    } else if (draw && !isKit()) {
       insertAt = at.step;
       addAt(at.step, at.note);
       hear(at.note);
@@ -371,23 +341,35 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
       // a box round notes, from here
       insertAt = at.step;
       const r = rollGrid.getBoundingClientRect();
-      drag = { mode: 'box', x0: e.clientX - r.left, y0: e.clientY - r.top, base: e.shiftKey ? selected : new Set(), notes: notesNow() };
+      drag = { mode: 'box', x0: e.clientX - r.left, y0: e.clientY - r.top, base: e.shiftKey ? selected : new Set(), notes: shown(notesNow()) };
       if (!e.shiftKey) { selected = new Set(); drawRoll(); }
     }
   });
+  /** Puts hits in (or takes them out) along the painted row, from one step to another. */
+  const paint = (from: number, to: number) => {
+    if (drag?.mode !== 'paint') return;
+    const { note, on } = drag, steps = new Set<number>();
+    for (let i = Math.min(from, to); i <= Math.max(from, to); i++) steps.add(i);
+    const rest = notesNow().filter((n) => !(n.note === note && steps.has(n.step)));
+    const t = track();
+    apply(on ? [...rest, ...[...steps].map((step) => ({ step, note, gate: t.steps[step]?.gate ?? 1, vel: t.steps[step]?.vel ?? 0.8 }))] : rest);
+  };
   rollGrid.addEventListener('pointermove', (e) => {
     if (!drag) return;
     const at = rollAt(e);
-    if (drag.mode === 'move') {
+    if (drag.mode === 'paint') {
+      if (at.step !== drag.last) { paint(drag.last, at.step); drag.last = at.step; }
+    } else if (drag.mode === 'move') {
       const ds = Math.round(at.x - drag.x0);
-      // up and down by rows: folded, a row is the next pitch that has notes
+      // up and down by rows: folded, a row is the next pitch that has notes; on a kit, a row is a pad
       const target = pitches[Math.min(pitches.length - 1, Math.max(0, at.row))] ?? drag.note0;
-      const dn = fold ? target - drag.note0 : drag.row0 - at.row;
+      const ord = order();
+      const dn = ord ? ord.indexOf(target) - ord.indexOf(drag.note0) : fold ? target - drag.note0 : drag.row0 - at.row;
       if (!ds && !dn && !drag.moved) return;
-      const r = moveNotes(drag.before, drag.sel, ds, dn, track().length, drag.copy);
+      const r = moveNotes(drag.before, drag.sel, ds, dn, track().length, drag.copy, ord);
       drag.moved = true;
       apply(r.notes, r.selected);
-      hear(drag.note0 + dn);
+      hear(ord ? target : drag.note0 + dn);
     } else if (drag.mode === 'length') {
       const by = Math.round((at.x - drag.x0) * 4) / 4;
       if (!by && !drag.moved) return;
@@ -402,16 +384,15 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
       Object.assign(rollBox.style, { left: `${left}px`, top: `${top}px`, width: `${Math.abs(x - drag.x0)}px`, height: `${Math.abs(y - drag.y0)}px` });
       rollBox.hidden = false;
       const len = track().length, stepOf = (px: number) => (px / r.width) * len;
-      const rowA = Math.max(0, Math.floor(top / ROW)), rowB = Math.min(pitches.length - 1, Math.floor((top + Math.abs(y - drag.y0)) / ROW));
-      const hi = pitches[rowA] ?? 127, lo = pitches[rowB] ?? 0;
-      const inBox = notesIn(drag.notes, stepOf(left), stepOf(left + Math.abs(x - drag.x0)), lo, hi);
+      const rowA = Math.max(0, Math.floor(top / rowH)), rowB = Math.min(pitches.length - 1, Math.floor((top + Math.abs(y - drag.y0)) / rowH));
+      const inBox = notesIn(drag.notes, stepOf(left), stepOf(left + Math.abs(x - drag.x0)), pitches.slice(rowA, rowB + 1));
       selected = new Set([...drag.base, ...inBox]);
       drawRoll();
     }
   });
   const endDrag = () => {
     if (!drag) return;
-    if ((drag.mode === 'move' || drag.mode === 'length') && drag.moved) {
+    if (drag.mode === 'paint' || ((drag.mode === 'move' || drag.mode === 'length') && drag.moved)) {
       const h = hist();
       if (!(drag.mode === 'length' && drag.drawn)) { h.undo.push(drag.before); h.redo = []; }
     }
@@ -441,7 +422,8 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
     const n = Number(k.dataset.note);
     hear(n);
     const ofPitch = notesOfPitch(notesNow(), [n]);
-    selected = e.shiftKey ? new Set([...selected, ...ofPitch]) : ofPitch;
+    if (e.shiftKey) { selected = new Set([...selected, ...ofPitch]); rowSel = rowSel.includes(n) ? rowSel : [...rowSel, n]; }
+    else { selected = ofPitch; rowSel = [n]; }
     drawRoll();
   });
   rollKeys.addEventListener('pointerup', () => hear(-1));
@@ -457,10 +439,27 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
     commit(before, r.notes, r.selected);
   };
   const nudge = (ds: number, dn: number) => {
-    const before = notesNow(), r = moveNotes(before, selected, ds, dn, track().length);
+    const before = notesNow(), r = moveNotes(before, selected, ds, dn, track().length, false, order());
     commit(before, r.notes, r.selected);
   };
-  drawBtn.addEventListener('click', () => { draw = !draw; drawRoll(); });
+  /** Whether the selection is just the hits of the pads picked by their names (an empty row's too). */
+  const wholeRows = () => {
+    if (!isKit() || !rowSel.length) return false;
+    const rows = notesOfPitch(notesNow(), rowSel);
+    return rows.size === selected.size && [...rows].every((k) => selected.has(k));
+  };
+  /** Moves whole rows a pad up or down, swapping past the rows on the way. */
+  const swapRows = (dir: -1 | 1) => {
+    const before = notesNow();
+    const pads = rig.moveRows(rig.part, rowSel.map((n) => n - RIG_FIRST_PAD_NOTE), dir);
+    rowSel = pads.map((pad) => RIG_FIRST_PAD_NOTE + pad);
+    const h = hist();
+    h.undo.push(before);
+    h.redo = [];
+    selected = notesOfPitch(notesNow(), rowSel);
+    drawRoll();
+  };
+  drawBtn.addEventListener('click', toggleDraw);
   foldBtn.addEventListener('click', () => { fold = !fold; rollPart = -1; drawRoll(); });
   dupBtn.addEventListener('click', duplicate);
   delBtn.addEventListener('click', deleteSel);
@@ -472,7 +471,7 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
     const take = () => { e.preventDefault(); e.stopPropagation(); };
     if (cmd && k === 'z') { take(); undo(e.shiftKey); }
     else if (cmd && k === 'y') { take(); undo(true); }
-    else if (cmd && k === 'a') { take(); selected = new Set(notesNow().map(rollKey)); drawRoll(); }
+    else if (cmd && k === 'a') { take(); rowSel = []; selected = new Set(notesNow().map(rollKey)); drawRoll(); }
     else if (cmd && (k === 'c' || k === 'x')) {
       take();
       const before = notesNow(), c = copyNotes(before, selected);
@@ -489,73 +488,100 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
     } else if (cmd && k === 'd') { take(); duplicate(); }
     else if (cmd) return;
     else if (k === 'backspace' || k === 'delete') { take(); deleteSel(); }
-    else if (k === 'escape') { take(); selected = new Set(); drawRoll(); }
-    else if (k === 'b') { take(); draw = !draw; drawRoll(); }
+    else if (k === 'escape') { take(); rowSel = []; selected = new Set(); drawRoll(); }
+    else if (k === 'b') { take(); toggleDraw(); }
+    else if ((k === 'arrowup' || k === 'arrowdown') && wholeRows()) { take(); swapRows(k === 'arrowup' ? -1 : 1); }
     else if (selected.size && k.startsWith('arrow')) {
       take();
-      if (e.shiftKey && (k === 'arrowleft' || k === 'arrowright')) {
+      if (e.shiftKey && !isKit() && (k === 'arrowleft' || k === 'arrowright')) {
         const before = notesNow();
         commit(before, resizeNotes(before, selected, k === 'arrowright' ? 1 : -1), selected);
       } else if (k === 'arrowleft' || k === 'arrowright') nudge(k === 'arrowright' ? 1 : -1, 0);
-      else nudge(0, (k === 'arrowup' ? 1 : -1) * (e.shiftKey ? 12 : 1));
+      else nudge(0, (k === 'arrowup' ? 1 : -1) * (e.shiftKey && !isKit() ? 12 : 1));
     }
   });
 
   /** Draws the edited track's notes, its rows (all pitches, or folded) and the tools' state. */
   const drawRoll = () => {
-    const t = track(), len = t.length, notes = readNotes(t);
-    rollTitle.textContent = `PIANO ROLL · TRACK ${rig.part + 1} · ${(rig.parts[rig.part]!.name || 'PART').toUpperCase()} · ${len} STEPS`;
+    const t = track(), len = t.length, notes = readNotes(t), part = rig.parts[rig.part]!, kit = part.kind === 'kit';
+    rollTitle.textContent = kit
+      ? `DRUM ROLL · TRACK ${rig.part + 1} · ${(part.kit?.name || 'KIT').toUpperCase()} · ${len} STEPS`
+      : `PIANO ROLL · TRACK ${rig.part + 1} · ${(part.name || 'PART').toUpperCase()} · ${len} STEPS`;
+    roll.classList.toggle('kit', kit);
+    rollView.classList.toggle('kit', kit);
+    rollHint.textContent = kit ? KIT_HINT : NOTE_HINT;
     rollGrid.style.setProperty('--steps', String(len));
-    // the rows
-    const want = fold ? [...new Set(notes.map((n) => n.note))].sort((a, b) => b - a) : [];
-    const rows = fold ? (want.length ? want : [60]) : Array.from({ length: ROLL_HI - ROLL_LO + 1 }, (_, i) => ROLL_HI - i);
-    if (rows.join() !== pitches.join()) {
+    // the rows: a kit's pads, or the keyboard (folded: only those with notes)
+    const used = new Set(notes.map((n) => n.note));
+    const all = kit ? PAD_ROWS : Array.from({ length: ROLL_HI - ROLL_LO + 1 }, (_, i) => ROLL_HI - i);
+    const want = fold ? (kit ? all.filter((n) => used.has(n)) : [...used].sort((a, b) => b - a)) : all;
+    const rows = want.length ? want : [kit ? PAD_ROWS[0]! : 60];
+    const label = (n: number) => {
+      if (!kit) return fold || n % 12 === 0 ? noteName(n) : '';
+      const pad = n - RIG_FIRST_PAD_NOTE, name = part.kit?.pads[pad]?.name ?? '', num = String(RIG_PAD_ORDER.indexOf(pad) + 1);
+      return name && name !== String(pad + 1) ? `${num} ${name}` : num;
+    };
+    rowH = kit ? PAD_ROW : ROW;
+    const sig = `${kit}|${rows.join()}|${rows.map(label).join()}`;
+    if (sig !== rowsSig) {
+      rowsSig = sig;
       pitches = rows;
       rowOf.clear();
       rows.forEach((n, i) => rowOf.set(n, i));
-      rollGrid.style.height = `${rows.length * ROW}px`;
+      rollGrid.style.height = `${rows.length * rowH}px`;
       rollKeys.style.height = rollGrid.style.height;
       rollKeys.replaceChildren(...rows.map((n) => {
-        const black = [1, 3, 6, 8, 10].includes(n % 12);
-        const key = button(`rig-roll-key${black ? ' black' : ''}`, fold || n % 12 === 0 ? noteName(n) : '', `${noteName(n)}: hear it, select its notes`);
+        const black = !kit && [1, 3, 6, 8, 10].includes(n % 12);
+        const key = button(`rig-roll-key${black ? ' black' : ''}${kit ? ' pad' : ''}`, label(n),
+          kit ? `${label(n)}: hear it, select its hits` : `${noteName(n)}: hear it, select its notes`);
         key.dataset.note = String(n);
+        key.style.height = `${rowH}px`;
         return key;
       }));
-      rollLines.replaceChildren(...rows.map((n) => el('div', `rig-roll-row${[1, 3, 6, 8, 10].includes(n % 12) ? ' black' : ''}${n % 12 === 0 ? ' c' : ''}`)));
+      rollLines.replaceChildren(...rows.map((n, i) => {
+        const line = el('div', `rig-roll-row${!kit && [1, 3, 6, 8, 10].includes(n % 12) ? ' black' : ''}${!kit && n % 12 === 0 ? ' c' : ''}${kit && i % 2 ? ' black' : ''}`);
+        line.style.height = `${rowH}px`;
+        return line;
+      }));
     }
     // the notes; a selection only of notes still there
     const there = new Set(notes.map(rollKey));
     selected = new Set([...selected].filter((k) => there.has(k)));
     let lo = 128, hi = -1;
     rollNotes.replaceChildren(...notes.filter((n) => rowOf.has(n.note)).map((n) => {
-      const gate = Math.min(n.gate, len - n.step), key = rollKey(n);
+      const gate = Math.min(kit ? 1 : n.gate, len - n.step), key = rollKey(n);
       const bar = el('div', `rig-roll-note${selected.has(key) ? ' selected' : ''}`);
       bar.dataset.step = String(n.step); bar.dataset.note = String(n.note);
       bar.style.left = `${(n.step / len) * 100}%`;
       bar.style.width = `${(gate / len) * 100}%`;
-      bar.style.top = `${rowOf.get(n.note)! * ROW}px`;
+      bar.style.top = `${rowOf.get(n.note)! * rowH}px`;
+      bar.style.height = `${rowH - 1}px`;
       bar.style.setProperty('--vel', String(n.vel));
-      bar.title = `${noteName(n.note)} · step ${n.step + 1} · ${n.gate} steps · velocity ${Math.round(n.vel * 127)}`;
-      bar.append(el('div', 'rig-roll-edge'));
+      bar.title = kit
+        ? `${label(n.note)} · step ${n.step + 1} · velocity ${Math.round(n.vel * 127)}`
+        : `${noteName(n.note)} · step ${n.step + 1} · ${n.gate} steps · velocity ${Math.round(n.vel * 127)}`;
+      if (!kit) bar.append(el('div', 'rig-roll-edge'));
       lo = Math.min(lo, n.note); hi = Math.max(hi, n.note);
       return bar;
     }));
     rollMid = hi >= 0 ? (lo + hi) / 2 : 60;
-    drawBtn.classList.toggle('on', draw);
+    drawBtn.classList.toggle('on', drawing());
     foldBtn.classList.toggle('on', fold);
-    rollGrid.classList.toggle('draw', draw);
+    rollGrid.classList.toggle('draw', drawing());
+    const rowsPicked = wholeRows();
+    for (const k of rollKeys.children as HTMLCollectionOf<HTMLElement>) k.classList.toggle('selected', rowsPicked && rowSel.includes(Number(k.dataset.note)));
     const h = history.get(rig.part);
     undoBtn.disabled = !h?.undo.length;
     redoBtn.disabled = !h?.redo.length;
     dupBtn.disabled = delBtn.disabled = !selected.size;
-    selInfo.textContent = selected.size ? `${selected.size} SELECTED` : `${notes.length} NOTES`;
+    selInfo.textContent = selected.size ? `${selected.size} SELECTED` : `${notes.length} ${kit ? 'HITS' : 'NOTES'}`;
   };
   /** A new part's roll opens on its notes (or middle C), once it is on the page (a hidden one cannot scroll). */
   const scrollRoll = () => {
     if (rig.part === rollPart || roll.hidden || !rollView.clientHeight) return;
-    if (rollPart >= 0) selected = new Set(); // another part: its own selection
+    if (rollPart >= 0) { selected = new Set(); rowSel = []; } // another part: its own selection
     rollPart = rig.part;
-    rollView.scrollTop = fold ? 0 : Math.max(0, (rowOf.get(Math.round(rollMid)) ?? (ROLL_HI - rollMid)) * ROW - rollView.clientHeight / 2);
+    rollView.scrollTop = fold || isKit() ? 0 : Math.max(0, (rowOf.get(Math.round(rollMid)) ?? (ROLL_HI - rollMid)) * ROW - rollView.clientHeight / 2);
   };
 
   // ---- the selected step
@@ -664,38 +690,7 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
       l.dir.value = t.direction;
       l.prob.value = String(Math.round(t.prob * 10) / 10);
     });
-    // the drum grid, when the edited part is a kit; the piano roll, when a synth
-    const kitPart = rig.parts[rig.part]!;
-    drums.hidden = kitPart.kind !== 'kit';
-    roll.hidden = kitPart.kind === 'kit';
-    if (!roll.hidden) drawRoll();
-    if (rig.part !== drumPart) { drumPart = rig.part; selectRows([]); }
-    if (kitPart.kind === 'kit') {
-      const t = track();
-      drumTitle.textContent = `DRUM GRID · TRACK ${rig.part + 1} · ${kitPart.kit?.name ?? ''} · STEPS ${page * PAGE + 1}–${(page + 1) * PAGE}`;
-      drumRow.forEach((r, pad) => {
-        const note = RIG_FIRST_PAD_NOTE + pad;
-        const padName = kitPart.kit?.pads[pad]?.name ?? '';
-        const num = String(RIG_PAD_ORDER.indexOf(pad) + 1);
-        r.name.textContent = padName && padName !== String(pad + 1) ? `${num} ${padName}` : num;
-        r.cells.forEach((c, k) => {
-          const i = page * PAGE + k;
-          const st = t.steps[i]!;
-          const on = i < t.length && st.notes.includes(note);
-          const v = on ? st.vels?.[note] ?? st.vel : 0;
-          c.className = 'rig-seq-cell rig-drum-cell';
-          c.classList.toggle('beat', k % 4 === 0);
-          c.classList.toggle('beyond', i >= t.length);
-          c.classList.toggle('hit', on);
-          c.style.setProperty('--vel', String(v));
-          c.textContent = '';
-          c.setAttribute('aria-pressed', String(on));
-          c.setAttribute('aria-label', `Pad ${pad + 1} step ${i + 1}${on ? `, velocity ${Math.round(v * 127)}` : ''}`);
-          c.title = on ? `velocity ${Math.round(v * 127)}` : '';
-        });
-      });
-      drumLit = -1;
-    }
+    drawRoll();
 
     const i = rig.step;
     const s = track().steps[i];
@@ -730,16 +725,6 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
       if (k >= 0) l.cells[k]!.classList.add('play');
       l.lit = k;
     });
-    // the drum grid's playhead column
-    const kitStep = !drums.hidden && seq.isPlaying ? seq.stepAt(rig.part, t) : -1;
-    const col = kitStep >= page * PAGE && kitStep < (page + 1) * PAGE ? kitStep - page * PAGE : -1;
-    if (col !== drumLit) {
-      for (const r of drumRow) {
-        if (drumLit >= 0) r.cells[drumLit]!.classList.remove('play');
-        if (col >= 0) r.cells[col]!.classList.add('play');
-      }
-      drumLit = col;
-    }
     // the piano roll: open a new part's on its notes, and its playhead along the whole loop
     scrollRoll();
     const rollStep = !roll.hidden && seq.isPlaying ? seq.stepAt(rig.part, t) : -1;
@@ -750,6 +735,6 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   requestAnimationFrame(frame);
 
   sync();
-  panel.append(bar, lanes, drums, roll, editor);
+  panel.append(bar, lanes, roll, editor);
   return panel;
 }

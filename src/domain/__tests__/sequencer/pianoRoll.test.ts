@@ -36,6 +36,14 @@ describe('MOA-RIG piano roll: notes as a list', () => {
     expect(moveNotes(notes, sel, 1, 0, 16, true).notes).toHaveLength(6);
   });
 
+  it('moves by rows of an order (a kit’s pads as laid out), not semitones, and not past its ends', () => {
+    const order = [60, 67, 64]; // lowest row first
+    const up = moveNotes(notes, keys([0, 60]), 0, 1, 16, false, order);
+    expect(up.selected).toEqual(keys([0, 67]));
+    expect(moveNotes(notes, keys([0, 64]), 0, 1, 16, false, order).selected).toEqual(keys([0, 64])); // the top row already
+    expect(moveNotes(notes, keys([0, 60], [0, 64]), 0, -1, 16, false, order).selected).toEqual(keys([0, 60], [0, 64])); // 60 cannot go lower
+  });
+
   it('lengthens a selection together within 1/4 to 16 steps, deletes it, and nudges its velocity', () => {
     const sel = keys([0, 60], [8, 67]);
     const longer = resizeNotes(notes, sel, 13);
@@ -53,7 +61,7 @@ describe('MOA-RIG piano roll: notes as a list', () => {
   });
 
   it('selects in a box (notes sounding in it) and every note of a pitch', () => {
-    expect(notesIn(notes, 1, 5, 60, 64)).toEqual(keys([0, 64], [4, 60])); // the C at 0 ended by step 1; the E still sounds
+    expect(notesIn(notes, 1, 5, [64, 62, 60])).toEqual(keys([0, 64], [4, 60])); // the C at 0 ended by step 1; the E still sounds
     expect(notesOfPitch(notes, [60])).toEqual(keys([0, 60], [4, 60]));
   });
 });

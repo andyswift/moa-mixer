@@ -96,13 +96,6 @@
 .rig-wrap [hidden] { display: none !important; }
 
 /* ---- the drum grid ---- */
-.rig-drum-rows { display: flex; flex-direction: column; gap: 2px; }
-.rig-drum-row { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 4px; align-items: center; }
-.rig-drum-name { overflow: hidden; height: 22px; padding: 0 8px; border: 0; border-radius: 3px; background: #2a2c30; color: #f1f1ec; font: 700 12px/1 'Barlow Semi Condensed', system-ui, sans-serif; letter-spacing: 0.04em; text-align: left; white-space: nowrap; cursor: pointer; }
-.rig-drum-name:active { background: #ffa3c7; color: #1b1c1f; }
-.rig-drum-cell { height: 22px; }
-.rig-drum-cell.hit { background: color-mix(in srgb, #ffa3c7 calc(35% + var(--vel) * 65%), #2a2c30); }
-.rig-drum-row.selected .rig-drum-name { background: #ffa3c7; color: #1b1c1f; }
 .rig-follow { margin-left: auto; }
 .rig-follow.on { background: #f1f1ec; color: #1b1c1f; box-shadow: 0 0 8px #f1f1ec; }
 
@@ -198,20 +191,14 @@ body:has(.rig-shell) { background: #1b1c1f; }
 .rig-panel.modmode .rig-section:not(.rig-mod) .knob { opacity: 0.75; }
 .rig-routes { max-height: 84px; overflow: auto; }
 
-/* SEQUENCER: the lanes, then the drum grid and the step editor side by side */
+/* SEQUENCER: the lanes, the piano (or drum) roll, then the step editor */
 .rig-pages > .rig-seq { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto auto 1fr; gap: 6px; }
 .rig-pages > .rig-seq[hidden] { display: none; }
 .rig-pages > .rig-seq > .rig-seq-bar, .rig-pages > .rig-seq > .rig-seq-lanes { grid-column: 1 / -1; }
 .rig-pages > .rig-seq .rig-seq-lane { padding: 1px 4px; }
 .rig-pages > .rig-seq .rig-seq-cell { height: 20px; }
 .rig-pages > .rig-seq .rig-seq-lanes { gap: 2px; }
-.rig-pages > .rig-seq .rig-drum-grid { grid-column: 1; }
-.rig-pages > .rig-seq .rig-seq-step { grid-column: 2; align-self: start; }
-.rig-pages > .rig-seq .rig-piano-roll { grid-column: 1 / -1; align-self: start; }
-.rig-pages > .rig-seq .rig-piano-roll:not([hidden]) + .rig-seq-step { grid-column: 1 / -1; }
-.rig-pages > .rig-seq .rig-drum-rows { gap: 1px; }
-.rig-pages > .rig-seq .rig-drum-cell, .rig-pages > .rig-seq .rig-drum-name { height: 15px; }
-.rig-pages > .rig-seq .rig-drum-name { font-size: 10.5px; }
+.rig-pages > .rig-seq .rig-piano-roll, .rig-pages > .rig-seq .rig-seq-step { grid-column: 1 / -1; align-self: start; }
 
 /* MIXER · FX */
 .rig-pages > .rig-mix { display: flex; flex-direction: column; }
@@ -276,12 +263,16 @@ body:has(.rig-shell) { background: #1b1c1f; }
 .rig-roll-row.c { border-bottom-color: rgba(255, 255, 255, 0.2); }
 .rig-roll-notes { position: absolute; inset: 0; }
 .rig-roll-note { position: absolute; height: 11px; box-sizing: border-box; border-radius: 2px; cursor: grab;
-  background: color-mix(in srgb, #d6ef6a calc(35% + var(--vel, 0.8) * 65%), #34363a); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); }
+  background: color-mix(in srgb, var(--roll-color, #d6ef6a) calc(35% + var(--vel, 0.8) * 65%), #34363a); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4); }
 .rig-roll-note.selected { box-shadow: inset 0 0 0 2px #fff, 0 0 6px rgba(255, 255, 255, 0.5); z-index: 1; }
 .rig-roll-grid.draw { cursor: copy; }
 .rig-roll-box { position: absolute; border: 1px dashed #fff; background: rgba(255, 255, 255, 0.08); pointer-events: none; z-index: 2; }
 .rig-roll-tools { flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 4px; }
-.rig-roll-tool.on { background: #d6ef6a; color: #1b1c1f; }
+.rig-roll-tool.on { background: var(--roll-color, #d6ef6a); color: #1b1c1f; }
+.rig-piano-roll.kit { --roll-color: #ffa3c7; --rig-accent: #ffa3c7; }
+.rig-roll-view.kit { grid-template-columns: 130px minmax(0, 1fr); height: auto; max-height: 336px; }
+.rig-roll-key.pad { padding: 0 8px; border-bottom-color: #1b1c1f; background: #2a2c30; color: #f1f1ec; font: 700 11px/1 'Barlow Semi Condensed', system-ui, sans-serif; letter-spacing: 0.04em; text-align: left; white-space: nowrap; overflow: hidden; }
+.rig-roll-key.selected, .rig-roll-key.pad:active { background: var(--roll-color, #d6ef6a); color: #1b1c1f; }
 .rig-roll-tool:disabled { opacity: 0.4; cursor: default; }
 .rig-roll-edge { position: absolute; top: 0; right: 0; bottom: 0; width: 6px; cursor: ew-resize; }
 .rig-roll-playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #ff8466; pointer-events: none; }
