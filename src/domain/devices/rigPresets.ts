@@ -225,4 +225,65 @@ export const RIG_PRESETS: readonly RigPreset[] = [
       { source: 'lfo2', dest: 'osc1.tune', amount: 0.003 }, { source: 'lfo2', dest: 'osc2.tune', amount: 0.003 },
     ]),
   },
+  // ---- dark, mid-tempo post-punk house (DARK ROOM is built on them): analogue machines played slow and heavy
+  {
+    // the chugging sequencer bass: a saw and a pulse an octave down, a little apart, the ladder half shut and a short
+    // snap of envelope on each note; the amp holds a little, so sixteenths run into a drone; velocity is the accent
+    name: 'Post-Punk Bass',
+    a: side({
+      'voice.mode': 1, 'osc1.oct': 1, 'mix.osc1': 0.9, 'osc2.oct': 1, 'osc2.blend': 1, 'osc2.width': 0.4, 'osc2.tune': 0.07, 'mix.osc2': 0.5,
+      drive: 0.45, 'lad.cutoff': 260, 'lad.res': 0.3, 'lad.eg1': 0.33, 'filter.key': 0.4,
+      'eg1.a': 0.001, 'eg1.d': 0.14, 'eg1.s': 0.1, 'eg1.reset': 1,
+      'eg2.a': 0.001, 'eg2.d': 0.25, 'eg2.s': 0.4, 'eg2.r': 0.05,
+    }, [{ source: 'vel', dest: 'lad.cutoff', amount: 0.15 }, { source: 'vel', dest: 'eg2.level', amount: 0.5 }]),
+  },
+  {
+    // a string machine: saws in 8' and 4' (an octave up, quieter), no lows (the SEM high-passing), a slow bow and a
+    // long fade, two voices a note and a breath of vibrato; the mixer's ENSEMBLE does the rest
+    name: 'String Machine',
+    a: side({
+      'mix.osc1': 0.7, 'osc2.oct': 3, 'osc2.tune': 0.05, 'mix.osc2': 0.45,
+      'lad.cutoff': 2600, 'lad.res': 0.05, 'lad.eg1': 0, 'filter.route': 1, 'sem.mode': 1, 'sem.cutoff': 220,
+      'eg2.a': 0.35, 'eg2.d': 1, 'eg2.s': 0.9, 'eg2.r': 1.2,
+      'lfo1.rate': 5.2, 'lfo1.shape': 0, 'lfo1.retrig': 1, 'voice.unison': 1, 'voice.detune': 0.18, 'panner.mode': 1,
+    }, [{ source: 'lfo1', dest: 'osc1.tune', amount: 0.0015 }, { source: 'lfo1', dest: 'osc2.tune', amount: 0.0015 }]),
+  },
+  {
+    // Braids' PLUCKED string, two voices a note, the notes thrown wide left and right: for patterns into a delay (TIMBRE,
+    // COLOR, the ladder and the width as the user set them by ear)
+    name: 'Cosmic Pluck',
+    a: side({
+      'osc3.mode': 2, 'osc3.braids': 28, 'osc3.timbre': 0.178, 'osc3.morph': 0.787, 'mix.osc1': 0, 'mix.osc3': 1,
+      'lad.cutoff': 3010, 'lad.res': 0.15, 'lad.eg1': 0.15, 'eg1.d': 0.2,
+      'eg2.a': 0.001, 'eg2.d': 0.4, 'eg2.s': 0, 'eg2.r': 0.3, 'panner.mode': 2, 'panner.width': 0.915, 'voice.unison': 1,
+    }, [{ source: 'vel', dest: 'lad.cutoff', amount: 0.1 }]),
+  },
+  {
+    // a minor seventh from one key (Plaits' CHORDS), dark and short, the lows taken off: thrown into the dub delay
+    name: 'Minor Stab',
+    a: side({
+      'osc3.mode': 1, 'osc3.model': 6, 'osc3.harm': 0.41, 'osc3.timbre': 0.4, 'osc3.morph': 0.15, 'mix.osc1': 0, 'mix.osc3': 1,
+      drive: 0.25, 'lad.cutoff': 1100, 'lad.res': 0.25, 'lad.eg1': 0.25, 'filter.route': 1, 'sem.mode': 1, 'sem.cutoff': 180,
+      'eg1.d': 0.15, 'eg2.a': 0.001, 'eg2.d': 0.2, 'eg2.s': 0, 'eg2.r': 0.15,
+    }),
+  },
+  {
+    // spoken fragments: Plaits' SPEECH in its word banks (MORPH picks the word: lock it per step), the voice pitched down
+    // and narrowed like a cheap mic (the SEM high-passing, the ladder shut on the top), a little driven; the amp lets go
+    // fast, so a short gate chops a word off
+    name: 'Dub Words',
+    a: side({
+      'osc3.mode': 1, 'osc3.model': 7, 'osc3.harm': 0.78, 'osc3.timbre': 0.3, 'osc3.morph': 0.2, 'mix.osc1': 0, 'mix.osc3': 1,
+      drive: 0.35, 'lad.cutoff': 2800, 'lad.res': 0.15, 'lad.eg1': 0, 'filter.key': 0, 'filter.route': 1, 'sem.mode': 1, 'sem.cutoff': 300, 'sem.res': 0.2,
+      'eg2.a': 0.002, 'eg2.d': 1, 'eg2.s': 1, 'eg2.r': 0.06,
+    }),
+  },
+  {
+    // a hand drum: a triangle that drops in pitch as it is struck, a slap of noise, a quick fall; tuned by the key
+    name: 'Hand Conga',
+    a: side({
+      'osc1.width': 1, 'mix.osc1': 1, 'mix.noise': 0.08, 'lad.cutoff': 1500, 'lad.eg1': 0.3, 'filter.key': 1,
+      'eg1.a': 0.001, 'eg1.d': 0.04, 'eg1.s': 0, 'eg1.reset': 1, 'eg2.a': 0.001, 'eg2.d': 0.2, 'eg2.s': 0, 'eg2.r': 0.12, 'eg2.reset': 1,
+    }, [{ source: 'eg1', dest: 'osc1.tune', amount: 0.04 }, { source: 'vel', dest: 'eg2.level', amount: 0.6 }]),
+  },
 ];
