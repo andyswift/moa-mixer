@@ -623,7 +623,7 @@ const CLAP_BURST_TAU = 0.0035;
 const CHOKE_TAU = 0.005;
 
 /**
- * Fires a one-shot envelope: a 1 ms attack to peak (scaled by velocity) then an exponential decay.
+ * Fires a one-shot envelope: a 1 ms attack (or `attack` s) to peak (scaled by velocity) then an exponential decay.
  * The `clap` shape stutters through a few short bursts first. `decay` is roughly the time to -40 dB.
  */
 function fireTrigger(
@@ -640,9 +640,10 @@ function fireTrigger(
   const t = Math.max(when ?? 0, ctx.currentTime);
   offset.cancelScheduledValues(t);
   offset.setValueAtTime(offset.value, t);
-  offset.linearRampToValueAtTime(peak, t + TRIGGER_ATTACK);
+  const attack = Math.max(p.attack ?? TRIGGER_ATTACK, TRIGGER_ATTACK);
+  offset.linearRampToValueAtTime(peak, t + attack);
   if (shape !== 'clap') {
-    offset.setTargetAtTime(0, t + TRIGGER_ATTACK, tau);
+    offset.setTargetAtTime(0, t + attack, tau);
     return;
   }
   const gap = Math.max(p.spread ?? 0.012, 0.002);
