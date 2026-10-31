@@ -18,7 +18,8 @@ import { freshPart } from './rigSynth';
  * - DARK ROOM · 110: Padded Cell's dark post-punk chug crossed with dubby, slow house. No chord changes: everything sits
  *   on F, with G flat leaning in now and then. The parts play into each other's gaps: the bass chugs and leaves holes for
  *   the stab, whose echoes fall into the next; the acid (12 steps) and the pluck (5, into Beads' delay) turn against the
- *   bar; spoken fragments drop into the stab's echoes; the strings only swell.
+ *   bar; a voice drops into the stab's long echoes; the strings only swell. A five-minute song over sixteen patterns:
+ *   the voice given room without the strings, the acid taking the bass's place, both only at the peak.
  */
 export interface RigFactoryMulti {
   name: string;
@@ -400,63 +401,108 @@ const FN = 41, GB = 42, SD = 38; // FN and G flat 2
 /** Where the stab speaks (the bass leaves these sixteenths open): the "a" of beat one and of beat three. */
 const STAB_AT = [3, 11];
 
+/** A section's loudness: every note's velocity scaled (a number, or a curve over the pattern for a swell), so the parts
+ * rise and fall together. */
+function dyn(t: RigTrack, k: number | ((x: number) => number)): RigTrack {
+  const at = typeof k === 'number' ? () => k : k;
+  t.steps.forEach((s, i) => {
+    if (!s.notes.length) return;
+    const g = at(i / 63), v = (x: number) => Math.min(1, Math.round(x * g * 100) / 100);
+    s.vel = v(s.vel);
+    if (s.vels) for (const n of Object.keys(s.vels).map(Number)) s.vels[n] = v(s.vels[n]!);
+  });
+  return t;
+}
+
 /** The kit: kick on the floor, snare and clap on two and four, closed hats with the open ones off the beat (both dark),
- * a ghost kick and the cowbell now and then. The sixteenths in between come a little late (a hand). */
-function drKit(): RigTrack {
+ * ghost kicks, the cowbell and the ride. The sixteenths in between come a little late (a hand), and the ghosts come and
+ * go (probability), so a pattern played again is not played the same. `gap` leaves the last beat open (no kick, no
+ * hats) before the next section. */
+interface DrKit { kick?: boolean; snare?: boolean; hats?: 'none' | 'closed' | 'all'; ride?: boolean; cowbell?: boolean; gap?: boolean }
+function drKit(o: DrKit = {}): RigTrack {
+  const { kick = true, snare = true, hats = 'all', ride = false, cowbell = true, gap = false } = o;
   const steps: Steps = [];
   for (let i = 0; i < 64; i++) {
-    const notes: number[] = [], vels: Record<number, number> = {}, b = i % 16;
-    if (b % 4 === 0 || i === 46 || i === 62) { notes.push(BD); vels[BD] = b % 4 ? 0.45 : 1; }
-    if (b === 4 || b === 12) { notes.push(SD, CP); vels[SD] = 0.8; vels[CP] = 0.65; }
-    if (b % 4 === 2) { if (i !== 58) { notes.push(OH); vels[OH] = 0.55; } } else { notes.push(CH); vels[CH] = [0.7, 0.3, 0, 0.45][b % 4]!; }
-    if (i === 23 || i === 55) { notes.push(CB); vels[CB] = 0.4; }
+    const notes: number[] = [], vels: Record<number, number> = {}, b = i % 16, open = gap && i >= 60;
+    if (kick && !open && (b % 4 === 0 || i === 46 || i === 62)) { notes.push(BD); vels[BD] = b % 4 ? 0.45 : 1; }
+    if (snare && (b === 4 || b === 12)) { notes.push(SD, CP); vels[SD] = 0.8; vels[CP] = 0.65; }
+    if (hats !== 'none' && !open) {
+      if (b % 4 !== 2) { notes.push(CH); vels[CH] = [0.7, 0.3, 0, 0.45][b % 4]!; }
+      else if (hats === 'closed') { notes.push(CH); vels[CH] = 0.55; }
+      else if (i !== 58) { notes.push(OH); vels[OH] = 0.55; }
+    }
+    if (ride && b % 2 === 0) { notes.push(RD); vels[RD] = b % 4 ? 0.22 : 0.35; }
+    if (cowbell && (i === 23 || i === 55)) { notes.push(CB); vels[CB] = 0.4; }
     if (notes.length) steps.push([i, notes, { vel: 0.9, vels }]);
   }
   const t = track(steps, 64);
-  for (let i = 1; i < 64; i += 2) t.steps[i]!.micro = 0.05;
+  for (let i = 1; i < 64; i += 2) { t.steps[i]!.micro = 0.05; if (t.steps[i]!.notes.length) t.steps[i]!.prob = i % 16 === 7 ? 0.75 : 0.85; }
   return t;
 }
 /** The bass: F in sixteenths, the eighths leaning in, an octave pop late in beats two and four; silent where the stab
- * speaks. Bars two and four end on G flat, rubbing; bar three drops a note so it breathes. */
-const drBass = (): RigTrack => track(Array.from({ length: 64 }, (_, i): Steps[number] | undefined => {
-  const b = i % 16, bar = i >> 4;
-  if (STAB_AT.includes(b) || (bar === 2 && b === 9)) return undefined;
-  const root = (bar === 1 || bar === 3) && b >= 12 ? GB : FN;
-  return [i, b === 6 || b === 14 ? root + 12 : root, { vel: [1, 0.5, 0.72, 0.5][b % 4]! - (bar === 2 ? 0.05 : 0), gate: 0.7 }];
-}).filter((x): x is Steps[number] => !!x), 64);
-/** The acid: twelve steps against the sixteen (it comes round in a new place each bar), an octave over the bass, on F,
- * A flat, the octave and G flat, sliding; its filter just cracking open. */
-const drAcid = (): RigTrack => mods(track([
-  [0, 53, { vel: 1 }], [2, 53, { vel: 0.55 }], [3, 56, { vel: 0.55, gate: 1.15 }], [4, 53, { vel: 0.6 }],
-  [6, 65, { vel: 1 }], [8, 54, { vel: 0.6, gate: 1.15 }], [9, 53, { vel: 0.55 }], [10, 51, { vel: 0.9 }],
-], 12), (i) => [0.15, 0.1, 0.2, 0.25, 0.1, 0.15, 0.35, 0.2, 0.15, 0.1, 0.25, 0.15][i]!);
+ * speaks. Bars two and four end on G flat, rubbing; bar three drops a note so it breathes. `open`: its ladder locked
+ * from one cutoff to another over the pattern (opening or closing); `eighths`: only the eighths, thinned. */
+function drBass(o: { open?: [number, number]; eighths?: boolean } = {}): RigTrack {
+  const t = track(Array.from({ length: 64 }, (_, i): Steps[number] | undefined => {
+    const b = i % 16, bar = i >> 4;
+    if (STAB_AT.includes(b) || (bar === 2 && b === 9) || (o.eighths && i % 2)) return undefined;
+    const root = (bar === 1 || bar === 3) && b >= 12 ? GB : FN;
+    return [i, b === 6 || b === 14 ? root + 12 : root, { vel: [1, 0.5, 0.72, 0.5][b % 4]! - (bar === 2 ? 0.05 : 0), gate: 0.7 }];
+  }).filter((x): x is Steps[number] => !!x), 64);
+  if (o.open) {
+    const [from, to] = o.open;
+    t.steps.forEach((s, i) => { if (s.notes.length) s.locks = { 'lad.cutoff': Math.round(from * (to / from) ** (i / 63)) }; });
+  }
+  return t;
+}
+/** The acid: a twelve-step loop against the sixteen (it comes round in a new place each bar), an octave over the bass,
+ * on F, A flat, the octave and G flat, sliding. Written out over the pattern so its filter (the SEQ lane) can open
+ * across it: `open` adds to the loop's own shape. */
+const ACID_LOOP: [step: number, note: number, vel: number, gate?: number][] = [
+  [0, 53, 1], [2, 53, 0.55], [3, 56, 0.55, 1.15], [4, 53, 0.6], [6, 65, 1], [8, 54, 0.6, 1.15], [9, 53, 0.55], [10, 51, 0.9],
+];
+const ACID_SHAPE = [0.15, 0.1, 0.2, 0.25, 0.1, 0.15, 0.35, 0.2, 0.15, 0.1, 0.25, 0.15];
+function drAcid(open: (x: number) => number): RigTrack {
+  const steps: Steps = [];
+  for (let i = 0; i < 64; i++) {
+    const h = ACID_LOOP.find(([k]) => k === i % 12);
+    if (h) steps.push([i, h[1], { vel: h[2], gate: h[3] ?? 0.5 }]);
+  }
+  return mods(track(steps, 64), (i) => Math.min(1, ACID_SHAPE[i % 12]! + open(i / 63)));
+}
 /** The stab in the bass's holes, minor sevenths on F; in bar four the second leans on G flat. Bar two leaves its second
- * out, so the echoes have the space. */
-const drStab = (): RigTrack => track([
-  [3, FN + 12, { vel: 0.9 }], [11, FN + 12, { vel: 0.6 }], [19, FN + 12, { vel: 0.85 }],
-  [35, FN + 12, { vel: 0.9 }], [43, FN + 12, { vel: 0.55 }], [51, FN + 12, { vel: 0.85 }], [59, GB + 12, { vel: 0.7 }],
-], 64);
-/** The strings: one dark chord held under it all (F, A flat, C; the top going to D flat in the second half), swelling
- * open and closing again (the SEQ lane on its filter). */
-const drStrings = (): RigTrack => mods(track([
+ * out, so the echoes have the space; the quieter seconds come and go. `throw`: one stab only, at the end, into the dub. */
+function drStab(o: { throw?: boolean } = {}): RigTrack {
+  if (o.throw) return track([[51, FN + 12, { vel: 0.9 }]], 64);
+  const t = track([
+    [3, FN + 12, { vel: 0.9 }], [11, FN + 12, { vel: 0.6 }], [19, FN + 12, { vel: 0.85 }],
+    [35, FN + 12, { vel: 0.9 }], [43, FN + 12, { vel: 0.55 }], [51, FN + 12, { vel: 0.85 }], [59, GB + 12, { vel: 0.7 }],
+  ], 64);
+  t.steps[11]!.prob = 0.7; t.steps[43]!.prob = 0.7;
+  return t;
+}
+/** The strings: one dark chord held under it all (F, A flat, C; the top going to D flat in the second half), the SEQ
+ * lane opening its filter along `shape` (0 to 1 over the pattern). */
+const drStrings = (shape: (x: number) => number): RigTrack => mods(track([
   [0, [53, 56, 60], { vel: 0.7, gate: 16 }], [16, [53, 56, 60], { vel: 0.7, gate: 16 }],
   [32, [53, 56, 61], { vel: 0.7, gate: 16 }], [48, [53, 56, 61], { vel: 0.7, gate: 16 }],
-], 64), (i) => Math.sin((i / 64) * Math.PI) ** 2);
+], 64), (i) => shape(i / 63));
+const swell = (x: number) => Math.sin(Math.PI * x) ** 2;
 /** The pluck: two notes in a five-step loop, high, into Beads' delay: it falls round the bar differently each time,
  * its echoes against the stab's. */
 const drPluck = (): RigTrack => track([[0, 72, { vel: 0.85, gate: 0.4 }], [3, 68, { vel: 0.5, gate: 0.4 }]], 5);
-/** Spoken fragments in the stab's echoes: a word (MORPH, locked) cut off by a short gate, the same one again cut
- * shorter, then others; low, the second half lower still. */
-const drWords = (): RigTrack => track([
-  [6, 53, { gate: 1.5, vel: 0.9, locks: { 'osc3.morph': 0.2 } }], [22, 53, { gate: 0.75, vel: 0.8, locks: { 'osc3.morph': 0.2 } }],
-  [27, 53, { gate: 2, vel: 0.85, locks: { 'osc3.morph': 0.55 } }],
-  [38, 48, { gate: 1, vel: 0.9, locks: { 'osc3.morph': 0.85 } }], [54, 48, { gate: 3, vel: 0.85, locks: { 'osc3.morph': 0.35 } }],
-], 64);
-/** Congas, two bars round, in the gaps the kick and stab leave: the low one late in beat two, the high one answering. */
+/** The voice, twice, long, in the stab's echoes, each phrase with its own throat (TIMBRE, locked). The first as the
+ * user set it: C in bar one, G flat in bar three; the second later in the bar, C then F, lower. */
+const drWords = (second = false): RigTrack => track(second
+  ? [[30, 48, { gate: 4, vel: 0.85, locks: { 'osc3.timbre': 0.4 } }], [54, 41, { gate: 8, vel: 0.85, locks: { 'osc3.timbre': 0.7 } }]]
+  : [[14, 48, { gate: 5, vel: 0.85, locks: { 'osc3.timbre': 0.2 } }], [46, 42, { gate: 7, vel: 0.85, locks: { 'osc3.timbre': 0.65 } }]], 64);
+/** Congas, two bars round, in the gaps the kick and stab leave: the low one late in beat two, the high one answering;
+ * the quiet ones come and go. */
 const drConga = (): RigTrack => {
   const t = track([[7, 50, { vel: 0.85 }], [10, 57, { vel: 0.6 }], [13, 57, { vel: 0.45 }], [15, 50, { vel: 0.6 }],
     [23, 50, { vel: 0.8 }], [25, 57, { vel: 0.55 }], [29, 57, { vel: 0.65 }], [30, 50, { vel: 0.5 }]], 32);
   t.steps[13]!.micro = 0.07; t.steps[25]!.micro = 0.06; t.steps[30]!.micro = -0.04;
+  t.steps[13]!.prob = 0.7; t.steps[30]!.prob = 0.6;
   return t;
 };
 /** A shaker in sixteenths, the "and" leaning in, the in-between ones late. */
@@ -481,45 +527,105 @@ const darkRoom: RigFactoryMulti = {
     Object.assign(kit.pads[OH - 36]!, { analog: { 'openHat.decay': 0.35 }, cutoff: 6000 });
     kit.pads[CB - 36]!.analog = {};
     parts[DR.KIT] = { name: 'Kit', kind: 'kit', kit, channel: 10 };
-    parts[DR.BASS] = { name: 'Bass', voices: 1, channel: 1, ...sound('Post-Punk Bass', { 'out.level': 1 }) };
-    // the acid held back: darker and rounder than ACID HOUSE's, the SEQ lane on its cutoff
+    // the bass opened up, and a resonant band-pass beside the ladder, wobbled by LFO 1 (as the user set it)
+    parts[DR.BASS] = {
+      name: 'Bass', voices: 1, channel: 1,
+      ...sound('Post-Punk Bass', {
+        'lad.cutoff': 970, 'filter.route': 2, 'sem.bp': 1, 'sem.mode': 1, 'sem.cutoff': 2190, 'sem.res': 0.397, 'out.level': 1,
+      }, [
+        { source: 'vel', dest: 'lad.cutoff', amount: 0.15 }, { source: 'vel', dest: 'eg2.level', amount: 0.5 },
+        { source: 'lfo1', dest: 'sem.cutoff', amount: 0.327 },
+      ]),
+    };
+    // the acid held back: darker and rounder than ACID HOUSE's, the SEQ lane on its cutoff; as the user set it, a slow
+    // free-running LFO drifting the ladder, and a high-pass after it
     parts[DR.ACID] = {
       name: 'Acid', voices: 1, channel: 2,
-      ...sound('Acid Line', { 'osc1.oct': 1, 'lad.cutoff': 150, 'lad.res': 0.65, 'lad.eg1': 0.38, drive: 0.5, 'eg1.d': 0.2, 'voice.glide': 0.06, 'out.level': 1 },
-        [{ source: 'vel', dest: 'lad.cutoff', amount: 0.1 }, { source: 'seq', dest: 'lad.cutoff', amount: 0.4 }]),
+      ...sound('Acid Line', {
+        'osc1.oct': 1, 'lad.cutoff': 420, 'lad.res': 0.65, 'lad.eg1': 0.38, drive: 0.5, 'eg1.d': 0.2, 'voice.glide': 0.06, 'out.level': 1,
+        'filter.route': 1, 'sem.mode': 0.814, 'sem.cutoff': 88, 'lfo1.rate': 0.54, 'lfo1.retrig': 1,
+      }, [
+        { source: 'vel', dest: 'lad.cutoff', amount: 0.1 }, { source: 'seq', dest: 'lad.cutoff', amount: 0.4 },
+        { source: 'lfo1', dest: 'lad.cutoff', amount: 0.216 },
+      ]),
     };
     parts[DR.STAB] = { name: 'Stab', voices: 2, channel: 3, ...sound('Minor Stab', { 'out.level': 1 }) };
-    // the strings low and closed, opened by the SEQ lane
+    // the strings low and closed, opened by the SEQ lane; the high-pass under them pulsing in eighth triplets (LFO 2,
+    // as the user set it)
     parts[DR.STRINGS] = {
       name: 'Strings', voices: 9, channel: 4,
-      ...sound('String Machine', { 'lad.cutoff': 600, 'out.level': 1 }, [
+      ...sound('String Machine', { 'lad.cutoff': 600, 'sem.cutoff': 374, 'lfo2.sync': 1, 'lfo2.div': 7, 'lfo2.level': 0.73, 'out.level': 1 }, [
         { source: 'lfo1', dest: 'osc1.tune', amount: 0.0015 }, { source: 'lfo1', dest: 'osc2.tune', amount: 0.0015 },
         { source: 'seq', dest: 'lad.cutoff', amount: 0.35 },
+        { source: 'lfo2', dest: 'sem.cutoff', amount: 0.254 }, { source: 'lfo2', dest: 'sem.res', amount: 0.282 },
       ]),
     };
     parts[DR.PLUCK] = { name: 'Pluck', voices: 3, channel: 5, ...sound('Cosmic Pluck', { 'out.level': 1 }) };
-    parts[DR.WORDS] = { name: 'Words', voices: 1, channel: 7, ...sound('Dub Words', { 'out.level': 1 }) };
+    parts[DR.WORDS] = { name: 'Vox', voices: 3, channel: 7, ...sound('Dub Words', { 'out.level': 1 }) };
     parts[DR.CONGA] = { name: 'Conga', voices: 2, channel: 8, ...sound('Hand Conga', { 'out.level': 1 }) };
     parts[DR.SHAKER] = { name: 'Shaker', voices: 1, channel: 9, ...sound('Shaker', { 'out.level': 1 }) };
 
+    // the song: sixteen patterns of four bars, chained (see the chain below). Each part's loudness is scaled with the
+    // section's (dyn), so the band rises and falls together. The voice gets its space with the strings out, and the bass
+    // carries the groove without the acid; the acid takes the bass's place, and only at the peak are both in.
+    const { KIT, BASS, ACID, STAB, STRINGS, PLUCK, WORDS, CONGA, SHAKER } = DR;
+    const at = (k: number, from: number, to: number) => (x: number) => k * (from + (to - from) * x);
     const patterns = [
-      // the sketch: every sound at once, four bars (the song's patterns come next)
-      pattern({ [DR.KIT]: drKit(), [DR.BASS]: drBass(), [DR.ACID]: drAcid(), [DR.STAB]: drStab(), [DR.STRINGS]: drStrings(),
-        [DR.PLUCK]: drPluck(), [DR.WORDS]: drWords(), [DR.CONGA]: drConga(), [DR.SHAKER]: drShaker() }),
+      // 0 intro: the kick and the shaker, one stab thrown into the delay
+      pattern({ [KIT]: dyn(drKit({ snare: false, hats: 'none', cowbell: false }), 0.85), [SHAKER]: dyn(drShaker(), 0.8), [STAB]: drStab({ throw: true }) }),
+      // 1 intro: closed hats and the congas
+      pattern({ [KIT]: dyn(drKit({ snare: false, hats: 'closed', cowbell: false }), 0.88), [SHAKER]: dyn(drShaker(), 0.85), [CONGA]: dyn(drConga(), 0.85),
+        [STAB]: drStab({ throw: true }) }),
+      // 2, 3 the bass comes in shut and opens over eight bars; the open hats, then the snare, a gap before the groove
+      pattern({ [KIT]: dyn(drKit({ snare: false }), 0.9), [BASS]: dyn(drBass({ open: [220, 480] }), 0.9), [SHAKER]: dyn(drShaker(), 0.85), [CONGA]: dyn(drConga(), 0.85) }),
+      pattern({ [KIT]: dyn(drKit({ gap: true }), 0.92), [BASS]: dyn(drBass({ open: [480, 970] }), 0.92), [SHAKER]: dyn(drShaker(), 0.85), [CONGA]: dyn(drConga(), 0.88),
+        [STAB]: drStab({ throw: true }) }),
+      // 4 groove: the kit, the bass and the stab in its holes
+      pattern({ [KIT]: dyn(drKit(), 0.95), [BASS]: dyn(drBass(), 0.95), [STAB]: dyn(drStab(), 0.95), [SHAKER]: dyn(drShaker(), 0.9), [CONGA]: dyn(drConga(), 0.9) }),
+      // 5 the voice, with room: no strings, no acid, no shaker
+      pattern({ [KIT]: dyn(drKit(), 0.9), [BASS]: dyn(drBass(), 0.9), [STAB]: dyn(drStab(), 0.9), [WORDS]: drWords(), [CONGA]: dyn(drConga(), 0.85) }),
+      // 6 the pluck comes in, the voice rests
+      pattern({ [KIT]: dyn(drKit(), 0.95), [BASS]: dyn(drBass(), 0.95), [STAB]: dyn(drStab(), 0.9), [PLUCK]: dyn(drPluck(), 0.9), [SHAKER]: dyn(drShaker(), 0.9),
+        [CONGA]: dyn(drConga(), 0.9) }),
+      // 7 the strings rise in under it
+      pattern({ [KIT]: dyn(drKit(), 0.97), [BASS]: dyn(drBass(), 0.97), [STAB]: dyn(drStab(), 0.95), [PLUCK]: dyn(drPluck(), 0.9), [STRINGS]: drStrings((x) => 0.7 * x),
+        [SHAKER]: dyn(drShaker(), 0.9), [CONGA]: dyn(drConga(), 0.9) }),
+      // 8 the strings and the voice together, the strings swelling; a gap before the break
+      pattern({ [KIT]: dyn(drKit({ gap: true }), 1), [BASS]: dyn(drBass(), 1), [STAB]: dyn(drStab(), 0.95), [STRINGS]: drStrings(swell), [WORDS]: drWords(true),
+        [SHAKER]: dyn(drShaker(), 0.9), [CONGA]: dyn(drConga(), 0.9) }),
+      // 9 the break: no kick, no bass; the strings, the voice, the stab's echoes, the hand drums
+      pattern({ [KIT]: dyn(drKit({ kick: false, snare: false, hats: 'closed', cowbell: false }), 0.7), [STAB]: dyn(drStab(), 0.85), [STRINGS]: drStrings(swell),
+        [WORDS]: drWords(), [SHAKER]: dyn(drShaker(), 0.75), [CONGA]: dyn(drConga(), 0.8) }),
+      // 10 the way back: the bass creeping in thinned and shut, opening; the pluck, the hats, all rising
+      pattern({ [KIT]: dyn(drKit({ kick: false, cowbell: false }), at(1, 0.7, 0.95)), [BASS]: dyn(drBass({ open: [250, 700], eighths: true }), at(1, 0.75, 0.95)),
+        [PLUCK]: dyn(drPluck(), 0.85), [STRINGS]: drStrings((x) => 0.6 * (1 - x)), [SHAKER]: dyn(drShaker(), at(1, 0.75, 0.95)), [CONGA]: dyn(drConga(), 0.85) }),
+      // 11, 12 the acid in the bass's place, opening; the pluck joins it, a gap before the peak
+      pattern({ [KIT]: dyn(drKit(), 0.95), [ACID]: dyn(drAcid((x) => 0.15 * x), 0.95), [STAB]: dyn(drStab(), 0.9), [SHAKER]: dyn(drShaker(), 0.9), [CONGA]: dyn(drConga(), 0.9) }),
+      pattern({ [KIT]: dyn(drKit({ gap: true }), 1), [ACID]: dyn(drAcid((x) => 0.15 + 0.3 * x), 1), [STAB]: dyn(drStab(), 0.95), [PLUCK]: dyn(drPluck(), 0.9),
+        [SHAKER]: dyn(drShaker(), 0.95), [CONGA]: dyn(drConga(), 0.9) }),
+      // 13 the peak: the bass and the acid both, the ride, the strings swelling, the stab, the pluck
+      pattern({ [KIT]: dyn(drKit({ ride: true }), 1), [BASS]: dyn(drBass(), 1), [ACID]: dyn(drAcid((x) => 0.4 + 0.25 * Math.sin(Math.PI * x)), 0.95),
+        [STAB]: dyn(drStab(), 1), [STRINGS]: drStrings(swell), [PLUCK]: dyn(drPluck(), 0.9), [SHAKER]: dyn(drShaker(), 0.95), [CONGA]: dyn(drConga(), 0.95) }),
+      // 14 the voice again, with room: the bass, the stab, the kit with only its closed hats
+      pattern({ [KIT]: dyn(drKit({ hats: 'closed' }), 0.9), [BASS]: dyn(drBass(), 0.9), [STAB]: dyn(drStab(), 0.9), [WORDS]: drWords(true), [CONGA]: dyn(drConga(), 0.85) }),
+      // 15 out: the bass closing, the kit losing its snare, the last stab thrown
+      pattern({ [KIT]: dyn(drKit({ snare: false, hats: 'closed', cowbell: false }), 0.88), [BASS]: dyn(drBass({ open: [970, 260] }), 0.88),
+        [SHAKER]: dyn(drShaker(), 0.85), [CONGA]: dyn(drConga(), 0.85), [STAB]: drStab({ throw: true }) }),
     ];
     // a first balance and the dub: the stab deep in the dub delay (its 3/16 echoes land in the bass's next hole), the
-    // pluck in Beads' delay, the words deep in the dub and a little hall; the strings through ENSEMBLE and the hall, low
+    // pluck in Beads' delay, the voice almost all in the dub and the hall; the strings through ENSEMBLE and the hall, low
     const mix: Record<string, number> = {
       'p1.fader': 0.7,
       'p2.fader': 1, 'p2.a': 0.08,
-      'p3.fader': 0.9, 'p3.a': 0.2, 'p3.pan': 0.15,
+      'p3.fader': 0.67, 'p3.a': 0.2, 'p3.pan': 0.15,
       'p4.fader': 2, 'p4.a': 0.7, 'p4.c': 0.2, 'p4.lo': -6,
-      'p5.fader': 0.7, 'p5.c': 0.35, 'p5.d': 0.6, 'p5.lo': -4,
-      'p6.fader': 1.8, 'p6.b': 0.55, 'p6.c': 0.15, 'p6.pan': -0.2,
-      'p8.fader': 1.5, 'p8.pan': 0.2, 'p8.a': 0.6, 'p8.c': 0.2, 'p8.lo': -8, 'p8.mid': 2,
+      'p5.fader': 0.53, 'p5.c': 0.35, 'p5.d': 0.6, 'p5.lo': -4,
+      'p6.fader': 1, 'p6.b': 0.55, 'p6.c': 0.15, 'p6.pan': -0.2,
+      'p8.fader': 1.23, 'p8.a': 0.9, 'p8.c': 0.4,
       'p9.fader': 1, 'p9.pan': -0.35, 'p9.c': 0.15,
       'p10.fader': 0.7, 'p10.pan': 0.35, 'p10.c': 0.1,
-      'dub.sync': 1, 'dub.div': 3, 'dub.fdbk': 0.62, 'dub.tone': 1400, 'dub.wow': 0.35, 'dub.sat': 0.5,
+      // the dub delay long, bright and saturating, its repeats wobbling (as the user set it)
+      'dub.sync': 1, 'dub.div': 3, 'dub.fdbk': 0.93, 'dub.tone': 4220, 'dub.wow': 0.66, 'dub.sat': 0.77,
       // send B in Beads' mode, as the user set it: 3/16, the repeats multiplied and shaped
       'bbd.mode': 1, 'bbd.sync': 1, 'bbd.div': 3, 'bbd.fdbk': 0.5, 'bbd.age': 0.55, 'bbd.ping': 1, 'bds.multiply': 0.428, 'bds.shape': 0.329,
       'rev.type': 2, 'rev.size': 0.65, 'rev.damp': 0.65, 'rev.pre': 0.02,
@@ -527,7 +633,10 @@ const darkRoom: RigFactoryMulti = {
       'rA.lo': -6, 'rA.hi': -4,
       'cmp.key': 1, 'cmp.ratio': 2.5, 'cmp.thresh': -20, 'cmp.atk': 3, 'cmp.rel': 160, 'cmp.mix': 0.6,
     };
-    return multi('Dark Room', 110, parts, patterns, [0], mix);
+    // intro 16 bars, the bass in 8, groove 12, the voice 8, the pluck 8, the strings 12, the break 12, the acid 16, the
+    // peak 12, the voice again 12, the strings and voice once more 8, out 16: 140 bars, about five minutes
+    const chain = [0, 0, 1, 1, 2, 3, 4, 4, 4, 5, 5, 6, 6, 7, 8, 8, 9, 9, 10, 11, 11, 11, 12, 13, 13, 13, 14, 14, 14, 8, 8, 15, 15, 0, 0];
+    return multi('Dark Room', 110, parts, patterns, chain, mix);
   },
 };
 

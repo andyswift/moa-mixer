@@ -268,14 +268,13 @@ export const RIG_PRESETS: readonly RigPreset[] = [
     }),
   },
   {
-    // spoken fragments: Plaits' SPEECH in its word banks (MORPH picks the word: lock it per step), the voice pitched down
-    // and narrowed like a cheap mic (the SEM high-passing, the ladder shut on the top), a little driven; the amp lets go
-    // fast, so a short gate chops a word off
+    // a voice from Plaits' SPEECH word banks (MORPH picks the word, TIMBRE the throat: lock them per step), three
+    // voices in unison, fading in and letting go slowly, narrowed to a band (as the user set it by ear)
     name: 'Dub Words',
     a: side({
-      'osc3.mode': 1, 'osc3.model': 7, 'osc3.harm': 0.78, 'osc3.timbre': 0.3, 'osc3.morph': 0.2, 'mix.osc1': 0, 'mix.osc3': 1,
-      drive: 0.35, 'lad.cutoff': 2800, 'lad.res': 0.15, 'lad.eg1': 0, 'filter.key': 0, 'filter.route': 1, 'sem.mode': 1, 'sem.cutoff': 300, 'sem.res': 0.2,
-      'eg2.a': 0.002, 'eg2.d': 1, 'eg2.s': 1, 'eg2.r': 0.06,
+      'osc3.mode': 1, 'osc3.model': 7, 'osc3.harm': 0.762, 'osc3.timbre': 0.528, 'osc3.morph': 0.17, 'mix.osc1': 0, 'mix.osc3': 1,
+      'lad.cutoff': 5730, 'lad.eg1': 0, 'filter.route': 1, 'sem.mode': 1, 'sem.cutoff': 778,
+      'eg2.a': 0.08, 'eg2.d': 1, 'eg2.s': 0.8, 'eg2.r': 0.6, 'voice.unison': 2,
     }),
   },
   {
