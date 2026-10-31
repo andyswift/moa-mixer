@@ -20,6 +20,9 @@ import { freshPart } from './rigSynth';
  *   the stab, whose echoes fall into the next; the acid (12 steps) and the pluck (5, into Beads' delay) turn against the
  *   bar; a voice drops into the stab's long echoes; the strings only swell. A five-minute song over sixteen patterns:
  *   the voice given room without the strings, the acid taking the bass's place, both only at the peak.
+ * - NO MERCY · 148: hard, pounding techno. A distorted kick that never lets up, a rumble in the gaps between it, open
+ *   hats hammering the offbeat, metal and toms in loops of seven and ten against the bar, a stab beaten into the dub
+ *   delay, a screaming acid line from the first drop on, a noise riser and a kick roll into each drop.
  */
 export interface RigFactoryMulti {
   name: string;
@@ -640,4 +643,250 @@ const darkRoom: RigFactoryMulti = {
   },
 };
 
-export const RIG_FACTORY_MULTIS: readonly RigFactoryMulti[] = [init8, acidHouse, scalpel, darkRoom];
+// ================= NO MERCY · 148 =================
+// Hard techno, 148 BPM, on G with A flat pressing on it. Four kits (the kick alone, so the mixer's drive can take it;
+// hats; clap and rims; toms) and five synths: the rumble, the stab, the acid, the metal and the noise.
+const NM = { KICK: 0, HATS: 1, PERC: 2, RUMBLE: 3, STAB: 4, ACID: 5, METAL: 6, NOISE: 7, TOMS: 8 };
+const G2n = 43, AB2 = 44;
+
+/** The kick, on every beat. `roll`: the last two bars build in eighths, then sixteenths, louder all the way (into a
+ * drop); `crash` on the first beat; `ghost`: an extra kick late in bars two and four; `off`: no kick at all. */
+function nmKick(o: { roll?: boolean; crash?: boolean; ghost?: boolean; off?: boolean } = {}): RigTrack {
+  const steps: Steps = [];
+  for (let i = 0; i < 64; i++) {
+    const notes: number[] = [], vels: Record<number, number> = {};
+    const beat = i % 4 === 0, eighth = i % 2 === 0;
+    if (o.roll && i >= 32) {
+      if (i < 48 ? eighth : true) { notes.push(BD); vels[BD] = 0.55 + 0.45 * ((i - 32) / 31); }
+    } else if (!o.off && (beat || (o.ghost && (i === 30 || i === 62)))) { notes.push(BD); vels[BD] = beat ? 1 : 0.5; }
+    if (o.crash && i === 0) { notes.push(CR); vels[CR] = 0.8; }
+    if (notes.length) steps.push([i, notes, { vel: 1, vels }]);
+  }
+  return track(steps, 64);
+}
+/** The hats: open ones hammering the offbeat, closed sixteenths with a hand on the accents (the quiet ones come and
+ * go), the ride on the eighths when it is in. */
+function nmHats(o: { open?: boolean; closed?: boolean; ride?: boolean } = {}): RigTrack {
+  const { open = true, closed = true, ride = false } = o;
+  const steps: Steps = [];
+  for (let i = 0; i < 64; i++) {
+    const notes: number[] = [], vels: Record<number, number> = {}, b = i % 4;
+    if (open && b === 2) { notes.push(OH); vels[OH] = 0.85; }
+    else if (closed && b !== 2) { notes.push(CH); vels[CH] = [0.8, 0.4, 0, 0.6][b]!; }
+    if (ride && i % 2 === 0) { notes.push(RD); vels[RD] = b ? 0.3 : 0.45; }
+    if (notes.length) steps.push([i, notes, { vel: 0.9, vels }]);
+  }
+  const t = track(steps, 64);
+  for (let i = 1; i < 64; i += 2) { t.steps[i]!.micro = 0.03; if (t.steps[i]!.notes.length && i % 4 === 1) t.steps[i]!.prob = 0.8; }
+  return t;
+}
+/** The clap on two and four, and rims that shift from bar to bar; `fill`: claps in sixteenths through the last beat. */
+function nmPerc(o: { clap?: boolean; rims?: boolean; fill?: boolean } = {}): RigTrack {
+  const { clap = true, rims = true, fill = false } = o;
+  const RIMS = [[3, 6, 14], [3, 10, 13], [6, 11, 14], [3, 7, 10, 15]];
+  const steps: Steps = [];
+  for (let i = 0; i < 64; i++) {
+    const notes: number[] = [], vels: Record<number, number> = {}, b = i % 16;
+    if ((clap && (b === 4 || b === 12)) || (fill && i >= 60)) { notes.push(CP); vels[CP] = fill && i >= 60 ? 0.6 + 0.1 * (i - 60) : 0.95; }
+    if (rims && RIMS[i >> 4]!.includes(b)) { notes.push(RS); vels[RS] = b % 2 ? 0.55 : 0.75; }
+    if (notes.length) steps.push([i, notes, { vel: 0.9, vels }]);
+  }
+  return track(steps, 64);
+}
+/** The rumble: the three sixteenths after each kick, falling away, on G (A flat now and then at the end of a bar);
+ * `open`: its ladder locked from one cutoff to another over the pattern. */
+function nmRumble(o: { open?: [number, number] } = {}): RigTrack {
+  const steps: Steps = [];
+  for (let i = 0; i < 64; i++) {
+    const b = i % 4;
+    if (!b) continue;
+    const press = (i === 31 || i === 63);
+    steps.push([i, press ? AB2 : G2n, { vel: [0, 0.95, 0.7, 0.85][b]!, gate: 0.8 }]);
+  }
+  const t = track(steps, 64);
+  if (o.open) {
+    const [from, to] = o.open;
+    t.steps.forEach((s, i) => { if (s.notes.length) s.locks = { 'lad.cutoff': Math.round(from * (to / from) ** (i / 63)) }; });
+  }
+  return t;
+}
+/** The stab, beaten off the grid into the dub delay; the fourth bar presses on A flat. */
+const nmStab = (): RigTrack => track([
+  ...[0, 16, 32].flatMap((bar): Steps => [[bar + 2, G2n + 12, { vel: 0.95 }], [bar + 7, G2n + 12, { vel: 0.7 }], [bar + 10, G2n + 12, { vel: 0.85 }]]),
+  [50, AB2 + 12, { vel: 0.95 }], [54, AB2 + 12, { vel: 0.75 }], [58, G2n + 12, { vel: 0.9 }], [61, G2n + 12, { vel: 0.8 }],
+], 64);
+/** The acid: sixteenths on G, the octave, A flat and B flat, slides and accents, a bar that turns at its end; the SEQ
+ * lane opens its filter along `open` (0 to 1 over the pattern). */
+const NM_ACID: [number, number, number, number?][] = [
+  [0, 43, 1], [1, 43, 0.5], [2, 55, 0.6, 1.1], [3, 43, 0.5], [4, 44, 0.9], [5, 43, 0.5], [6, 43, 0.55], [7, 46, 1, 1.1],
+  [8, 43, 0.5], [9, 55, 0.95], [10, 43, 0.5], [11, 44, 0.6, 1.1], [12, 43, 1], [13, 58, 0.6], [14, 43, 0.5], [15, 56, 0.9, 1.1],
+];
+function nmAcid(open: (x: number) => number): RigTrack {
+  const steps: Steps = [];
+  for (let i = 0; i < 64; i++) {
+    const [, n, v, g] = NM_ACID[i % 16]!;
+    steps.push([i, i >= 48 && i % 16 === 12 ? n + 1 : n, { vel: v, gate: g ?? 0.55 }]);
+  }
+  return mods(track(steps, 64), (i) => Math.min(1, open(i / 63) + (NM_ACID[i % 16]![2] > 0.8 ? 0.08 : 0)));
+}
+
+const noMercy: RigFactoryMulti = {
+  name: 'NO MERCY · 148',
+  build: () => {
+    const parts: Partial<RigMultiPart>[] = [];
+    // the kick: short, hard and all click, its own part so the drive insert takes only it; a crash on the same kit
+    const kick = cloneKit(RIG_KITS[0]!);
+    kick.name = 'Pounding Kick';
+    kick.pads[BD - 36]!.analog = { 'kick.tune': 52, 'kick.decay': 0.5, 'kick.click': 0.9 };
+    kick.pads[CR - 36]!.analog = { 'crash.decay': 2.2, 'crash.tone': 0.6 };
+    parts[NM.KICK] = { name: 'Kick', kind: 'kit', kit: kick, channel: 10 };
+    const hats = cloneKit(RIG_KITS[0]!);
+    Object.assign(hats.pads[CH - 36]!, { analog: { 'closedHat.decay': 0.04 } });
+    Object.assign(hats.pads[OH - 36]!, { analog: { 'openHat.decay': 0.28 } });
+    Object.assign(hats.pads[RD - 36]!, { analog: { 'ride.decay': 1.2 }, cutoff: 10000 });
+    parts[NM.HATS] = { name: 'Hats', kind: 'kit', kit: hats, channel: 11 };
+    const perc = cloneKit(RIG_KITS[0]!);
+    perc.pads[CP - 36]!.analog = { 'clap.tone': 1400, 'clap.decay': 0.3, 'clap.spread': 0.6 };
+    perc.pads[RS - 36]!.analog = { 'rim.tone': 1900, 'rim.decay': 0.04 };
+    parts[NM.PERC] = { name: 'Clap', kind: 'kit', kit: perc, channel: 12 };
+    // the toms short and bent, dark, the high one shut right down to a thud (as the user set them)
+    const toms = cloneKit(RIG_KITS[0]!);
+    Object.assign(toms.pads[LT - 36]!, { analog: { 'lowTom.decay': 0.15, 'lowTom.bend': 0.644 }, decay: 0.211, cutoff: 1047 });
+    Object.assign(toms.pads[MT - 36]!, { analog: { 'midTom.decay': 0.217, 'midTom.bend': 0.567 }, decay: 0.12, cutoff: 1585 });
+    Object.assign(toms.pads[HT - 36]!, { decay: 0.552, cutoff: 113 });
+    parts[NM.TOMS] = { name: 'Toms', kind: 'kit', kit: toms, channel: 13 };
+    // the rumble synth: the techno bass shorter and driven harder, under the kick's own hall tail
+    parts[NM.RUMBLE] = { name: 'Rumble', voices: 1, channel: 1, ...sound('Techno Bass', { 'lad.cutoff': 110, 'eg2.d': 0.12, drive: 0.9, 'out.level': 1 }) };
+    // the stab: the chord with two synced saws under it, a fifth up and pulled by LFO 2 (in eighths), LFO 1 working
+    // both filters (as the user set it)
+    parts[NM.STAB] = {
+      name: 'Stab', voices: 2, channel: 2,
+      ...sound('Techno Stab', {
+        'mix.osc1': 0.208, 'osc1.tune': 5, 'mix.osc2': 0.403, 'osc2.sync': 1, 'osc2.tune': -0.336, 'eg1.s': 0.318,
+        'lfo1.retrig': 1, 'lfo2.sync': 1, 'lfo2.div': 3, 'lfo2.retrig': 1, 'out.level': 1,
+      }, [
+        { source: 'lfo1', dest: 'lad.cutoff', amount: 0.526 }, { source: 'lfo1', dest: 'sem.cutoff', amount: -0.406 },
+        { source: 'lfo1', dest: 'sem.res', amount: 0.307 }, { source: 'lfo2', dest: 'osc2.tune', amount: 0.502 },
+      ]),
+    };
+    // the acid opened right up and plucked short, all drive, a resonant band-pass beside the ladder, two slow LFOs
+    // drifting the filters (as the user set it); the SEQ lane on the cutoff
+    parts[NM.ACID] = {
+      name: 'Acid', voices: 1, channel: 3,
+      ...sound('Acid Line', {
+        'lad.cutoff': 4750, 'lad.res': 0.556, 'lad.eg1': 0.05, drive: 1, overdrive: 1, 'eg1.d': 0.6, 'voice.glide': 0.05,
+        'eg2.a': 0.001, 'eg2.d': 0.309, 'eg2.s': 0, 'filter.route': 2, 'sem.mode': 1, 'sem.cutoff': 214, 'sem.res': 0.63, 'sem.eg1': 0.172,
+        'lfo1.rate': 0.183, 'lfo1.level': 0.622, 'lfo1.retrig': 1, 'lfo2.rate': 0.098, 'lfo2.level': 0.188, 'lfo2.retrig': 1, 'out.level': 0.626,
+      }, [
+        { source: 'vel', dest: 'lad.cutoff', amount: 0.15 }, { source: 'seq', dest: 'lad.cutoff', amount: 0.5 }, { source: 'vel', dest: 'eg1.level', amount: 0.4 },
+        { source: 'lfo1', dest: 'lad.cutoff', amount: 0.302 }, { source: 'lfo1', dest: 'lfo1.rate', amount: -0.049 }, { source: 'lfo2', dest: 'sem.cutoff', amount: -0.513 },
+      ]),
+    };
+    // the metal: Plaits' PARTICLE (its AUX mostly) over a square an octave down, driven, both filters resonant, a slow
+    // swell of envelope and the band-pass's resonance thrown at random (as the user set it)
+    parts[NM.METAL] = {
+      name: 'Metal', voices: 1, channel: 4,
+      ...sound('Metal Hit', {
+        'osc1.oct': 1, 'osc1.width': 0.7, 'osc1.blend': 1, 'mix.noise': 0, 'mix.osc2': 0, 'osc2.oct': 4,
+        'osc3.mode': 1, 'osc3.model': 10, 'osc3.harm': 0.65, 'osc3.timbre': 0.016, 'osc3.morph': 0.829, 'osc3.aux': 0.744, 'osc3.tune': -2.492, 'mix.osc3': 1,
+        drive: 0.815, 'lad.cutoff': 1100, 'lad.res': 0.507, 'lad.eg1': 0.528, 'sem.mode': 1, 'sem.cutoff': 224, 'sem.res': 0.365, 'sem.eg1': -0.252,
+        'eg1.a': 0.718, 'eg1.d': 0.156, 'eg1.s': 0, 'eg2.s': 0.649, 'eg2.r': 0.127, 'out.level': 1,
+      }, [{ source: 'rand', dest: 'sem.cutoff', amount: 0.08 }, { source: 'rand', dest: 'sem.res', amount: 0.563 }]),
+    };
+    // the noise a little more open, LFO 2 moving it (as the user set it)
+    parts[NM.NOISE] = {
+      name: 'Noise', voices: 1, channel: 5,
+      ...sound('Noise Sweep', { 'lad.cutoff': 528, 'out.level': 1 }, [
+        { source: 'seq', dest: 'lad.cutoff', amount: 0.85 }, { source: 'mod', dest: 'lad.cutoff', amount: 0.85 }, { source: 'lfo2', dest: 'lad.cutoff', amount: 0.127 },
+      ]),
+    };
+
+    const { KICK, HATS, PERC, RUMBLE, STAB, ACID, METAL, NOISE, TOMS } = NM;
+    const ramp = (from: number, to: number) => (x: number) => from + (to - from) * x;
+    // the metal's seven-step loop, its second hit and both lengths changing from section to section (as the user set them)
+    const metal = (second = 81, first = 0.5, last = 0.5) => track([[0, 76, { vel: 0.9, gate: first }], [4, second, { vel: 0.6, gate: last }]], 7);
+    // in the break, the stab's fifth hit held a little longer and the toms without their high hit (as the user set them)
+    const breakStab = nmStab();
+    breakStab.steps[23]!.gate = 0.75;
+    const breakToms = scToms();
+    breakToms.steps[7]!.notes = [];
+    const patterns = [
+      // 0, 1 intro: the kick and closed hats; then the open hats, the toms and the metal
+      pattern({ [KICK]: dyn(nmKick(), 0.9), [HATS]: dyn(nmHats({ open: false }), 0.8) }),
+      pattern({ [KICK]: dyn(nmKick(), 0.92), [HATS]: dyn(nmHats(), 0.85), [TOMS]: dyn(scToms(), 0.8), [METAL]: dyn(scMetal(), 0.8) }),
+      // 2 the rumble opens up under it, the rims come in
+      pattern({ [KICK]: dyn(nmKick(), 0.95), [HATS]: dyn(nmHats(), 0.9), [PERC]: dyn(nmPerc({ clap: false }), 0.9), [RUMBLE]: nmRumble({ open: [45, 75] }),
+        [TOMS]: dyn(scToms(), 0.85), [METAL]: dyn(metal(69, 5.75, 1), 0.85) }),
+      // 3 the groove: the clap in, everything driving
+      pattern({ [KICK]: nmKick(), [HATS]: dyn(nmHats(), 0.95), [PERC]: nmPerc(), [RUMBLE]: nmRumble(), [TOMS]: dyn(scToms(), 0.9), [METAL]: dyn(metal(81, 2, 1), 0.9) }),
+      // 4 the stab beaten into the delay
+      pattern({ [KICK]: nmKick(), [HATS]: dyn(nmHats(), 0.95), [PERC]: nmPerc(), [RUMBLE]: nmRumble(), [STAB]: nmStab(), [TOMS]: dyn(scToms(), 0.9), [METAL]: dyn(metal(69, 5.25, 2), 0.9) }),
+      // 5 the ride and the ghost kicks on top
+      pattern({ [KICK]: nmKick({ ghost: true }), [HATS]: nmHats({ ride: true }), [PERC]: nmPerc(), [RUMBLE]: nmRumble(), [STAB]: nmStab(), [TOMS]: scToms(), [METAL]: metal(76, 0.5, 2.25) }),
+      // 6 the break: no kick, no rumble; the noise rising, the stab and the toms, the hats closed
+      pattern({ [HATS]: dyn(nmHats({ open: false }), 0.8), [PERC]: dyn(nmPerc({ clap: false }), 0.8), [STAB]: dyn(breakStab, 0.9), [TOMS]: dyn(breakToms, 0.85),
+        [NOISE]: mods(scNoise(), (i) => 0.5 * (i / 63) ** 2) }),
+      // 7 the build: the kick rolling in eighths, then sixteenths, the claps rolling through the last beat, the noise all the way up
+      pattern({ [KICK]: nmKick({ roll: true, off: true }), [HATS]: dyn(nmHats({ open: false }), ramp(0.8, 1)), [PERC]: nmPerc({ clap: false, fill: true }),
+        [STAB]: dyn(nmStab(), 0.9), [NOISE]: mods(scNoise(), (i) => 0.5 + 0.5 * (i / 63) ** 2) }),
+      // 8 the drop: a crash, everything; the acid there but muted (as the user left it), to bring in by hand
+      pattern({ [KICK]: nmKick({ crash: true }), [HATS]: nmHats(), [PERC]: nmPerc(), [RUMBLE]: nmRumble(), [ACID]: { ...nmAcid(ramp(0.1, 0.4)), muted: true }, [TOMS]: scToms(), [METAL]: scMetal() }),
+      // 9, 10 the acid tearing open over the ride, then the stab back against it
+      pattern({ [KICK]: nmKick({ ghost: true }), [HATS]: nmHats({ ride: true }), [PERC]: nmPerc(), [RUMBLE]: nmRumble(), [ACID]: nmAcid(ramp(0.4, 0.75)), [METAL]: scMetal() }),
+      pattern({ [KICK]: nmKick({ ghost: true }), [HATS]: nmHats({ ride: true }), [PERC]: nmPerc(), [RUMBLE]: nmRumble(), [ACID]: nmAcid((x) => 0.7 + 0.25 * Math.sin(Math.PI * x)),
+        [STAB]: nmStab(), [TOMS]: scToms(), [METAL]: scMetal() }),
+      // 11 the second break: the acid alone in the delay over the noise, the kick rolling back in
+      pattern({ [KICK]: nmKick({ roll: true, off: true }), [ACID]: dyn(nmAcid(ramp(0.3, 0.9)), 0.9), [PERC]: nmPerc({ clap: false, rims: false, fill: true }),
+        [NOISE]: mods(scNoise(), (i) => (i / 63) ** 2) }),
+      // 12 the last drop: all of it, as hard as it goes
+      pattern({ [KICK]: nmKick({ crash: true, ghost: true }), [HATS]: nmHats({ ride: true }), [PERC]: nmPerc(), [RUMBLE]: nmRumble(), [ACID]: nmAcid((x) => 0.75 + 0.2 * Math.sin(2 * Math.PI * x)),
+        [STAB]: nmStab(), [TOMS]: scToms(), [METAL]: scMetal() }),
+      // 13 the acid closing down, the stab still beating
+      pattern({ [KICK]: nmKick(), [HATS]: nmHats(), [PERC]: nmPerc(), [RUMBLE]: nmRumble(), [ACID]: dyn(nmAcid(ramp(0.6, 0.05)), ramp(1, 0.8)), [STAB]: nmStab(), [METAL]: scMetal() }),
+      // 14, 15 out: the rumble closing, the clap gone; then the kick and the hats alone
+      pattern({ [KICK]: nmKick(), [HATS]: dyn(nmHats(), 0.9), [PERC]: dyn(nmPerc({ clap: false }), 0.85), [RUMBLE]: nmRumble({ open: [75, 40] }), [TOMS]: dyn(scToms(), 0.85),
+        [METAL]: dyn(scMetal(), 0.85) }),
+      pattern({ [KICK]: dyn(nmKick(), 0.92), [HATS]: dyn(nmHats({ open: false }), 0.8) }),
+    ];
+
+    // the effects are the sound. The rumble is the kick's own tail: the kick sent hard into a big dark hall whose return
+    // is filtered down to its lows and pumped by the compressor (keyed by the kick), the rumble synth thickening it.
+    // The hats shimmer in the ping-pong BBD and the ensemble; the clap and toms in the hall; the stab and the metal
+    // beaten into the dub delay (saturating, fluttering), whose repeats feed the hall; the acid in both delays; the
+    // noise all hall and ensemble, wide.
+    const mix: Record<string, number> = {
+      // (the faders, filters, EQ and sends below as the user set them by ear, where they differ from the first mix)
+      'drv.part': 1, 'drv.type': 1, 'drv.drive': 0.128, 'drv.tone': 0.712, 'drv.blend': 1, 'drv.level': 1,
+      'p1.fader': 0.9, 'p1.lo': 2, 'p1.c': 0.35, 'p1.filter': 0.186,
+      'p2.fader': 1.495, 'p2.pan': 0.15, 'p2.b': 0.25, 'p2.d': 0.35, 'p2.hi': -3.3, 'p2.filter': -0.282,
+      'p3.fader': 0.497, 'p3.pan': -0.15, 'p3.c': 0.45, 'p3.a': 0.12, 'p3.mid': 2, 'p3.hi': 6, 'p3.filter': 0.242,
+      'p4.fader': 1, 'p4.c': 0.45, 'p4.mid': 3, 'p4.filter': -0.766,
+      'p5.fader': 1.8, 'p5.a': 0.7, 'p5.d': 0.3, 'p5.lo': -8, 'p5.mid': 3, 'p5.pan': -0.2,
+      'p6.fader': 1.344, 'p6.a': 0.204, 'p6.d': 0.404, 'p6.mid': 2, 'p6.lo': -19.3, 'p6.filter': 0.224,
+      'p7.fader': 1.995, 'p7.a': 0.6, 'p7.b': 1, 'p7.c': 0.3, 'p7.d': 1, 'p7.pan': 0.5, 'p7.lo': -30, 'p7.filter': -0.39,
+      'p8.fader': 0.408, 'p8.a': 0.578, 'p8.c': 0.6, 'p8.d': 0.5, 'p8.lo': -28, 'p8.filter': 0.402,
+      'p9.fader': 1.1, 'p9.pan': -0.5, 'p9.a': 0.4, 'p9.c': 0.3, 'p9.mid': 2,
+      // A: the dub delay, long, saturating, fluttering, its repeats into the hall
+      'dub.sync': 1, 'dub.div': 3, 'dub.fdbk': 0.7, 'dub.tone': 4390, 'dub.wow': 0.4, 'dub.sat': 0.7, 'dub.flutter': 0.4,
+      'rA.fader': 1, 'rA.c': 0.3, 'rA.lo': -6, 'rA.hi': -3,
+      // B: Beads' delay in eighth triplets, dense, pitched down a fourth and a bit
+      'bbd.mode': 1, 'bbd.sync': 1, 'bbd.div': 1, 'bbd.fdbk': 0.5, 'bbd.age': 0.4, 'bbd.mod': 0.3, 'bbd.ping': 1,
+      'bds.density': 0.739, 'bds.filter': 0.805, 'bds.pitch': -5.424,
+      'rB.fader': 0.9, 'rB.lo': -8,
+      // C: a smaller, darker hall with a long pre-delay; its return low-passed, its sub taken down and its low mids up: the rumble
+      'rev.type': 2, 'rev.size': 0.412, 'rev.damp': 1, 'rev.pre': 0.114, 'rev.tone': 0.096,
+      'rC.fader': 1.2, 'rC.filter': -0.3, 'rC.lo': -4, 'rC.mid': 3, 'rC.hi': -10,
+      // D: the ensemble, for width
+      'cho.mode': 3, 'rD.fader': 1,
+      // the compressor keyed by the kick, ducking all of it (the rumble pumps); the master onto tape
+      'cmp.key': 1, 'cmp.ratio': 5, 'cmp.thresh': -26, 'cmp.atk': 1, 'cmp.rel': 160, 'cmp.mix': 0.9,
+      'tape.drive': 15, 'tape.tone': 0.4,
+    };
+    // intro 16 bars, the rumble in 8, groove 16, stab 16, ride 16, break 4, build 4, drop 16, the acid 32, second
+    // break 4, last drop 16, closing 8, out 16: about four and a half minutes
+    const chain = [0, 0, 1, 1, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 7, 8, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 12, 12, 12, 12, 13, 13, 14, 14, 15, 15];
+    return multi('No Mercy', 148, parts, patterns, chain, mix);
+  },
+};
+
+export const RIG_FACTORY_MULTIS: readonly RigFactoryMulti[] = [init8, acidHouse, scalpel, darkRoom, noMercy];
