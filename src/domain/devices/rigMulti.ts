@@ -18,6 +18,8 @@ export interface RigMultiPart {
   kind: 'synth' | 'kit';
   kit?: RigKit;
   slot: number;
+  /** The name of the sound in that slot when saved: finds it again if the list of sounds has changed since. */
+  sound?: string;
   voices: number;
   channel: number;
   lo: number;
@@ -175,7 +177,8 @@ export function sanitiseMulti(raw: unknown, defaults: (part: number) => RigMulti
       if (!isObject(r)) return d;
       const kit = sanitiseKit(r.kit);
       return {
-        name: text(r.name, d.name), kind: r.kind === 'kit' && kit ? 'kit' : 'synth', ...(kit ? { kit } : {}), slot: num(r.slot, 0, 9999, d.slot, true), voices: num(r.voices, 0, 64, d.voices, true),
+        name: text(r.name, d.name), kind: r.kind === 'kit' && kit ? 'kit' : 'synth', ...(kit ? { kit } : {}), slot: num(r.slot, 0, 9999, d.slot, true),
+        ...(typeof r.sound === 'string' && r.sound ? { sound: text(r.sound, '') } : {}), voices: num(r.voices, 0, 64, d.voices, true),
         channel: num(r.channel, 0, 16, d.channel, true), lo: num(r.lo, 0, 127, d.lo, true), hi: num(r.hi, 0, 127, d.hi, true),
         octave: num(r.octave, -2, 2, d.octave, true), a: sanitiseSide(r.a), b: sanitiseSide(r.b ?? r.a),
       };

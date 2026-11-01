@@ -79,7 +79,7 @@ const Q_ROUTE = RIG_P['filter.route'], Q_KEY = RIG_P['filter.key'];
 const Q_E1 = [RIG_P['eg1.a'], RIG_P['eg1.d'], RIG_P['eg1.s'], RIG_P['eg1.r'], RIG_P['eg1.level'], RIG_P['eg1.reset']];
 const Q_E2 = [RIG_P['eg2.a'], RIG_P['eg2.d'], RIG_P['eg2.s'], RIG_P['eg2.r'], RIG_P['eg2.level'], RIG_P['eg2.reset']];
 const Q_DRONE = RIG_P['eg2.drone'];
-const Q_L = [1, 2].map((k) => [RIG_P['lfo' + k + '.rate'], RIG_P['lfo' + k + '.level'], RIG_P['lfo' + k + '.shape'], RIG_P['lfo' + k + '.sync'], RIG_P['lfo' + k + '.div'], RIG_P['lfo' + k + '.retrig']]);
+const Q_L = [1, 2].map((k) => [RIG_P['lfo' + k + '.rate'], RIG_P['lfo' + k + '.level'], RIG_P['lfo' + k + '.shape'], RIG_P['lfo' + k + '.sync'], RIG_P['lfo' + k + '.div'], RIG_P['lfo' + k + '.retrig'], RIG_P['lfo' + k + '.slew']]);
 const Q_LEVEL = RIG_P['out.level'], Q_PAN = RIG_P['out.pan'], Q_SPIN = RIG_P['out.spin'], Q_MORPH = RIG_P['out.morph'];
 const Q_MODE = RIG_P['voice.mode'], Q_UNI = RIG_P['voice.unison'], Q_DET = RIG_P['voice.detune'], Q_GLIDE = RIG_P['voice.glide'], Q_BEND = RIG_P['voice.bend'];
 const Q_PANNER = RIG_P['panner.mode'], Q_PWIDTH = RIG_P['panner.width'], Q_TIME = RIG_P['mod.time'];
@@ -257,7 +257,7 @@ class RigVoice {
     this.panPos = 0; this.rand = 0; this.time = 0;
     this.p1 = 0; this.p2 = 0; this.p3 = 0; this.sub = 1;
     this.e1 = 0; this.st1 = 0; this.e2 = 0; this.st2 = 0;
-    this.lph = [0, 0]; this.lval = [0, 0]; this.lhold = [0, 0];
+    this.lph = [0, 0]; this.lval = [0, 0]; this.lhold = [0, 0]; this.lslew = [NaN, NaN];
     this.ld0 = 0; this.ld1 = 0; this.ld2 = 0; this.ld3 = 0;
     this.v1 = 0; this.v2 = 0;
     this.b0 = 0; this.b1 = 0; this.b2 = 0;
@@ -287,7 +287,7 @@ class RigVoice {
 function rigClamp(x, lo, hi) { return x < lo ? lo : x > hi ? hi : x; }
 
 class RigCore {
-  constructor(sampleRate, voices = 32, parts = 16, random = Math.random) {
+  constructor(sampleRate, voices = 48, parts = 16, random = Math.random) {
     this.sr = sampleRate;
     this.random = random;
     if (typeof plSetSampleRate === 'function') plSetSampleRate(sampleRate);
@@ -479,7 +479,7 @@ class RigCore {
       if (a[Q_E1[5]] >= 0.5) v.e1 = 0;
       if (a[Q_E2[5]] >= 0.5) v.e2 = 0;
       v.st1 = 1; v.st2 = 1;
-      for (let k = 0; k < 2; k++) if (a[Q_L[k][5]] === 0) { v.lph[k] = 0; v.lhold[k] = this.random() * 2 - 1; }
+      for (let k = 0; k < 2; k++) if (a[Q_L[k][5]] === 0) { v.lph[k] = 0; v.lhold[k] = this.random() * 2 - 1; v.lslew[k] = NaN; }
     }
     v.gate = true;
     v.active = true;
@@ -626,12 +626,18 @@ class RigCore {
       src[S_RAND] = v.rand;
       src[S_SET] = 1;
 
-      // ---- the matrix, at the morph the knob sets; then the morph the matrix moves
+      // ---- the matrix. First where the morph is (the knob, and what the matrix routes to it, at the knob's own
+      // position); then every other routing at that morph, so a wheel moving the morph blends the routings too
       const m0 = A[Q_MORPH];
+      let toMorph = 0;
+      for (const r of pt.routes) if (r.d === D_MORPH) toMorph += (r.a + (r.b - r.a) * m0) * src[r.s];
+      const m = rigClamp(m0 + toMorph, 0, 1);
       md.fill(0);
+      md[D_MORPH] = toMorph;
       let sensE1 = 1, sensE2 = 1;
       for (const r of pt.routes) {
-        const amt = r.a + (r.b - r.a) * m0;
+        if (r.d === D_MORPH) continue;
+        const amt = r.a + (r.b - r.a) * m;
         if (amt === 0) continue;
         if (r.sens) {
           const s = Math.abs(amt), f = (1 - s) + s * (amt > 0 ? v.vel : 1 - v.vel);
@@ -640,7 +646,6 @@ class RigCore {
         }
         md[r.d] += amt * src[r.s];
       }
-      const m = rigClamp(m0 + md[D_MORPH], 0, 1);
       for (let i = 0; i < RIG_NP; i++) {
         const blend = RIG_PARAM_DEFS[i][4], x = A[i], y = B[i];
         q[i] = m === 0 || x === y ? x : blend === 0 ? (m < 0.5 ? x : y) : blend === 2 && x > 0 && y > 0 ? x * Math.pow(y / x, m) : x + (y - x) * m;
@@ -675,13 +680,22 @@ class RigCore {
           if (ph >= 1) { ph -= Math.floor(ph); v.lhold[k] = this.random() * 2 - 1; }
           v.lph[k] = ph;
         }
-        const shape = q[L[2]];
-        const x = shape === 0 ? Math.sin(2 * Math.PI * ph)
+        // the shape: A's and B's blended by the morph where they differ
+        const wave = (shape) => shape === 0 ? Math.sin(2 * Math.PI * ph)
           : shape === 1 ? (ph < 0.25 ? 4 * ph : ph < 0.75 ? 2 - 4 * ph : 4 * ph - 4)
           : shape === 2 ? (ph < 0.5 ? 1 : -1)
           : shape === 3 ? 2 * ph - 1
           : shape === 4 ? 1 - 2 * ph
           : v.lhold[k];
+        const sa = A[L[2]], sb = B[L[2]];
+        let x = sa === sb || m === 0 ? wave(sa) : m === 1 ? wave(sb) : wave(sa) + (wave(sb) - wave(sa)) * m;
+        // slew: a one-pole lag on the shape, its time a share of the cycle (up to half), restarted with the LFO
+        const slew = rigClamp(q[L[6]], 0, 1);
+        if (slew > 0 && v.lslew[k] === v.lslew[k]) {
+          const tau = (slew * slew * 0.5) / Math.max(rate, 1e-3);
+          x = v.lslew[k] + (x - v.lslew[k]) * (1 - Math.exp(-tick / tau));
+        }
+        v.lslew[k] = x;
         v.lval[k] = x * q[L[1]];
       }
       src[S_LFO1] = v.lval[0];
@@ -776,7 +790,8 @@ class RigCore {
 
       // ---- drive (clean at zero, as on the NINA) and filters
       const dr = rigClamp(q[Q_DRIVE], 0, 1);
-      const gd = (1 + 8 * dr * dr) * (q[Q_OD] >= 0.5 ? 4 : 1), gdOut = 2 / (1 + 0.12 * (gd - 1));
+      const odA = A[Q_OD] >= 0.5 ? 1 : 0, odB = B[Q_OD] >= 0.5 ? 1 : 0;
+      const gd = (1 + 8 * dr * dr) * (1 + 3 * (odA + (odB - odA) * m)), gdOut = 2 / (1 + 0.12 * (gd - 1));
       const key = (v.note - 60) * q[Q_KEY];
       const e1 = src[S_EG1] * sensE1;
       const ny = 0.45 * sr;
@@ -786,7 +801,17 @@ class RigCore {
       const lk = rigClamp(q[Q_LRES], 0, 1) * 4.15, lcomp = 1 + 0.55 * lk;
       const sg = Math.tan(Math.PI * sfc / sr), damp = 2 * (1 - 0.97 * rigClamp(q[Q_SRES], 0, 1));
       const sh = 1 / (1 + damp * sg + sg * sg);
-      const smode = rigClamp(q[Q_SMODE], 0, 1), sbp = q[Q_SBP] >= 0.5, route = q[Q_ROUTE];
+      const smode = rigClamp(q[Q_SMODE], 0, 1);
+      // the band-pass switch and the routing, blended where A and B differ: off is the ladder alone, series the SEM
+      // after it, parallel both on the mixer (at 0.6); in between, the ladder's share, the SEM's share and what feeds
+      // the SEM (the ladder or the mixer) move with the morph
+      const bpA = A[Q_SBP] >= 0.5 ? 1 : 0, bpB = B[Q_SBP] >= 0.5 ? 1 : 0, bpw = bpA + (bpB - bpA) * m;
+      const rA = A[Q_ROUTE], rB = B[Q_ROUTE];
+      const share = (r) => r === 0 ? [1, 0] : r === 1 ? [0, 1] : [0.6, 0.6];
+      const [ladA, semA] = share(rA), [ladB, semB] = share(rB);
+      const cLad = ladA + (ladB - ladA) * m, cSem = semA + (semB - semA) * m;
+      const parA = rA === 2 ? 1 : rA === 1 ? 0 : rB === 2 ? 1 : 0, parB = rB === 2 ? 1 : rB === 1 ? 0 : parA;
+      const semFeed = parA + (parB - parA) * m, semOn = rA > 0 || rB > 0;
 
       // ---- envelopes: one-pole stages; attack aims past 1 so it lands in time, decay and release are 99 % times
       const e2lev = rigClamp(q[Q_E2[4]], 0, 1) * sensE2;
@@ -880,18 +905,16 @@ class RigCore {
 
         // SEM: a TPT state-variable filter, its band-pass state softly limited so it can ring without blowing up
         let out = lad;
-        if (route > 0) {
-          const xin = route === 1 ? lad : x;
+        if (semOn) {
+          const xin = lad + (x - lad) * semFeed;
           const hp = (xin - (damp + sg) * sv1 - sv2) * sh;
           const bp = sg * hp + sv1;
           sv1 = rigTanh((sg * hp + bp) * 0.3) / 0.3;
           const lp = sg * bp + sv2;
           sv2 = sg * bp + lp;
-          let sem;
-          if (sbp) sem = bp * damp;
-          else if (smode < 0.5) sem = lp + hp * (smode * 2);
-          else sem = hp + lp * (2 - smode * 2);
-          out = route === 1 ? sem : (lad + sem) * 0.6;
+          const modes = smode < 0.5 ? lp + hp * (smode * 2) : hp + lp * (2 - smode * 2);
+          const sem = bpw === 0 ? modes : bpw === 1 ? bp * damp : modes + (bp * damp - modes) * bpw;
+          out = lad * cLad + sem * cSem;
         }
 
         // envelopes and the amp

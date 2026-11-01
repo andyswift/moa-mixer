@@ -2,6 +2,7 @@ import type { Control } from '../domain/devices/controls';
 import { RIG_DESTS, RIG_MACRO_AUX, RIG_SOURCES, type RigDest, type RigSource } from '../domain/devices/rigParams';
 import { RIG_FACTORY_MULTIS } from '../domain/devices/rigFactory';
 import { hasTune, readTuneFile, tuneFile, tuneFileName, tuneFromHash, tuneHash } from '../domain/devices/rigShare';
+import { RIG_CATEGORIES } from '../domain/devices/rigPresets';
 import type { RigMulti } from '../domain/devices/rigMulti';
 import { freshPart, RIG_PARTS, type RigSynth } from '../domain/devices/rigSynth';
 import { renderRigKitPanel, type RigKitSource } from './rigKitPanel';
@@ -30,8 +31,8 @@ const SECTIONS: [title: string, colour: string, ids: string[]][] = [
   ['SEM', '#ff8466', ['filter.route', 'sem.cutoff', 'sem.res', 'sem.mode', 'sem.eg1', 'sem.bp']],
   ['EG 1', '#5fdccb', ['eg1.a', 'eg1.d', 'eg1.s', 'eg1.r', 'eg1.level', 'eg1.reset']],
   ['EG 2', '#5fdccb', ['eg2.a', 'eg2.d', 'eg2.s', 'eg2.r', 'eg2.level', 'eg2.reset', 'eg2.drone']],
-  ['LFO 1', '#ffd84a', ['lfo1.rate', 'lfo1.level', 'lfo1.shape', 'lfo1.sync', 'lfo1.div', 'lfo1.retrig']],
-  ['LFO 2', '#ffd84a', ['lfo2.rate', 'lfo2.level', 'lfo2.shape', 'lfo2.sync', 'lfo2.div', 'lfo2.retrig']],
+  ['LFO 1', '#ffd84a', ['lfo1.rate', 'lfo1.level', 'lfo1.shape', 'lfo1.sync', 'lfo1.div', 'lfo1.retrig', 'lfo1.slew']],
+  ['LFO 2', '#ffd84a', ['lfo2.rate', 'lfo2.level', 'lfo2.shape', 'lfo2.sync', 'lfo2.div', 'lfo2.retrig', 'lfo2.slew']],
   ['OUTPUT', '#ecece6', ['out.level', 'out.pan', 'out.spin', 'out.morph']],
   ['VOICE', '#ecece6', ['voice.mode', 'voice.unison', 'voice.detune', 'voice.glide', 'voice.bend', 'panner.mode', 'panner.width', 'mod.time']],
 ];
@@ -98,13 +99,19 @@ export function renderRigPanel(rig: RigSynth, kits?: RigKitSource): HTMLElement 
   const setup = el('div', 'rig-setup');
   const sound = el('select');
   sound.setAttribute('aria-label', 'Sound');
+  // the factory sounds by family (Init on its own at the top), then the saved ones
   const fillSounds = () => {
-    const factory = el('optgroup');
-    factory.label = 'Factory';
-    const saved = el('optgroup');
-    saved.label = 'Saved';
-    rig.slots.forEach((s, i) => (i < rig.factorySounds ? factory : saved).append(new Option(s.name, String(i))));
-    sound.replaceChildren(factory, ...(saved.children.length ? [saved] : []));
+    const group = (label: string) => { const g = el('optgroup'); g.label = label; return g; };
+    const families = new Map(RIG_CATEGORIES.map(([id, label]) => [id as string, group(label)]));
+    const saved = group('Saved');
+    const loose: HTMLOptionElement[] = [];
+    rig.slots.forEach((s, i) => {
+      const option = new Option(s.name, String(i));
+      if (i >= rig.factorySounds) saved.append(option);
+      else if (s.category) families.get(s.category)!.append(option);
+      else loose.push(option);
+    });
+    sound.replaceChildren(...loose, ...[...families.values(), saved].filter((g) => g.children.length));
   };
   sound.addEventListener('change', () => rig.loadSlot(Number(sound.value)));
   const kind = el('select');
@@ -312,7 +319,7 @@ export function renderRigPanel(rig: RigSynth, kits?: RigKitSource): HTMLElement 
     octave.disabled = isKit;
     kitPanel.hidden = !isKit;
     if (isKit) kitPanel.sync();
-    if (sound.options.length !== rig.slots.length || [...sound.options].some((o, i) => o.text !== rig.slots[i]!.name)) fillSounds();
+    if (sound.options.length !== rig.slots.length || [...sound.options].some((o) => o.text !== rig.slots[Number(o.value)]?.name)) fillSounds();
     sound.value = String(pt.slot);
     if (document.activeElement !== partName) partName.value = pt.name;
     voices.textContent = `${pt.voices} (${rig.freeVoices} free)`;

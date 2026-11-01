@@ -225,6 +225,28 @@ describe('MOA-RIG envelopes and LFOs', () => {
     expect(changes).toBeGreaterThanOrEqual(7);
     expect(changes).toBeLessThanOrEqual(8);
   });
+
+  it('slew rounds an LFO square: the pan glides across instead of jumping, and still swings', () => {
+    const swing = (slew: number) => {
+      const core = newCore();
+      core.bpm = 120;
+      core.setPatch(0, side({ 'lfo1.sync': 1, 'lfo1.div': 3, 'lfo1.shape': 2, 'lfo1.slew': slew }, [{ source: 'lfo1', dest: 'out.pan', amount: 0.8 }]));
+      core.noteOn(0, 60);
+      const { l, r } = run(core, 2);
+      const w = 240, bal: number[] = [];
+      for (let at = 0; at + w <= l.length; at += w) {
+        const a = rms(l, at, at + w), b = rms(r, at, at + w);
+        bal.push((a - b) / (a + b + 1e-9));
+      }
+      let jump = 0;
+      for (let i = 1; i < bal.length; i++) jump = Math.max(jump, Math.abs(bal[i]! - bal[i - 1]!));
+      return { jump, range: Math.max(...bal) - Math.min(...bal) };
+    };
+    const hard = swing(0), soft = swing(0.6);
+    expect(hard.jump).toBeGreaterThan(0.4);
+    expect(soft.jump).toBeLessThan(hard.jump / 4);
+    expect(soft.range).toBeGreaterThan(hard.range * 0.6);
+  });
 });
 
 describe('MOA-RIG mod matrix and morph', () => {
@@ -461,5 +483,38 @@ describe('MOA-RIG robustness', () => {
     expect(rms(l, SR / 2)).toBeGreaterThan(0.001);
     expect(Math.abs(mean) / rms(l, SR / 2)).toBeLessThan(0.02);
   });
-});
 
+  it('blends the routings by the morph the MOD wheel moves, not only by the knob', () => {
+    const toMorph: RigRoute = { source: 'mod', dest: 'out.morph', amount: 1 };
+    const opened: RigRoute = { source: 'set', dest: 'lad.cutoff', amount: 0.5 }; // B's routing: the ladder 32 semitones open
+    const play = (wheel: number, knob = 0) => {
+      const core = newCore();
+      core.setPatch(0, side({ 'lad.cutoff': 200, 'out.morph': knob }, [toMorph]), side({ 'lad.cutoff': 200 }, [toMorph, opened]));
+      core.setControl(0, 'mod', wheel);
+      core.noteOn(0, 45, 1);
+      return run(core, 0.4).l;
+    };
+    // brightness: the level of the change from sample to sample against the level
+    const bright = (a: Float32Array) => {
+      let d = 0, e = 0;
+      for (let i = SR / 10; i < a.length; i++) { d += (a[i]! - a[i - 1]!) ** 2; e += a[i]! ** 2; }
+      return Math.sqrt(d / e);
+    };
+    // the wheel all the way up sounds as the knob all the way to B does, and not as the wheel at rest
+    const wheel = bright(play(1)), knob = bright(play(0, 1)), rest = bright(play(0));
+    expect(Math.abs(wheel / knob - 1)).toBeLessThan(0.05);
+    expect(wheel).toBeGreaterThan(1.3 * rest);
+  });
+
+  it('morphs smoothly between filter routings (the SEM off on A, beside the ladder on B): no jump halfway', () => {
+    const levels = Array.from({ length: 21 }, (_, k) => {
+      const core = newCore();
+      const a = side({ 'out.morph': k / 20, 'lad.cutoff': 1500 });
+      const b = side({ 'lad.cutoff': 1500, 'filter.route': 2, 'sem.mode': 1, 'sem.cutoff': 2500 });
+      core.setPatch(0, a, b);
+      core.noteOn(0, 45, 1);
+      return 20 * Math.log10(rms(run(core, 0.3).l, SR / 10));
+    });
+    for (let k = 1; k < levels.length; k++) expect(Math.abs(levels[k]! - levels[k - 1]!), `morph ${k / 20}`).toBeLessThan(1.5);
+  });
+});

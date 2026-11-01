@@ -57,7 +57,7 @@ describe('MOA-RIG factory sounds', () => {
       expect(Math.sqrt(sum / (128 * 375 * 1.5)), preset.name).toBeGreaterThan(0.003);
       expect(peak, preset.name).toBeLessThan(1.5);
     }
-  });
+  }, 20_000); // every factory sound for a second and a half each
 });
 
 describe('MOA-RIG device', () => {

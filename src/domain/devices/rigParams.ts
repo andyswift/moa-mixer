@@ -57,6 +57,9 @@ const lfo = (k: 1 | 2): RigParam[] => [
   c(`lfo${k}.div`, 'Division', RIG_DIVISIONS, '1/4'),
   /** on: each note restarts it; off: every voice runs free; global: all the part's voices share one phase. */
   c(`lfo${k}.retrig`, 'Retrigger', ['on', 'off', 'global'], 'on'),
+  /** Smooths the shape: rounds a square's edges, glides between random steps. Scaled to the cycle, so it acts the
+   * same at any rate; at 1 the lag is half a cycle. */
+  n(`lfo${k}.slew`, 'Slew', 0, 1, 0),
 ];
 
 export const RIG_PARAMS: readonly RigParam[] = [

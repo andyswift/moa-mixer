@@ -36,13 +36,13 @@ const PARTS = 16;
 const preset = (name: string) => {
   const p = RIG_PRESETS.find((x) => x.name === name);
   if (!p) throw new Error(`no factory sound ${name}`);
-  return { slot: RIG_PRESETS.indexOf(p), a: p.a, b: p.b ?? p.a };
+  return { slot: RIG_PRESETS.indexOf(p), sound: name, a: p.a, b: p.b ?? p.a };
 };
 /** A sound: a factory one with params changed (and routings, if given). */
-function sound(base: string, params: Record<string, number>, matrix?: RigRoute[]): { slot: number; a: RigSide; b: RigSide } {
+function sound(base: string, params: Record<string, number>, matrix?: RigRoute[]): { slot: number; sound: string; a: RigSide; b: RigSide } {
   const p = preset(base);
   const side = (s: RigSide): RigSide => ({ params: { ...s.params, ...params }, matrix: (matrix ?? s.matrix).map((r) => ({ ...r })) });
-  return { slot: p.slot, a: side(p.a), b: side(p.a) };
+  return { slot: p.slot, sound: p.sound, a: side(p.a), b: side(p.a) };
 }
 function multi(name: string, tempo: number, parts: Partial<RigMultiPart>[], patterns: RigPattern[] = [], chain: number[] = [], mix: Record<string, number> = {}): RigMulti {
   const all = Array.from({ length: 16 }, newRigPattern);
@@ -328,12 +328,12 @@ const scalpel: RigFactoryMulti = {
     // 5-8: the RIG's techno sounds (short, dry, driven), the delay doing the rest
     parts[SC.BASS] = { name: 'Bass', voices: 1, channel: 5, ...sound('Techno Bass', { 'out.level': 1 }) };
     parts[SC.METAL] = { name: 'Metal', voices: 1, channel: 6, ...sound('Metal Hit', { 'out.level': 1 }) };
-    parts[SC.STAB] = { name: 'Stab', voices: 1, channel: 7, ...sound('Techno Stab', { 'out.level': 1 }) };
+    parts[SC.STAB] = { name: 'Stab', voices: 1, channel: 7, ...sound('Techno Stab', { 'eg1.d': 0.12, 'eg2.d': 0.14, 'eg2.r': 0.12, 'out.level': 1 }) };
     parts[SC.NOISE] = { name: 'Noise', voices: 1, channel: 8, ...sound('Noise Sweep', { 'out.level': 1 }) };
     parts[SC.BUBBLY] = { name: 'Bubbly', voices: 1, channel: 9, ...sound('Bubbly Bass', { 'out.level': 1 }) };
     parts[SC.STRINGS] = { name: 'Strings', voices: 8, channel: 1, ...sound('Tape Strings', { 'out.level': 1 }) };
     parts[SC.SHAKER] = { name: 'Shaker', voices: 1, channel: 2, ...sound('Shaker', { 'out.level': 1 }) };
-    parts[SC.SYNTH] = { name: 'Synth', voices: 6, channel: 3, ...sound('Table Poly', { 'out.level': 1 }) };
+    parts[SC.SYNTH] = { name: 'Synth', voices: 6, channel: 3, ...sound('Table Poly', { 'eg1.d': 0.06, 'eg2.d': 0.15, 'eg2.r': 0.1, 'out.level': 1 }) };
     parts[SC.DIGI5] = { name: 'Digi 5', voices: 2, channel: 4, ...sound('Digi Blip', { 'out.level': 1 }) };
     // the other: PPG SYNC instead of DIGI, an octave lower, a touch longer
     parts[SC.DIGI9] = { name: 'Digi 9', voices: 2, channel: 14, ...sound('Digi Blip', { 'osc3.table': 1, 'osc3.oct': 2, 'eg2.d': 0.14, 'out.level': 1 }) };
@@ -555,7 +555,7 @@ const darkRoom: RigFactoryMulti = {
         { source: 'lfo1', dest: 'lad.cutoff', amount: 0.216 },
       ]),
     };
-    parts[DR.STAB] = { name: 'Stab', voices: 2, channel: 3, ...sound('Minor Stab', { 'out.level': 1 }) };
+    parts[DR.STAB] = { name: 'Stab', voices: 2, channel: 3, ...sound('Minor Stab', { 'eg1.d': 0.15, 'eg2.d': 0.2, 'eg2.r': 0.15, 'out.level': 1 }) };
     // the strings low and closed, opened by the SEQ lane; the high-pass under them pulsing in eighth triplets (LFO 2,
     // as the user set it)
     parts[DR.STRINGS] = {
@@ -766,6 +766,7 @@ const noMercy: RigFactoryMulti = {
       name: 'Stab', voices: 2, channel: 2,
       ...sound('Techno Stab', {
         'mix.osc1': 0.208, 'osc1.tune': 5, 'mix.osc2': 0.403, 'osc2.sync': 1, 'osc2.tune': -0.336, 'eg1.s': 0.318,
+        'eg1.d': 0.12, 'eg2.d': 0.14, 'eg2.r': 0.12, // the tune's own decay (the preset's is longer)
         'lfo1.retrig': 1, 'lfo2.sync': 1, 'lfo2.div': 3, 'lfo2.retrig': 1, 'out.level': 1,
       }, [
         { source: 'lfo1', dest: 'lad.cutoff', amount: 0.526 }, { source: 'lfo1', dest: 'sem.cutoff', amount: -0.406 },
@@ -999,7 +1000,7 @@ const dubPressure: RigFactoryMulti = {
         { source: 'eg2', dest: 'lad.cutoff', amount: 0.3 },
       ]),
     };
-    parts[DP.SKANK] = { name: 'Skank', voices: 3, channel: 3, ...sound('Dub Chord', { 'out.level': 1 }) };
+    parts[DP.SKANK] = { name: 'Skank', voices: 3, channel: 3, ...sound('Dub Chord', { 'eg1.d': 0.2, 'eg2.d': 0.25, 'eg2.r': 0.2, 'out.level': 1 }) };
     // the siren: a narrow pulse, a falling sweep (LFO 1, ramp down) on its pitch, and the pitch rising as it is held (EG 1)
     parts[DP.SIREN] = {
       name: 'Siren', voices: 1, channel: 4,

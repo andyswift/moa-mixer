@@ -140,7 +140,16 @@ body:has(.rig-shell) { background: #1b1c1f; }
 .rig-header-stat { font: 600 12px/1 'Share Tech Mono', ui-monospace, monospace; color: #c4c6c9; letter-spacing: 0.04em; white-space: nowrap; }
 .rig-drop-button:first-of-type { margin-left: auto; }
 .rig-header .rig-drop-button.on { background: #f1f1ec; color: #1b1c1f; }
-.rig-start { width: auto; height: 28px; padding: 0 12px; --rig-accent: #d6ef6a; }
+.rig-power { width: auto; height: 28px; padding: 0 12px; --rig-accent: #d6ef6a; }
+/* while the audio is off: the page dimmed under one big round button */
+.rig-power-overlay { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  background: rgba(20, 21, 24, 0.82); backdrop-filter: blur(3px); }
+.rig-power-overlay[hidden] { display: none; }
+.rig-start { width: 132px; height: 132px; border: 3px solid #d6ef6a; border-radius: 50%; background: #1b1c1f; color: #d6ef6a;
+  font: 700 34px/1 'Barlow Semi Condensed', system-ui, sans-serif; letter-spacing: 0.08em; cursor: pointer; box-shadow: 0 0 32px rgba(214, 239, 106, 0.25); }
+.rig-start:hover:not(:disabled) { background: #d6ef6a; color: #1b1c1f; }
+.rig-start:disabled { opacity: 0.6; cursor: progress; }
+.rig-power-hint { margin: 0; color: #c9cac4; font: 600 14px/1 'Barlow Semi Condensed', system-ui, sans-serif; letter-spacing: 0.12em; text-transform: uppercase; }
 .rig-drop { position: absolute; top: 44px; right: 14px; z-index: 20; max-width: calc(100vw - 28px); padding: 12px; border-radius: 0 0 8px 8px; background: #26282c; box-shadow: 0 12px 30px rgba(0,0,0,0.6), inset 0 0 0 1px #3a3c41; }
 .rig-drop-keys { left: 14px; }
 .rig-drop-keys .keybed { border-radius: 8px; }

@@ -60,8 +60,8 @@ describe('MOA-RIG multis', () => {
   it('load what they can from a damaged save, and never more voices than the pool', () => {
     const m = busy().toMulti() as unknown as Record<string, unknown>;
     const parts = m.parts as Record<string, unknown>[];
-    parts[0]!.voices = 20;
-    parts[1]!.voices = 20;
+    parts[0]!.voices = RIG_VOICES - 4; // the two together ask for more than the pool has
+    parts[1]!.voices = RIG_VOICES - 4;
     (parts[1]!.a as { params: Record<string, unknown> }).params = { 'lad.cutoff': 1e9, 'osc3.table': 2.7, 'no.such': 1, 'lad.res': 'loud' };
     (parts[1]!.a as { matrix: unknown[] }).matrix = [{ source: 'lfo1', dest: 'lad.cutoff', amount: 5 }, { source: 'nope', dest: 'lad.cutoff', amount: 1 }];
     parts[2] = 'junk' as never;
@@ -78,9 +78,27 @@ describe('MOA-RIG multis', () => {
     expect(back.chain).toEqual([3]);
     const rig = new RigSynth();
     rig.loadMulti(back);
-    expect(rig.parts.slice(0, 2).map((p) => p.voices)).toEqual([20, RIG_VOICES - 20]);
+    expect(rig.parts.slice(0, 2).map((p) => p.voices)).toEqual([RIG_VOICES - 4, 4]);
     expect(sanitiseMulti({ name: 'x' }, freshPart)).toBeUndefined();
     expect(sanitiseMulti('{', freshPart)).toBeUndefined();
+  });
+
+  it('find a part’s sound again by name when the list of sounds has moved since the multi was saved', () => {
+    const rig = new RigSynth();
+    rig.saveSound('Mine');
+    const m = rig.toMulti();
+    expect(m.parts[0]!.sound).toBe('Mine');
+    // another sound saved before it (as more factory sounds would be): 'Mine' is one slot further on
+    const other = { name: 'Other', a: m.parts[0]!.a };
+    const later = new RigSynth();
+    later.setSavedSounds([other, ...rig.savedSounds]);
+    later.loadMulti(sanitiseMulti(JSON.parse(JSON.stringify(m)), freshPart)!);
+    expect(later.slots[later.parts[0]!.slot]!.name).toBe('Mine');
+    // a save from before parts kept the name still loads by slot
+    const old = JSON.parse(JSON.stringify(m)) as { parts: { sound?: string; slot: number }[] };
+    delete old.parts[0]!.sound;
+    later.loadMulti(sanitiseMulti(old, freshPart)!);
+    expect(later.parts[0]!.slot).toBe(m.parts[0]!.slot);
   });
 
   it('save a part’s sound for any part to load, replacing a saved one of the same name but never a factory one', () => {

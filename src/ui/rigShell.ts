@@ -17,10 +17,11 @@ export interface RigShellPages {
   multi: HTMLElement;
   setup: HTMLElement;
   keys: HTMLElement;
-  /** More for the header, before START AUDIO (the TAPE button). */
+  /** More for the header, before POWER (the TAPE button). */
   extra?: HTMLElement[];
-  /** Starts the audio (the first time) and reports whether it runs. */
+  /** Starts the audio (the first time), stops it, and reports whether it runs. */
   start(): Promise<void>;
+  stop(): Promise<void>;
   running(): boolean;
 }
 
@@ -103,13 +104,23 @@ export function renderRigShell(rig: RigSynth, pages: RigShellPages): HTMLElement
   const multiButton = drop('MULTI', pages.multi, 'rig-drop-multi');
   const setupButton = drop('SETUP', pages.setup, 'rig-drop-setup');
   const keysButton = drop('KEYS', pages.keys, 'rig-drop-keys');
-  const start = button('rig-key rig-wide rig-start', 'START AUDIO');
-  start.addEventListener('click', async () => { await pages.start(); syncHeader(); });
+  // the power: a browser only lets a page make sound after a click, so while the audio is off an overlay covers the
+  // page with one big button to switch it on; POWER in the header switches it off again (and the overlay comes back)
+  const power = button('rig-key rig-wide rig-power', 'POWER', 'Switch the audio off');
+  power.addEventListener('click', async () => { await pages.stop(); syncHeader(); });
+  const overlay = el('div', 'rig-power-overlay');
+  const on = button('rig-start', 'ON', 'Switch the audio on');
+  on.addEventListener('click', async () => {
+    on.disabled = true;
+    on.textContent = '…';
+    try { await pages.start(); } finally { on.disabled = false; on.textContent = 'ON'; syncHeader(); }
+  });
+  overlay.append(on, el('p', 'rig-power-hint', 'MOA-RIG · switch the sound on'));
 
-  header.append(logo, tabs, bpm, voices, multi, multiButton, setupButton, keysButton, ...(pages.extra ?? []), start);
+  header.append(logo, tabs, bpm, voices, multi, multiButton, setupButton, keysButton, ...(pages.extra ?? []), power);
   const body = el('div', 'rig-pages');
   body.append(pages.synth, pages.seq, pages.mix);
-  shell.append(header, ...drops.map(([, box]) => box), body);
+  shell.append(header, ...drops.map(([, box]) => box), body, overlay);
 
   function syncHeader(): void {
     bpm.textContent = `${rig.bpm.toFixed(1)} BPM`;
@@ -117,9 +128,9 @@ export function renderRigShell(rig: RigSynth, pages: RigShellPages): HTMLElement
     const used = rig.parts.reduce((s, p) => s + p.voices, 0);
     voices.textContent = `VOICES ${used} / ${RIG_VOICES}`;
     multi.textContent = `MULTI · ${rig.multiName.toUpperCase()}`;
-    const on = pages.running();
-    start.textContent = on ? 'AUDIO ON' : 'START AUDIO';
-    start.classList.toggle('on', on);
+    const running = pages.running();
+    power.classList.toggle('on', running);
+    overlay.hidden = running;
   }
   rig.onPartChange(syncHeader);
   rig.onEdit(syncHeader);

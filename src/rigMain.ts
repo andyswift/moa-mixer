@@ -76,6 +76,7 @@ const shell = renderRigShell(rig, {
   synth: synthPage, seq: seqPage, mix: mixPage,
   multi: renderRigMultiBar(rig, multis), setup, keys: mountKeyboardBed(rig), extra: [renderTapeButton(tape)],
   start: () => page.power(true),
+  stop: () => page.power(false),
   running: () => engine.context?.state === 'running',
 });
 

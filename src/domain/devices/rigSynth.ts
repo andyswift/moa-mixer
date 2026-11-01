@@ -6,12 +6,12 @@ import type { Playable } from './playable';
 import { RIG_DEFAULTS, RIG_PARAMS, type RigRoute, type RigSide } from './rigParams';
 import { cloneKit, padSoundId, RIG_FIRST_PAD_NOTE, RIG_KITS, RIG_PAD_ORDER, RIG_PADS, type RigKit, type RigPad } from './rigKit';
 import { RIG_MIX_DEFAULTS, RIG_MIX_PARAMS } from './rigMix';
-import { RIG_MULTI_VERSION, type RigMulti } from './rigMulti';
+import { RIG_MULTI_VERSION, type RigMulti, type RigMultiPart } from './rigMulti';
 import { RIG_PRESETS, type RigPreset } from './rigPresets';
 
 export const RIG_PARTS = 16;
 /** The pool of voices the parts share. */
-export const RIG_VOICES = 32;
+export const RIG_VOICES = 48;
 
 /** A sound for a kit's pads, as the page makes or loads it. */
 export interface RigKitSound {
@@ -35,6 +35,8 @@ export interface RigPart {
   kit?: RigKit;
   /** The preset slot it was loaded from. */
   slot: number;
+  /** That sound's name, as last saved or loaded (`toMulti` writes the slot's own). */
+  sound?: string;
   /** Its share of the voice pool; 0 silences it. */
   voices: number;
   /** The MIDI channel it listens on, 1-16, or 0 for all. */
@@ -54,7 +56,7 @@ const copy = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 /** A part as a fresh multi has it: part 1 the Init sound with the whole pool, the rest empty, each on its own channel. */
 export function freshPart(p: number): RigPart {
   return {
-    name: p === 0 ? RIG_PRESETS[0]!.name : '', kind: 'synth', slot: 0, voices: p === 0 ? RIG_VOICES : 0,
+    name: p === 0 ? RIG_PRESETS[0]!.name : '', kind: 'synth', slot: 0, sound: RIG_PRESETS[0]!.name, voices: p === 0 ? RIG_VOICES : 0,
     channel: p === 0 ? 0 : p + 1, lo: 0, hi: 127, octave: 0,
     a: clone(RIG_PRESETS[0]!.a), b: clone(RIG_PRESETS[0]!.a),
   };
@@ -62,7 +64,7 @@ export function freshPart(p: number): RigPart {
 
 /**
  * MOA-RIG: a multitimbral synth after the Melbourne Instruments NINA, with sixteen parts instead of four. Each part is
- * a patch on the same voice (`rigWorklet.ts`) and takes a fixed share of a pool of 32 voices. The panel edits one part
+ * a patch on the same voice (`rigWorklet.ts`) and takes a fixed share of a pool of 48 voices. The panel edits one part
  * and one side (A or B) at a time: the controls are the patch's params (`RIG_PARAMS`) and always show the part and
  * side being edited. The keyboard bed plays the edited part; MIDI plays every part listening on the event's channel,
  * within its key range. The sound is one worklet node; its `state` option holds the whole multi for a worklet built
@@ -438,7 +440,7 @@ export class RigSynth extends Device implements Playable {
   /** The whole machine as it is now. */
   toMulti(): RigMulti {
     return copy({
-      v: RIG_MULTI_VERSION, name: this.multiName, parts: this.parts, patterns: this.seq.patterns,
+      v: RIG_MULTI_VERSION, name: this.multiName, parts: this.parts.map((pt) => ({ ...pt, sound: this.slots[pt.slot]?.name })), patterns: this.seq.patterns,
       current: this.seq.current, chain: this.seq.chain, tempo: this.bpm, shuffle: this.seq.shuffle, mix: this.mixToSave(),
     });
   }
@@ -447,8 +449,16 @@ export class RigSynth extends Device implements Playable {
   loadMulti(m: RigMulti): void {
     this.stop();
     this.multiName = m.name;
+    // a part's sound by its name where the save has one (the list may have grown since), else where it was
+    const slotOf = (src: RigMultiPart) => {
+      if (src.sound && this.slots[src.slot]?.name !== src.sound) {
+        const i = this.slots.findIndex((s) => s.name === src.sound);
+        if (i >= 0) return i;
+      }
+      return src.slot < this.slots.length ? src.slot : 0;
+    };
     m.parts.forEach((src, p) => {
-      Object.assign(this.parts[p]!, copy(src), { voices: 0, slot: src.slot < this.slots.length ? src.slot : 0, kit: src.kit ? copy(src.kit) : undefined });
+      Object.assign(this.parts[p]!, copy(src), { voices: 0, slot: slotOf(src), kit: src.kit ? copy(src.kit) : undefined });
     });
     // voices last, so a save that asks for more than the pool still gets what fits, in part order
     m.parts.forEach((src, p) => { this.parts[p]!.voices = src.kind === 'kit' ? 0 : Math.max(0, Math.min(this.freeVoices, src.voices)); });
