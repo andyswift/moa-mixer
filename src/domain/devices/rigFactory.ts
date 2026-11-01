@@ -1081,4 +1081,234 @@ const dubPressure: RigFactoryMulti = {
   },
 };
 
-export const RIG_FACTORY_MULTIS: readonly RigFactoryMulti[] = [init8, acidHouse, scalpel, darkRoom, noMercy, dubPressure];
+// ================= MYCELIUM · 96 =================
+// Psy-dub on D, Phrygian: a drone and parts that interlock round it rather than a progression (E flat leaning in now
+// and then). The psychedelic parts take turns: a squelch wandering on its own (random LFOs, slewed), a kalimba in fives
+// against the fours, the sync lead's sweeps, the vowel calls, the chord pad's random voicings. The dub is in the mix:
+// a long dotted-eighth tape echo, Beads on B for the grains, a hall, and throws.
+const MY = { DRUMS: 0, THROWS: 1, BASS: 2, DRONE: 3, KEYS: 4, SQUELCH: 5, CONGA: 6, KALIMBA: 7, VOX: 8, SWEEP: 9, PAD: 10, CHORDS: 11, ZAP: 12,
+  SHAKER: 13, NOISE: 14 };
+const D2 = 38, D3n = 50, D4 = 62;
+
+/** Like `sound`, but keeping the preset's B side (for a sound whose MOD wheel morphs A into B). */
+function soundAB(base: string, params: Record<string, number>): { slot: number; sound: string; a: RigSide; b: RigSide } {
+  const p = preset(base);
+  const side = (s: RigSide): RigSide => ({ params: { ...s.params, ...params }, matrix: s.matrix.map((r) => ({ ...r })) });
+  return { slot: p.slot, sound: p.sound, a: side(p.a), b: side(p.b) };
+}
+
+/** The kit: the snare on two and four, the kick moving from bar to bar, swung sixteenth hats (the quiet ones come and
+ * go), ghost rims, the open hat closing each second bar. `fill`: the low toms (tuned like hand drums) down the last beat. */
+function myDrums(o: { kick?: boolean; snare?: boolean; hats?: boolean; fill?: boolean } = {}): RigTrack {
+  const { kick = true, snare = true, hats = true, fill = false } = o;
+  const KICKS = [[0, 10], [0, 7, 10], [0, 10], [0, 6, 10, 15]];
+  const steps: Steps = [];
+  for (let i = 0; i < 64; i++) {
+    const notes: number[] = [], vels: Record<number, number> = {}, b = i % 16, bar = i >> 4, end = fill && i >= 60;
+    if (kick && KICKS[bar]!.includes(b) && !end) { notes.push(BD); vels[BD] = b === 0 ? 1 : b === 15 ? 0.6 : 0.8; }
+    if (snare && (b === 4 || b === 12)) { notes.push(SD); vels[SD] = b === 12 ? 0.95 : 0.85; }
+    if (snare && (b === 7 || b === 14) && bar % 2 === 1) { notes.push(RS); vels[RS] = 0.28; }
+    if (hats && !end) {
+      if ((bar === 1 || bar === 3) && b === 14) { notes.push(OH); vels[OH] = 0.45; }
+      else if (b % 2 === 0 || bar > 0) { notes.push(CH); vels[CH] = [0.5, 0.18, 0.36, 0.24][b % 4]!; }
+    }
+    if (end) { const tom = [MT, LT, LT, LT][i - 60]!; notes.push(tom); vels[tom] = 0.6 + 0.1 * (i - 60); }
+    if (notes.length) steps.push([i, notes, { vel: 0.9, vels }]);
+  }
+  const t = track(steps, 64);
+  for (let i = 1; i < 64; i += 2) { t.steps[i]!.micro = 0.15; if (t.steps[i]!.notes.includes(CH)) t.steps[i]!.prob = 0.75; }
+  return t;
+}
+/** The throws: hits sent whole into the dub. By default a rim in bar two and the snare ending the phrase. */
+const myThrows = (hits: [number, number, number?][] = [[30, RS, 0.6], [60, SD, 0.9]]): RigTrack =>
+  track(hits.map(([i, n, v]): Steps[number] => [i, n, { vel: v ?? 0.85 }]), 64);
+/** The bass: round and rolling on D, legato so the slides glide; the second bar leans up to G and down through E flat,
+ * the fourth walks down to A and back up through C and E flat. Velocity is the push (it shapes the tone too). */
+const MY_BASS: [step: number, offset: number, gate: number, vel: number][] = [
+  [0, 0, 3, 0.95], [3, 0, 1, 0.6], [6, 3, 2, 0.8], [8, 0, 2, 0.85], [11, -2, 1, 0.6], [12, 0, 3, 0.8],
+  [16, 0, 3, 0.95], [19, 0, 1, 0.6], [22, 5, 2, 0.8], [24, 3, 2.2, 0.75], [26, 1, 2.2, 0.7], [28, 0, 4, 0.85],
+  [32, 0, 3, 0.95], [35, 0, 1, 0.6], [38, 3, 2, 0.8], [40, 0, 2, 0.85], [43, -2, 1, 0.6], [44, 0, 3, 0.8],
+  [48, 0, 3, 0.95], [51, 0, 1, 0.6], [54, -5, 2.2, 0.8], [56, -4, 2.2, 0.75], [58, -2, 2.2, 0.75], [60, 0, 2, 0.85], [62, 1, 1.5, 0.65],
+];
+const myBass = (from = 0): RigTrack => track(MY_BASS.filter(([i]) => i >= from).map(([i, o, g, v]): Steps[number] => [i, D2 + o, { vel: v, gate: g }]), 64);
+/** The bass held in the break: D a bar at a time, the last bar on E flat. */
+const myBassHeld = (): RigTrack => track([0, 16, 32, 48].map((i): Steps[number] => [i, i === 48 ? D2 + 1 : D2, { vel: 0.8, gate: 15.5 }]), 64);
+/** The drone: D, A and D above the bass, bowed again each bar. */
+const myDrone = (): RigTrack => track([0, 16, 32, 48].map((i): Steps[number] => [i, [D3n, 57, D4], { vel: 0.7, gate: 16 }]), 64);
+/** The keys' skank: D minor (with the seventh) short on the offbeat eighths, the last of four bars leaning to E flat;
+ * `sparse`: only the second and fourth beats' offbeats. */
+const DM7 = [D3n, 53, 57, 60], EBM = [51, 55, 58, 62];
+const myKeys = (sparse = false): RigTrack => track([0, 16, 32, 48].flatMap((bar): Steps =>
+  (sparse ? [6, 14] : [2, 6, 10, 14]).map((b): Steps[number] => [bar + b, bar === 48 && b >= 10 ? EBM : DM7, { vel: b === 6 || b === 14 ? 0.85 : 0.6, gate: 0.35 }])), 64);
+/** The squelch: twelve steps against the sixteen, so it turns over the bar every three; D with its octave, E flat and F
+ * leaning in, a C under. The accents push the filter (velocity), random LFOs slewed move the rest. */
+const MY_SQUELCH: [step: number, note: number, vel: number, gate?: number][] = [
+  [0, D3n, 0.95], [1, D3n, 0.5], [2, D4, 0.7], [4, 51, 0.8, 0.9], [5, D3n, 0.5], [6, D3n, 0.6], [7, D4, 0.85],
+  [8, 53, 0.7], [9, D3n, 0.5], [10, 48, 0.75, 1.2], [11, D3n, 0.55],
+];
+const mySquelch = (thin = false): RigTrack => track(MY_SQUELCH.filter(([i]) => !thin || [0, 2, 4, 7, 10].includes(i))
+  .map(([i, n, v, g]): Steps[number] => [i, n, { vel: v, gate: g ?? 0.55 }]), 12);
+/** The hand drums: a tabla-like figure, the high one answering the low. */
+const myConga = (): RigTrack => {
+  const t = track([[0, 57, { vel: 0.8 }], [3, 50, { vel: 0.45 }], [6, 57, { vel: 0.6 }], [7, 62, { vel: 0.35 }], [10, 50, { vel: 0.7 }],
+    [13, 57, { vel: 0.45 }], [14, 45, { vel: 0.65 }]], 16);
+  for (let i = 1; i < 16; i += 2) t.steps[i]!.micro = 0.15;
+  return t;
+};
+/** The kalimba: five steps against the fours, D, A and C up high, the D once in a while E flat. */
+const myKalimba = (): RigTrack => {
+  const t = track([[0, 74, { vel: 0.8 }], [2, 69, { vel: 0.5 }], [3, 72, { vel: 0.6 }]], 5);
+  t.steps[0]!.prob = 0.9;
+  t.steps[3]!.prob = 0.7;
+  return t;
+};
+/** The vowel calls: a long note pulled from dark (A) towards open (B) by a locked morph, in the second and fourth bars. */
+const myVox = (second = false): RigTrack => track((second
+  ? [[20, 57, 10, 0.35], [52, 55, 12, 0.7]]
+  : [[22, D3n, 8, 0.2], [50, 57, 12, 0.55]]
+).map(([i, n, g, w]): Steps[number] => [i!, n!, { vel: 0.85, gate: g, locks: { 'out.morph': w! } }]), 64);
+/** The sync lead held for two bars (a note a bar), its sweep brought in (LFO 2 locked up): the zeeow every bar. */
+const mySweep = (at = 0, note = D3n): RigTrack => track([at, at + 16].map((i): Steps[number] => [i, note, { vel: 0.8, gate: 16, locks: { 'lfo2.level': 0.85 } }]), 64);
+/** The shimmer pad: D, A and C, open, bowed again each bar. */
+const myPad = (): RigTrack => track([0, 16, 32, 48].map((i): Steps[number] => [i, [D3n, 57, 60], { vel: 0.75, gate: 16 }]), 64);
+/** The chord pad: one key a bar, its random voicings brought in more and more (LFO 1 locked up). */
+const myChords = (): RigTrack => track([0, 16, 32, 48].map((i): Steps[number] => [i, D4, { vel: 0.8, gate: 16, locks: { 'lfo1.level': 0.6 + i / 120 } }]), 64);
+/** Zaps: a laser falling from high, where `at` puts them. */
+const myZap = (at: [number, number][] = [[46, 86]]): RigTrack => track(at.map(([i, n]): Steps[number] => [i, n, { vel: 0.85, gate: 0.4 }]), 64);
+/** A shaker in swung sixteenths. */
+function myShaker(): RigTrack {
+  const t = track(Array.from({ length: 16 }, (_, i): Steps[number] => [i, 60, { vel: [0.5, 0.3, 0.75, 0.35][i % 4]!, gate: 0.3 }]), 16);
+  for (let i = 1; i < 16; i += 2) t.steps[i]!.micro = 0.15;
+  return t;
+}
+
+const mycelium: RigFactoryMulti = {
+  name: 'MYCELIUM · 96',
+  build: () => {
+    const parts: Partial<RigMultiPart>[] = [];
+    // the kit: a soft, deep kick, a fat snare, dry rims, short hats, the low toms tuned up like hand drums
+    const kit = cloneKit(RIG_KITS[0]!);
+    kit.name = 'Psy Dub Kit';
+    kit.pads[BD - 36]!.analog = { 'kick.tune': 46, 'kick.decay': 0.55, 'kick.click': 0.12 };
+    kit.pads[SD - 36]!.analog = { 'snare.tune': 190, 'snare.decay': 0.35, 'snare.snap': 0.55 };
+    kit.pads[RS - 36]!.analog = { 'rim.tone': 1300 };
+    Object.assign(kit.pads[CH - 36]!, { analog: { 'closedHat.decay': 0.035 }, cutoff: 9500 });
+    Object.assign(kit.pads[OH - 36]!, { analog: { 'openHat.decay': 0.35 }, cutoff: 8500 });
+    parts[MY.DRUMS] = { name: 'Drums', kind: 'kit', kit, channel: 10 };
+    parts[MY.THROWS] = { name: 'Throws', kind: 'kit', kit: cloneKit(kit), channel: 11 };
+    // the bass: the post-punk bass with its saw up an octave (as the user chose), the pulse still an octave down under it
+    parts[MY.BASS] = { name: 'Bass', voices: 1, channel: 1, ...sound('Post-Punk Bass', { 'osc1.oct': 2, 'out.level': 1 }) };
+    parts[MY.DRONE] = { name: 'Drone', voices: 3, channel: 2, ...sound('Swarm Pad', { 'lad.cutoff': 2200, 'out.level': 1 }) };
+    parts[MY.KEYS] = { name: 'Keys', voices: 8, channel: 3, ...sound('House Keys', { 'eg2.d': 0.5, 'eg2.s': 0.2, 'eg2.r': 0.15 }) };
+    // the squelch: the acid line with two random LFOs on it, slewed so they wander rather than step: one on the cutoff
+    // (slow), one on the resonance; velocity opens it
+    parts[MY.SQUELCH] = {
+      name: 'Squelch', voices: 1, channel: 4,
+      ...sound('Acid Line', {
+        'lad.cutoff': 380, 'lad.res': 0.78, 'out.level': 0.9,
+        'lfo1.shape': 5, 'lfo1.rate': 0.7, 'lfo1.slew': 0.8, 'lfo1.retrig': 1, 'lfo2.shape': 5, 'lfo2.rate': 0.31, 'lfo2.slew': 0.9, 'lfo2.retrig': 1,
+      }, [
+        { source: 'vel', dest: 'lad.cutoff', amount: 0.2 }, { source: 'lfo1', dest: 'lad.cutoff', amount: 0.3 },
+        { source: 'lfo2', dest: 'lad.res', amount: 0.12 }, { source: 'lfo2', dest: 'drive', amount: 0.15 },
+      ]),
+    };
+    parts[MY.CONGA] = { name: 'Hand Drums', voices: 3, channel: 5, ...sound('Hand Conga', { 'out.level': 1 }) };
+    // the kalimba as the user voiced it: softer struck, more ring, the AUX off
+    parts[MY.KALIMBA] = {
+      name: 'Kalimba', voices: 4, channel: 6,
+      ...sound('Kalimba', { 'osc3.harm': 0.321, 'osc3.timbre': 0.074, 'osc3.morph': 0.571, 'osc3.aux': 0, 'out.level': 1 }),
+    };
+    parts[MY.VOX] = { name: 'Vowels', voices: 2, channel: 7, ...soundAB('Vox Table', { 'out.level': 1 }) };
+    parts[MY.SWEEP] = { name: 'Sync Sweep', voices: 1, channel: 8, ...sound('Sync Lead', { 'out.level': 0.7 }) };
+    parts[MY.PAD] = { name: 'Shimmer', voices: 6, channel: 9, ...sound('Shimmer Pad', { 'lad.cutoff': 3500 }) };
+    parts[MY.CHORDS] = { name: 'Chords', voices: 1, channel: 12, ...sound('Chord Pad', {}) };
+    // the zap: a triangle falling three octaves in a blink, a hair of noise; the delay does the rest
+    parts[MY.ZAP] = {
+      name: 'Zap', voices: 2, channel: 13,
+      ...sound('Init', {
+        'osc1.width': 1, 'mix.osc1': 1, 'mix.noise': 0.04, 'lad.cutoff': 6000, 'lad.eg1': 0,
+        'eg1.a': 0.001, 'eg1.d': 0.12, 'eg1.s': 0, 'eg1.reset': 1, 'eg2.a': 0.001, 'eg2.d': 0.25, 'eg2.s': 0, 'eg2.r': 0.1, 'out.level': 1,
+      }, [{ source: 'eg1', dest: 'osc1.tune', amount: 0.55 }]),
+    };
+    parts[MY.SHAKER] = { name: 'Shaker', voices: 1, channel: 14, ...sound('Shaker', { 'out.level': 1 }) };
+    parts[MY.NOISE] = { name: 'Noise', voices: 1, channel: 15, ...sound('Noise Sweep', { 'out.level': 1 }) };
+
+    const { DRUMS, THROWS, BASS, DRONE, KEYS, SQUELCH, CONGA, KALIMBA, VOX, SWEEP, PAD, CHORDS, ZAP, SHAKER, NOISE } = MY;
+    const ramp = (from: number, to: number) => (x: number) => from + (to - from) * x;
+    const patterns = [
+      // 0 intro: the drone, the vowels, the kalimba turning, a rim into the dub
+      pattern({ [DRONE]: myDrone(), [VOX]: myVox(), [KALIMBA]: dyn(myKalimba(), 0.8), [THROWS]: myThrows([[30, RS, 0.6], [62, RS, 0.5]]) }),
+      // 1 intro: the hand drums and shaker, the bass coming in halfway, the snare thrown at the end
+      pattern({ [DRONE]: myDrone(), [CONGA]: dyn(myConga(), 0.85), [SHAKER]: dyn(myShaker(), 0.75), [BASS]: myBass(32), [KALIMBA]: dyn(myKalimba(), 0.8),
+        [THROWS]: myThrows() }),
+      // 2 the groove: the drums, the bass, the keys on two offbeats, the hand drums
+      pattern({ [DRUMS]: dyn(myDrums(), 0.95), [BASS]: myBass(), [KEYS]: myKeys(true), [CONGA]: dyn(myConga(), 0.8), [SHAKER]: dyn(myShaker(), 0.75),
+        [THROWS]: myThrows() }),
+      // 3 the squelch comes in, thin; the keys on every offbeat
+      pattern({ [DRUMS]: myDrums(), [BASS]: myBass(), [KEYS]: myKeys(), [SQUELCH]: dyn(mySquelch(true), 0.85), [SHAKER]: dyn(myShaker(), 0.8),
+        [THROWS]: myThrows([[30, RS, 0.6], [44, MT, 0.7], [60, SD, 0.9]]) }),
+      // 4 the squelch whole, alone with the drums and bass; a zap
+      pattern({ [DRUMS]: myDrums(), [BASS]: myBass(), [SQUELCH]: mySquelch(), [CONGA]: dyn(myConga(), 0.7), [ZAP]: myZap(), [THROWS]: myThrows() }),
+      // 5 the sync sweep over the groove, the vowels answering, the kalimba back
+      pattern({ [DRUMS]: myDrums(), [BASS]: myBass(), [KEYS]: myKeys(true), [SWEEP]: mySweep(), [VOX]: myVox(true), [KALIMBA]: dyn(myKalimba(), 0.75),
+        [SHAKER]: dyn(myShaker(), 0.8), [THROWS]: myThrows([[30, RS, 0.6], [60, SD, 0.9], [62, RS, 0.5]]) }),
+      // 6 the break: no kick, no hats; the shimmer pad, the bass held, the hand drums, the snare thrown each second bar
+      pattern({ [PAD]: myPad(), [BASS]: myBassHeld(), [CONGA]: dyn(myConga(), 0.75), [VOX]: myVox(), [KALIMBA]: dyn(myKalimba(), 0.7),
+        [THROWS]: myThrows([[28, SD, 0.8], [60, SD, 0.9], [62, RS, 0.5]]) }),
+      // 7 the build: the chord pad's voicings spinning, the noise rising, the drums back with the toms, the bass held
+      pattern({ [CHORDS]: myChords(), [NOISE]: mods(scNoise(), (i) => (i / 63) ** 2), [DRUMS]: dyn(myDrums({ kick: false, fill: true }), ramp(0.6, 1)),
+        [BASS]: myBassHeld(), [SHAKER]: dyn(myShaker(), ramp(0.5, 0.9)) }),
+      // 8 the drop: everything rolling, the squelch and keys interlocking
+      pattern({ [DRUMS]: myDrums(), [BASS]: myBass(), [KEYS]: myKeys(), [SQUELCH]: mySquelch(), [CONGA]: dyn(myConga(), 0.7), [SHAKER]: myShaker(),
+        [ZAP]: myZap([[14, 86], [46, 91]]), [THROWS]: myThrows() }),
+      // 9 the drop again: the squelch out, the sync sweep and the drone in
+      pattern({ [DRUMS]: myDrums(), [BASS]: myBass(), [KEYS]: myKeys(true), [SWEEP]: mySweep(32, 57), [DRONE]: myDrone(), [KALIMBA]: dyn(myKalimba(), 0.75),
+        [SHAKER]: myShaker(), [THROWS]: myThrows([[30, RS, 0.6], [44, MT, 0.7], [60, SD, 0.9]]) }),
+      // 10 the dub-out: the kick and snare alone under the keys and the vowels, everything thrown
+      pattern({ [DRUMS]: dyn(myDrums({ hats: false }), 0.9), [BASS]: myBass(), [KEYS]: myKeys(true), [VOX]: myVox(true), [DRONE]: myDrone(),
+        [THROWS]: myThrows([[12, SD, 0.8], [30, RS, 0.6], [44, SD, 0.85], [46, MT, 0.7], [60, SD, 0.9], [62, LT, 0.7]]) }),
+      // 11 out: the drone, the kalimba, a vowel, a rim into the delay
+      pattern({ [DRONE]: myDrone(), [KALIMBA]: dyn(myKalimba(), 0.7), [VOX]: myVox(), [THROWS]: myThrows([[30, RS, 0.5], [62, RS, 0.4]]) }),
+    ];
+
+    const mix: Record<string, number> = {
+      // the kit nearly dry, the throws all the way into the dub; the bass dry and in the middle
+      'p1.fader': 1, 'p1.a': 0.05, 'p1.c': 0.1,
+      'p2.fader': 0.8, 'p2.a': 1, 'p2.c': 0.35, 'p2.hi': -2,
+      'p3.fader': 1.2,
+      // the drone wide in the hall and the grains; the keys in the dub and the chorus
+      'p4.fader': 0.8, 'p4.b': 0.4, 'p4.c': 0.5, 'p4.lo': -12,
+      'p5.fader': 1.4, 'p5.a': 0.5, 'p5.c': 0.25, 'p5.d': 0.4, 'p5.lo': -10, 'p5.pan': -0.15,
+      // the squelch into the grains and a little dub, panned off; the hand drums a touch of hall
+      'p6.fader': 0.8, 'p6.a': 0.3, 'p6.b': 0.45, 'p6.c': 0.2, 'p6.lo': -8, 'p6.pan': 0.25,
+      'p7.fader': 1.6, 'p7.c': 0.25, 'p7.pan': -0.3, 'p7.lo': -6,
+      // the kalimba in the grains and the hall; the vowels deep in the dub
+      'p8.fader': 1, 'p8.b': 0.6, 'p8.c': 0.4, 'p8.pan': 0.35, 'p8.lo': -10,
+      'p9.fader': 1.6, 'p9.a': 0.6, 'p9.c': 0.45, 'p9.lo': -8,
+      'p10.fader': 0.8, 'p10.a': 0.55, 'p10.c': 0.4, 'p10.lo': -8, 'p10.pan': -0.2,
+      'p11.fader': 0.55, 'p11.b': 0.4, 'p11.c': 0.55, 'p11.lo': -8,
+      'p12.fader': 0.9, 'p12.b': 0.5, 'p12.c': 0.45, 'p12.lo': -8,
+      'p13.fader': 1.5, 'p13.a': 0.9, 'p13.c': 0.3, 'p13.lo': -12,
+      'p14.fader': 1, 'p14.pan': 0.4, 'p14.c': 0.2,
+      'p15.fader': 0.8, 'p15.c': 0.5, 'p15.lo': -12,
+      // A: the dub delay, dotted eighth, long and saturating, wow and flutter; its echoes into the hall
+      'dub.sync': 1, 'dub.div': 3, 'dub.fdbk': 0.72, 'dub.tone': 2000, 'dub.wow': 0.4, 'dub.sat': 0.55, 'dub.flutter': 0.3,
+      'rA.fader': 1.2, 'rA.c': 0.4, 'rA.lo': -8,
+      // B: Beads, eighths, grains a fifth and an octave up, wandering
+      'bbd.mode': 1, 'bbd.sync': 1, 'bbd.div': 2, 'bbd.fdbk': 0.45, 'bds.density': 0.55, 'bds.multiply': 0.3, 'bds.shape': 0.45, 'bds.pitch': 12,
+      'bds.filter': 0.55, 'rB.fader': 0.9, 'rB.c': 0.5, 'rB.lo': -10,
+      // C: a big dark hall
+      'rev.type': 2, 'rev.size': 0.8, 'rev.damp': 0.55, 'rev.tone': 0.4, 'rev.pre': 0.03, 'rC.lo': -6,
+      // D: the ensemble
+      'cho.mode': 3,
+      'cmp.key': 1, 'cmp.ratio': 2.5, 'cmp.thresh': -18, 'cmp.atk': 3, 'cmp.rel': 200, 'cmp.mix': 0.6,
+      'tape.drive': 6, 'tape.tone': 0.35, 'tape.wow': 0.1,
+    };
+    // intro 16 bars, the groove 16, the squelch 16, its turn alone 8, the sweep 16, the break 16, the build 4, the drop 32,
+    // the dub-out 8, out 8: about five and a half minutes
+    const chain = [0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 7, 8, 8, 8, 8, 9, 9, 9, 9, 10, 10, 11, 11];
+    return multi('Mycelium', 96, parts, patterns, chain, mix);
+  },
+};
+
+export const RIG_FACTORY_MULTIS: readonly RigFactoryMulti[] = [init8, acidHouse, scalpel, darkRoom, noMercy, dubPressure, mycelium];
