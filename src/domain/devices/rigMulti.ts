@@ -1,4 +1,5 @@
-import { RIG_MIX_PARAMS } from './rigMix';
+import { RIG_MIX_PARAMS, RIG_MIX_PARTS } from './rigMix';
+import { PEDAL_SLOTS, pedalParams } from './rigPedals';
 import { DRUM_VOICES, newPad, RIG_PADS, rigDrumParams, type RigKit, type RigPad } from './rigKit';
 import { RIG_DESTS, RIG_PARAMS, RIG_SOURCES, type RigRoute, type RigSide } from './rigParams';
 import type { RigPreset } from './rigPresets';
@@ -11,7 +12,8 @@ import {
  * tempo and shuffle. Whatever is read back goes through `sanitiseMulti`, so a damaged or older save loads what it can
  * and leaves the rest at its defaults instead of breaking the synth.
  */
-export const RIG_MULTI_VERSION = 1;
+/** 2: send D a second reverb, the pedals in place of the drive insert and the chorus send (`migrateMix`). */
+export const RIG_MULTI_VERSION = 2;
 
 export interface RigMultiPart {
   name: string;
@@ -191,10 +193,48 @@ export function sanitiseMulti(raw: unknown, defaults: (part: number) => RigMulti
     mix: {},
   };
   if (isObject(raw.mix)) {
-    for (const [id, v] of Object.entries(raw.mix)) {
+    const mix = typeof raw.v === 'number' && raw.v >= 2 ? raw.mix : migrateMix(raw.mix);
+    for (const [id, v] of Object.entries(mix)) {
       const p = MIX_PARAMS.get(id);
       if (p && !id.endsWith('throw') && typeof v === 'number' && Number.isFinite(v)) multi.mix[id] = num(v, p.min, p.max, p.def, p.kind !== 'number');
     }
   }
   return multi;
+}
+
+/**
+ * A version-1 multi's mixer in version 2's terms: the drive insert becomes a DRIVE pedal on its part, and each part
+ * sent to the chorus (send D) gets a CHORUS pedal with the chorus's settings, its MIX as near the send's level as a
+ * pedal comes (a send added the wet on top of the dry, at the send times the return's fader). Send D and its return's
+ * settings are then dropped, as D is now a second reverb.
+ */
+export function migrateMix(old: Record<string, unknown>): Record<string, unknown> {
+  const mix: Record<string, unknown> = { ...old };
+  const get = (id: string, def: number) => (typeof old[id] === 'number' && Number.isFinite(old[id]) ? (old[id] as number) : def);
+  const used = new Map<number, number>();
+  const add = (part: number, params: (slot: number) => Record<string, number>) => {
+    const slot = (used.get(part) ?? 0) + 1;
+    if (slot > PEDAL_SLOTS) return;
+    used.set(part, slot);
+    Object.assign(mix, params(slot));
+  };
+  const drivePart = Math.round(get('drv.part', 0));
+  if (drivePart >= 1 && drivePart <= RIG_MIX_PARTS) {
+    const blend = Math.min(1, Math.max(0, get('drv.blend', 1)));
+    // the drive's BLEND (dry 1 - b, wet b) as MIX (dry full up to 0.5, wet full from 0.5)
+    const m = blend >= 1 ? 1 : blend >= 1 / 3 ? 1 - (1 - blend) / (2 * blend) : blend / (1 - blend) / 2;
+    add(drivePart, (slot) => pedalParams(drivePart, slot, 'DRIVE', {
+      Type: Math.round(get('drv.type', 0)), Drive: get('drv.drive', 0.5), Tone: get('drv.tone', 0.6), Level: get('drv.level', 0.7),
+    }, m));
+  }
+  const returnGain = get('rD.mute', 0) >= 0.5 ? 0 : get('rD.fader', 1);
+  for (let p = 1; p <= RIG_MIX_PARTS; p++) {
+    const w = get(`p${p}.d`, 0) * returnGain;
+    if (w <= 0) continue;
+    add(p, (slot) => pedalParams(p, slot, 'CHORUS', {
+      Mode: Math.round(get('cho.mode', 0)), Rate: get('cho.rate', 0.5), Depth: get('cho.depth', 0.5), Width: get('cho.width', 1),
+    }, w <= 1 ? w / 2 : 1 - 1 / (2 * w)));
+  }
+  for (const id of Object.keys(mix)) if (/^(drv|cho)\.|^(p\d+|r[A-D])\.d$|^rD\./.test(id)) delete mix[id];
+  return mix;
 }

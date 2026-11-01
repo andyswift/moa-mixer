@@ -1,4 +1,5 @@
 import { MUTABLE_FX_SOURCE } from './mutable';
+import { RIG_PEDALS_SOURCE } from './rigPedals';
 import {
   RIG_DELAY_DIV_BEATS, RIG_MIX_PARAMS, RIG_MIX_PARTS, RIG_STRIPS,
 } from '../domain/devices/rigMix';
@@ -9,9 +10,9 @@ const DEFS = RIG_MIX_PARAMS.map((p) => [p.id, p.def]);
  * The MOA-RIG's mixer and effects, as worklet source text (`RigMixer`). The rig's worklet hands it every part's
  * stereo bus each block and takes the master out of it; tests evaluate the same text.
  *
- *   part bus -> [drive, if it is the drive's part] -> strip -> master bus -> compressor -> tape (and its wow) -> master fader -> ceiling
+ *   part bus -> pedals 1-4 (rigPedals.ts) -> strip -> master bus -> compressor -> tape (and its wow) -> master fader -> ceiling
  *                                                        \-> sends A-D (after the fader and pan)
- *   send A -> dub delay, B -> BBD, C -> reverb, D -> chorus -> return strips A-D -> master bus
+ *   send A -> dub delay, B -> BBD (or Beads), C -> reverb, D -> a second reverb -> return strips A-D -> master bus
  *                                                                  \-> sends A-D (themselves too)
  *
  * A strip: low shelf, mid peak, high shelf (RBJ biquads), the one-knob filter (a TPT state-variable filter, low-pass
@@ -72,6 +73,8 @@ class MixLine {
   }
 }
 
+${RIG_PEDALS_SOURCE}
+
 class MixStrip {
   constructor() {
     this.eq = [new Float64Array(5), new Float64Array(5), new Float64Array(5)];
@@ -102,15 +105,17 @@ class RigMixer {
     this.mixL = buf(); this.mixR = buf(); this.tmpL = buf(); this.tmpR = buf();
     this.dub = { L: new MixLine(Math.ceil(sr * 2.2)), R: new MixLine(Math.ceil(sr * 2.2)), d: sr * 0.375, ph: 0, ph2: 0, tL: 0, tR: 0, hL: 0, hR: 0, drift: 0 };
     this.bbd = { L: new MixLine(Math.ceil(sr * 0.7)), R: new MixLine(Math.ceil(sr * 0.7)), d: sr * 0.32, ph: 0, a1: [0, 0], a2: [0, 0], seed: 22222 };
-    this.rev = this.makeReverb();
-    // Mutable Instruments' (src/audio/mutable): the CLOUDS reverb, the ENSEMBLE chorus, wow and flutter in the dub's loop
+    this.revs = { rev: this.makeReverb(), rev2: this.makeReverb() };
+    // Mutable Instruments' (src/audio/mutable): the CLOUDS reverbs, wow and flutter in the dub's loop
     // and on the tape; blocks of the reverb's in and out
-    this.miReverb = new MiReverb(sr); this.miEnsemble = new MiEnsemble(); this.miEnsemble.spread = true;
+    this.miReverbs = { rev: new MiReverb(sr), rev2: new MiReverb(sr) };
     this.beads = null; // Beads' delay (8 s of stereo line): made when first chosen
     this.dubFlutter = new MiWowAndFlutter(sr); this.tapeWow = new MiWowAndFlutter(sr);
     this.miL = new Float64Array(MIX_BLOCK); this.miR = new Float64Array(MIX_BLOCK); this.miOut = [0, 0];
-    this.cho = { line: new MixLine(Math.ceil(sr * 0.05)), ph: 0, lp: [0, 0] };
-    this.drv = { lp: [0, 0] };
+    // each part's running pedals, where its slots start in the table, and the dry for MIX
+    this.chains = Array.from({ length: parts }, () => new Array(PEDAL_SLOTS).fill(null));
+    this.pedalBase = Array.from({ length: parts }, (_, p) => MIX_P['p' + (p + 1) + '.fx1.type']);
+    this.dryL = buf(); this.dryR = buf(); this.pedL = buf(); this.pedR = buf();
     this.cmp = { gr: 0, hp: 0, hx: 0, minGr: 0 };
     this.tape = { lpL: 0, lpR: 0, dcL: 0, dcR: 0 };
     this.masterG = 1;
@@ -195,28 +200,11 @@ class RigMixer {
     if (!Number.isFinite(st.s1[0] + st.s1[1] + st.s2[0] + st.s2[1] + z[0] + z[2] + z[4] + z[6] + z[8] + z[10])) { st.z.fill(0); st.s1 = [0, 0]; st.s2 = [0, 0]; }
   }
 
-  // ---- the drive insert
-
-  runDrive(L, R, n) {
-    const v = this.v, d = this.drv, type = Math.round(this.p('drv.type'));
-    const amt = this.p('drv.drive'), blend = this.p('drv.blend'), level = this.p('drv.level');
-    const g = 1 + amt * [24, 40, 150][type];
-    const comp = 1 / (1 + amt * [4, 5, 7][type]); // turning the drive up mostly changes the tone, not the level
-    const lc = 1 - Math.exp(-MIX_TAU * 800 * Math.pow(25, this.p('drv.tone')) / this.sr);
-    for (let ch = 0; ch < 2; ch++) {
-      const X = ch ? R : L;
-      let lp = d.lp[ch];
-      for (let i = 0; i < n; i++) {
-        const x = X[i], u = x * g;
-        let y;
-        if (type === 0) y = Math.tanh(u + 0.25) - 0.2449186624037092; // tube: lop-sided, so even harmonics too
-        else if (type === 1) y = u >= 0 ? 1 - Math.exp(-u) : -0.8 * (1 - Math.exp(u / 0.8)); // diode
-        else { const s = u < 0 ? -1 : 1; y = s * Math.min(0.85, 1 - Math.exp(-Math.abs(u))); } // fuzz, squared off
-        lp += (y - lp) * lc;
-        X[i] = (x * (1 - blend) + lp * comp * blend) * level;
-      }
-      d.lp[ch] = lp;
-    }
+  // whether any of a part's pedal slots is in use (a type, switched on)
+  pedalsOn(p) {
+    const v = this.v, b = this.pedalBase[p], w = 3 + PEDAL_KNOBS;
+    for (let s = 0; s < PEDAL_SLOTS; s++) if (v[b + s * w] >= 0.5 && v[b + s * w + 1] >= 0.5) return true;
+    return false;
   }
 
   // ---- A: dub delay
@@ -321,7 +309,7 @@ class RigMixer {
     if (!Number.isFinite(e.a2[0] + e.a2[1])) { e.L.buf.fill(0); e.R.buf.fill(0); e.a1 = [0, 0]; e.a2 = [0, 0]; }
   }
 
-  // ---- C: reverb, an eight-line feedback delay network
+  // ---- C and D: reverbs, an eight-line feedback delay network each (\`k\`: 'rev' or 'rev2', their params' prefix)
 
   makeReverb() {
     const sr = this.sr, max = Math.ceil(sr * 0.25);
@@ -335,10 +323,10 @@ class RigMixer {
     };
   }
 
-  runReverb(inL, inR, outL, outR, n) {
-    const r = this.rev, sr = this.sr;
-    const type = Math.round(this.p('rev.type')), size = this.p('rev.size'), freeze = this.p('rev.freeze') >= 0.5;
-    if (type === 3) { this.runCloudsReverb(inL, inR, outL, outR, n); return; }
+  runReverb(inL, inR, outL, outR, n, k) {
+    const r = this.revs[k], sr = this.sr;
+    const type = Math.round(this.p(k + '.type')), size = this.p(k + '.size'), freeze = this.p(k + '.freeze') >= 0.5;
+    if (type === 3) { this.runCloudsReverb(inL, inR, outL, outR, n, k); return; }
     // line lengths (ms) and decay range per type: spring, plate, hall
     const LEN = [[9.1, 11.3, 13.7, 15.1, 17.9, 19.3, 21.1, 23.7], [10.3, 12.9, 15.7, 18.1, 21.3, 23.9, 27.1, 30.7], [29.7, 37.1, 41.1, 43.7, 53.3, 59.9, 67.1, 73.9]][type];
     const RT = [[0.6, 4], [0.5, 6], [1.2, 12]][type];
@@ -346,9 +334,9 @@ class RigMixer {
     const rt = RT[0] * Math.pow(RT[1] / RT[0], size);
     const lens = LEN.map((ms) => Math.min(r.lines[0].n - 2, ms * scale * sr / 1000));
     const gains = lens.map((l) => (freeze ? 1 : Math.pow(10, -3 * l / (rt * sr))));
-    const dc = freeze ? 1 : 1 - Math.exp(-MIX_TAU * 12000 * Math.pow(0.06, this.p('rev.damp')) / sr);
-    const pre = Math.max(1, this.p('rev.pre') * sr), shimmer = this.p('rev.shimmer');
-    const tone = this.p('rev.tone');
+    const dc = freeze ? 1 : 1 - Math.exp(-MIX_TAU * 12000 * Math.pow(0.06, this.p(k + '.damp')) / sr);
+    const pre = Math.max(1, this.p(k + '.pre') * sr), shimmer = this.p(k + '.shimmer');
+    const tone = this.p(k + '.tone');
     const tlc = tone < 0.5 ? 1 - Math.exp(-MIX_TAU * 1500 * Math.pow(13, tone * 2) / sr) : 1;
     const thc = tone > 0.5 ? 1 - Math.exp(-MIX_TAU * 20 * Math.pow(25, (tone - 0.5) * 2) / sr) : 0;
     const inGain = freeze ? 0 : 1, mod = type === 0 ? 0 : 0.0004 * sr;
@@ -399,17 +387,17 @@ class RigMixer {
     if (!Number.isFinite(r.lp[0] + r.lp[7])) { for (const ln of r.lines) ln.buf.fill(0); r.lp.fill(0); r.disp.fill(0); }
   }
 
-  // ---- C as CLOUDS: Beads' reverb (src/audio/mutable) in place of the delay network, with the same pre-delay, shimmer,
+  // ---- C (and D) as CLOUDS: Beads' reverb (src/audio/mutable) in place of the delay network, with the same pre-delay, shimmer,
   // tone and freeze around it. SIZE is its time, as on Clouds (0.35 to 0.98), DAMP closes its loop's low-pass (0.97 to
   // 0.6); FREEZE holds it, the loop lossless and nothing coming in. The shimmer hears the last block's output.
 
-  runCloudsReverb(inL, inR, outL, outR, n) {
-    const r = this.rev, m = this.miReverb, sr = this.sr, L = this.miL, R = this.miR;
-    const freeze = this.p('rev.freeze') >= 0.5, size = this.p('rev.size'), damp = this.p('rev.damp');
+  runCloudsReverb(inL, inR, outL, outR, n, k) {
+    const r = this.revs[k], m = this.miReverbs[k], sr = this.sr, L = this.miL, R = this.miR;
+    const freeze = this.p(k + '.freeze') >= 0.5, size = this.p(k + '.size'), damp = this.p(k + '.damp');
     m.mix = 1;
     m.time = freeze ? 1 : 0.35 + 0.63 * size;
     m.lpCoefficient = freeze ? 1 : 0.97 - 0.37 * damp;
-    const pre = Math.max(1, this.p('rev.pre') * sr), shimmer = this.p('rev.shimmer'), tone = this.p('rev.tone');
+    const pre = Math.max(1, this.p(k + '.pre') * sr), shimmer = this.p(k + '.shimmer'), tone = this.p(k + '.tone');
     const tlc = tone < 0.5 ? 1 - Math.exp(-MIX_TAU * 1500 * Math.pow(13, tone * 2) / sr) : 1;
     const thc = tone > 0.5 ? 1 - Math.exp(-MIX_TAU * 20 * Math.pow(25, (tone - 0.5) * 2) / sr) : 0;
     const inGain = freeze ? 0 : 1;
@@ -435,41 +423,6 @@ class RigMixer {
       outL[i] = l; outR[i] = rr;
     }
     if (!Number.isFinite(L[n - 1] + R[n - 1])) m.clear();
-  }
-
-  // ---- D: chorus, after the Juno's: two taps on one line, swept in opposite directions; or ENSEMBLE, Rings'
-
-  runChorus(inL, inR, outL, outR, n) {
-    const e = this.cho, sr = this.sr, mode = Math.round(this.p('cho.mode'));
-    if (mode === 3) {
-      // Rings' ensemble, wet only (the dry stays on its strip): RATE scales its LFOs, DEPTH their sweep, WIDTH as below
-      const en = this.miEnsemble, w = this.p('cho.width');
-      en.setDepth(this.p('cho.depth'));
-      en.rate = Math.pow(4, (this.p('cho.rate') - 0.5) * 2);
-      for (let i = 0; i < n; i++) { outL[i] = inL[i]; outR[i] = inR[i]; }
-      en.process(outL, outR, n, true);
-      for (let i = 0; i < n; i++) {
-        const l = outL[i], r = outR[i];
-        outL[i] = l * (1 + w) / 2 + r * (1 - w) / 2;
-        outR[i] = r * (1 + w) / 2 + l * (1 - w) / 2;
-      }
-      return;
-    }
-    const rate = [0.513, 0.863, 9.75][mode] * Math.pow(4, (this.p('cho.rate') - 0.5) * 2);
-    const depth = [1.85, 1.85, 0.3][mode] * 2 * this.p('cho.depth') * sr / 1000;
-    const centre = 3.5 * sr / 1000, w = this.p('cho.width');
-    const c = 1 - Math.exp(-MIX_TAU * 9000 / sr);
-    for (let i = 0; i < n; i++) {
-      e.line.push((inL[i] + inR[i]) * 0.5);
-      e.ph += rate / sr;
-      if (e.ph > 1) e.ph -= 1;
-      const tri = e.ph < 0.5 ? 4 * e.ph - 1 : 3 - 4 * e.ph;
-      const a = e.line.read(centre + tri * depth), b = e.line.read(centre - tri * depth);
-      e.lp[0] += (a - e.lp[0]) * c; e.lp[1] += (b - e.lp[1]) * c;
-      const l = e.lp[0], r = e.lp[1];
-      outL[i] = l * (1 + w) / 2 + r * (1 - w) / 2;
-      outR[i] = r * (1 + w) / 2 + l * (1 - w) / 2;
-    }
   }
 
   // ---- the master compressor
@@ -524,14 +477,13 @@ class RigMixer {
     }
     let soloed = false;
     for (let s = 0; s < NS; s++) if (v[s * S_NP + S_SOLO] >= 0.5) { soloed = true; break; }
-    const drivePart = Math.round(this.p('drv.part')) - 1;
     for (let p = 0; p < this.parts; p++) {
       let L = partL[p], R = partR[p];
-      if (p === drivePart) {
-        this.tmpL.set(L.subarray(0, n)); this.tmpR.set(R.subarray(0, n));
-        L = this.tmpL; R = this.tmpR;
-        this.runDrive(L, R, n);
-      }
+      if (this.pedalsOn(p)) {
+        this.pedL.set(L.subarray(0, n)); this.pedR.set(R.subarray(0, n));
+        L = this.pedL; R = this.pedR;
+        mixPedalChain(this.chains[p], v, this.pedalBase[p], L, R, n, bpm || 120, this.sr, this.dryL, this.dryR);
+      } else if (this.chains[p][0] || this.chains[p][1] || this.chains[p][2] || this.chains[p][3]) this.chains[p].fill(null);
       this.runStrip(p, L, R, n, soloed, this.busL, this.busR);
     }
     if (this.p('master.limit') >= 0.5) {
@@ -540,8 +492,8 @@ class RigMixer {
     const bpmv = bpm || 120;
     this.runDub(this.busL[0], this.busR[0], this.retL[0], this.retR[0], n, bpmv);
     this.runBbd(this.busL[1], this.busR[1], this.retL[1], this.retR[1], n, bpmv);
-    this.runReverb(this.busL[2], this.busR[2], this.retL[2], this.retR[2], n);
-    this.runChorus(this.busL[3], this.busR[3], this.retL[3], this.retR[3], n);
+    this.runReverb(this.busL[2], this.busR[2], this.retL[2], this.retR[2], n, 'rev');
+    this.runReverb(this.busL[3], this.busR[3], this.retL[3], this.retR[3], n, 'rev2');
     for (let r = 0; r < 4; r++) this.runStrip(this.parts + r, this.retL[r], this.retR[r], n, soloed, this.carryL, this.carryR);
     const key = Math.round(this.p('cmp.key')) - 1;
     if (this.p('cmp.ratio') > 1.001) this.runComp(this.mixL, this.mixR, key >= 0 ? partL[key] : null, key >= 0 ? partR[key] : null, n);

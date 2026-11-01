@@ -1,12 +1,14 @@
 /**
  * The MOA-RIG's mixer and effects, as params: a strip per part (p1..p16) and per return (rA..rD, the effects coming
- * back), the four send effects, the drive insert, the master compressor and the master. The worklet keeps them in a
+ * back), each part's four pedal slots (rigPedals.ts), the four send effects, the master compressor and the master. The worklet keeps them in a
  * table built from this list (`rigMixWorklet.ts`); the device makes a control of each.
  *
  * A strip: three-band EQ (dB; -30 is a kill), FILTER (one knob: left a low-pass closing, right a high-pass opening,
  * centre off), PAN, sends A to D (after the fader; a return can send to itself), MUTE, SOLO, THROW A (send A full
  * while held), and the fader (gain: 1 is 0 dB, 2 is +6 dB).
  */
+import { PEDAL_KNOBS, PEDAL_NAMES, PEDAL_SLOTS, pedalId } from './rigPedals';
+
 export interface RigMixParam {
   id: string;
   label: string;
@@ -26,19 +28,15 @@ export const RIG_STRIPS: readonly string[] = [
   ...Array.from({ length: RIG_MIX_PARTS }, (_, i) => `p${i + 1}`), ...RIG_RETURNS.map((r) => `r${r}`),
 ];
 /** What each return carries. */
-export const RIG_RETURN_NAMES = ['DUB DELAY', 'BBD', 'REVERB', 'CHORUS'] as const;
+export const RIG_RETURN_NAMES = ['DUB DELAY', 'BBD', 'REVERB', 'REVERB 2'] as const;
 
 /** Delay divisions when synced to the tempo, in beats. */
 export const RIG_DELAY_DIVS = ['1/16', '1/8T', '1/8', '3/16', '1/4T', '1/4', '3/8', '1/2', '3/4', '1'] as const;
 export const RIG_DELAY_DIV_BEATS = [0.25, 1 / 3, 0.5, 0.75, 2 / 3, 1, 1.5, 2, 3, 4] as const;
 /** CLOUDS: Mutable Instruments' reverb (Beads', as in Clouds, Rings and Elements), in place of the delay network. */
 export const RIG_REVERB_TYPES = ['SPRING', 'PLATE', 'HALL', 'CLOUDS'] as const;
-/** ENSEMBLE: Rings' string ensemble (three taps a side, a slow and a fast LFO) in place of the Juno's chorus. */
-export const RIG_CHORUS_MODES = ['I', 'II', 'I+II', 'ENSEMBLE'] as const;
-export const RIG_DRIVE_TYPES = ['TUBE', 'DIODE', 'FUZZ'] as const;
 /** Send B: the bucket brigade, or Beads' delay (Mutable Instruments'), clocked by B's time. */
 export const RIG_BBD_MODES = ['BBD', 'BEADS'] as const;
-const PART_CHOICES = ['off', ...Array.from({ length: RIG_MIX_PARTS }, (_, i) => String(i + 1))];
 const KEY_CHOICES = ['self', ...Array.from({ length: RIG_MIX_PARTS }, (_, i) => String(i + 1))];
 
 const n = (id: string, label: string, min: number, max: number, def: number, unit = '', curve: 'linear' | 'log' = 'linear'): RigMixParam =>
@@ -57,8 +55,18 @@ function strip(s: string): RigMixParam[] {
   ];
 }
 
+/** A part's pedal slots (rigPedals.ts): TYPE, ON, MIX and the knobs as 0..1. */
+function pedals(part: number): RigMixParam[] {
+  return Array.from({ length: PEDAL_SLOTS }, (_, i): RigMixParam[] => [
+    c(pedalId(part, i + 1, 'type'), 'Type', PEDAL_NAMES, 'OFF'), t(pedalId(part, i + 1, 'on'), 'On', 1), n(pedalId(part, i + 1, 'mix'), 'Mix', 0, 1, 1),
+    ...Array.from({ length: PEDAL_KNOBS }, (_, j) => n(pedalId(part, i + 1, `k${j + 1}`), `Knob ${j + 1}`, 0, 1, 0)),
+  ]).flat();
+}
+
 export const RIG_MIX_PARAMS: readonly RigMixParam[] = [
   ...RIG_STRIPS.flatMap(strip),
+  // the pedals, after the strips (the worklet finds a strip's params by its position)
+  ...Array.from({ length: RIG_MIX_PARTS }, (_, i) => pedals(i + 1)).flat(),
   // A: dub delay, a tape echo: the time glides (pitching the repeats), wow, a darkening, saturating loop
   n('dub.time', 'Time', 0.02, 2, 0.375, 's', 'log'), t('dub.sync', 'Sync', 1), c('dub.div', 'Division', RIG_DELAY_DIVS, '3/16'),
   n('dub.fdbk', 'Feedback', 0, 1.2, 0.5), n('dub.tone', 'Tone', 300, 8000, 2500, 'Hz', 'log'),
@@ -78,12 +86,10 @@ export const RIG_MIX_PARAMS: readonly RigMixParam[] = [
   n('rev.size', 'Size', 0, 1, 0.5), n('rev.damp', 'Damp', 0, 1, 0.4), n('rev.pre', 'Pre-delay', 0, 0.2, 0.02, 's'),
   n('rev.tone', 'Tone', 0, 1, 0.5), n('rev.shimmer', 'Shimmer', 0, 1, 0), c('rev.type', 'Type', RIG_REVERB_TYPES, 'PLATE'),
   t('rev.freeze', 'Freeze'),
-  // D: a stereo chorus after the Juno's
-  n('cho.rate', 'Rate', 0, 1, 0.5), n('cho.depth', 'Depth', 0, 1, 0.5), n('cho.width', 'Width', 0, 1, 1),
-  c('cho.mode', 'Mode', RIG_CHORUS_MODES, 'I'),
-  // the drive: an insert on one part, before its strip
-  c('drv.part', 'Part', PART_CHOICES, 'off'), n('drv.drive', 'Drive', 0, 1, 0.5), n('drv.tone', 'Tone', 0, 1, 0.6),
-  n('drv.blend', 'Blend', 0, 1, 1), n('drv.level', 'Level', 0, 1.5, 0.7), c('drv.type', 'Type', RIG_DRIVE_TYPES, 'TUBE'),
+  // D: a second reverb (a short room beside a long hall, say), the same as C
+  n('rev2.size', 'Size', 0, 1, 0.3), n('rev2.damp', 'Damp', 0, 1, 0.4), n('rev2.pre', 'Pre-delay', 0, 0.2, 0.01, 's'),
+  n('rev2.tone', 'Tone', 0, 1, 0.5), n('rev2.shimmer', 'Shimmer', 0, 1, 0), c('rev2.type', 'Type', RIG_REVERB_TYPES, 'PLATE'),
+  t('rev2.freeze', 'Freeze'),
   // the master compressor, keyed by the mix itself or by a part (before its fader), through a high-pass
   n('cmp.thresh', 'Threshold', -40, 0, -10, 'dB'), n('cmp.ratio', 'Ratio', 1, 20, 1, ':1', 'log'),
   n('cmp.atk', 'Attack', 0.1, 100, 10, 'ms', 'log'), n('cmp.rel', 'Release', 20, 1000, 150, 'ms', 'log'),

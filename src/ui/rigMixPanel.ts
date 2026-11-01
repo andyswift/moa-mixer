@@ -2,12 +2,14 @@ import type { RigMeters } from '../audio/engine';
 import type { Control, NumberControl, ToggleControl } from '../domain/devices/controls';
 import { RIG_MIX_PARTS, RIG_RETURN_NAMES, RIG_RETURNS } from '../domain/devices/rigMix';
 import type { RigSynth } from '../domain/devices/rigSynth';
+import { PEDAL_SLOTS, pedalId } from '../domain/devices/rigPedals';
+import { pedalTags } from './rigFxPanel';
 import { renderChoice, renderToggle } from './rigPanel';
 import { el, renderKnob } from './widgets';
 
 /**
  * The MOA-RIG's mixer, plain for now (the MIXER · FX page's design replaces it): eight part strips at a time, the
- * four returns and the master always in view, then the effects, the drive insert and the compressor.
+ * four returns and the master always in view, then the send effects and the compressor (the pedals have their own page).
  */
 const BANK = 8;
 const LIME = '#d6ef6a', PINK = '#ffa3c7', BLUE = '#8fc3ff', WHITE = '#ecece6';
@@ -112,6 +114,13 @@ export function renderRigMixPanel(rig: RigSynth, meters: () => RigMeters | undef
       rig.selectPart(p);
     });
   });
+  // each part's pedals (the FX page's), as tags under its name
+  const tagHolders = parts.map(({ sub }) => { const h = el('div', 'rig-strip-pedals'); sub.after(h); return h; });
+  const syncTags = (p: number) => tagHolders[p]!.replaceChildren(pedalTags(rig, p));
+  for (let p = 0; p < RIG_MIX_PARTS; p++) {
+    syncTags(p);
+    for (let s = 0; s < PEDAL_SLOTS; s++) for (const w of ['type', 'on']) d(pedalId(p + 1, s + 1, w)).onChange(() => syncTags(p));
+  }
   const returns = RIG_RETURNS.map((r, i) => {
     const s = strip(`r${r}`, BLUE, true);
     s.sec.classList.add('rig-return');
@@ -134,7 +143,7 @@ export function renderRigMixPanel(rig: RigSynth, meters: () => RigMeters | undef
     renderToggle(d('master.limit') as ToggleControl, 'Master'), peakField, masterFader.node);
   desk.append(master);
 
-  // ---- the effects, the drive insert and the compressor
+  // ---- the send effects and the compressor
   const fxRow = el('div', 'rig-mix-fx');
   const module = (title: string, sub: string, accent: string, ids: string[], extra: HTMLElement[] = []) => {
     const sec = el('section', 'rig-section');
@@ -162,8 +171,7 @@ export function renderRigMixPanel(rig: RigSynth, meters: () => RigMeters | undef
   d('bbd.mode').onChange(showBbd);
   showBbd();
   module('REVERB', 'SEND C', BLUE, ['rev.size', 'rev.damp', 'rev.pre', 'rev.tone', 'rev.shimmer', 'rev.type', 'rev.freeze']);
-  module('CHORUS', 'SEND D · STEREO', BLUE, ['cho.rate', 'cho.depth', 'cho.width', 'cho.mode']);
-  module('DRIVE', 'INSERT ON ONE PART', '#ff8466', ['drv.part', 'drv.drive', 'drv.tone', 'drv.blend', 'drv.level', 'drv.type']);
+  module('REVERB 2', 'SEND D', BLUE, ['rev2.size', 'rev2.damp', 'rev2.pre', 'rev2.tone', 'rev2.shimmer', 'rev2.type', 'rev2.freeze']);
   const gr = el('output', 'rig-readout');
   const grField = el('div', 'rig-field');
   grField.append(el('span', 'knob-label', 'GR'), gr);

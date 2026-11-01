@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { pedalParams } from '../../domain/devices/rigPedals';
 import { RIG_MIX_SOURCE } from '../rigMixWorklet';
 
 interface MixerI {
@@ -41,6 +42,7 @@ const rms = (a: Float32Array, from = 0, to = a.length) => {
 };
 const db = (x: number) => 20 * Math.log10(x);
 const fresh = () => new RigMixer(SR);
+const setAll = (m: MixerI, values: Record<string, number>) => { for (const [id, v] of Object.entries(values)) m.set(id, v); };
 /** Index of the first sample over `level` at or after `from`. */
 const firstOver = (a: Float32Array, level: number, from = 0) => { for (let i = from; i < a.length; i++) if (Math.abs(a[i]!) > level) return i; return -1; };
 
@@ -160,7 +162,7 @@ describe('MOA-RIG mixer: sends and returns', () => {
     expect(rms(l, Math.round(2.6 * SR))).toBeGreaterThan(0.3 * rms(l, Math.round(0.5 * SR), Math.round(0.7 * SR)));
   });
 
-  it('the chorus comes back wide: the two sides differ', () => {
+  it('the second reverb comes back on D, wide: the two sides differ', () => {
     const m = fresh();
     m.set('p1.d', 1);
     const { l, r } = run(m, 1, { 0: sine(330) });
@@ -171,7 +173,7 @@ describe('MOA-RIG mixer: sends and returns', () => {
 });
 
 describe('MOA-RIG mixer: drive, compressor, master', () => {
-  it('the drive adds harmonics to its part only', () => {
+  it('a DRIVE pedal adds harmonics to its part only', () => {
     const third = (x: Float32Array) => {
       // the 3rd harmonic of 200 Hz, by a single DFT bin over whole cycles
       let re = 0, im = 0;
@@ -179,9 +181,7 @@ describe('MOA-RIG mixer: drive, compressor, master', () => {
       return Math.hypot(re, im) / 12000;
     };
     const m = fresh();
-    m.set('drv.part', 3);
-    m.set('drv.drive', 0.8);
-    m.set('drv.tone', 1);
+    setAll(m, pedalParams(3, 1, 'DRIVE', { Drive: 0.8, Tone: 1 }));
     expect(third(run(m, 0.8, { 2: sine(200, 0.3) }).l)).toBeGreaterThan(0.02);
     expect(third(run(m, 0.8, { 1: sine(200, 0.3) }).l)).toBeLessThan(1e-4);
   });
@@ -214,7 +214,7 @@ describe('MOA-RIG mixer: drive, compressor, master', () => {
     for (let p = 1; p <= 16; p++) { m.set(`p${p}.a`, 0.3); m.set(`p${p}.c`, 0.3); m.set(`p${p}.d`, 0.2); m.set(`p${p}.lo`, -6); m.set(`p${p}.filter`, -0.3); }
     m.set('p1.b', 0.4);
     m.set('cmp.ratio', 4);
-    m.set('drv.part', 1);
+    setAll(m, pedalParams(1, 1, 'DRIVE'));
     const pl = Array.from({ length: 16 }, () => Float32Array.from({ length: B }, () => Math.random() - 0.5));
     const l = new Float32Array(B), r = new Float32Array(B);
     const t0 = performance.now();
@@ -297,9 +297,9 @@ describe('MOA-RIG mixer: Mutable Instruments\' effects', () => {
     expect(Math.abs(db(energy(l, 2.5, 3) / energy(l, 0.6, 1.1)))).toBeLessThan(10);
   });
 
-  it('ENSEMBLE adds a moving copy of a held note, a mono one spread left to right; the dry stays on the strip', () => {
+  it('an ENSEMBLE pedal adds a moving copy of a held note, a mono one spread left to right; at half MIX the dry stays', () => {
     const m = fresh();
-    m.set('p1.d', 1); m.set('cho.mode', 3); m.set('cho.depth', 1); m.set('cho.width', 1);
+    setAll(m, pedalParams(1, 1, 'CHORUS', { Mode: 'ENSEMBLE', Depth: 1, Width: 1 }, 0.5));
     const dry = run(fresh(), 1, { 0: sine(440, 0.3) }).l;
     const { l, r } = run(m, 1, { 0: sine(440, 0.3) });
     const wetL = l.map((v, i) => v - dry[i]!), wetR = r.map((v, i) => v - dry[i]!);

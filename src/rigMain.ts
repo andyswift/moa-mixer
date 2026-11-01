@@ -10,6 +10,7 @@ import { mountKeyboardBed } from './ui/keyboard';
 import { renderRigMultiBar, renderRigPanel } from './ui/rigPanel';
 import { renderRigDetail, renderRigShell, renderRigTrackStrip } from './ui/rigShell';
 import { renderTapeButton, renderTapeDeck, RigTape } from './ui/rigTape';
+import { renderRigFxPanel } from './ui/rigFxPanel';
 import { renderRigMixPanel } from './ui/rigMixPanel';
 import { renderRigSeqPanel } from './ui/rigSeqPanel';
 import * as store from './ui/rigStorage';
@@ -42,7 +43,7 @@ const multis = {
 
 const engine = new AudioEngine(patch);
 
-// The pages, after the design: SYNTH (the edited part, its track, the detail column), SEQUENCER, MIXER · FX.
+// The pages, after the design: SYNTH (the edited part, its track, the detail column), SEQUENCER, MIXER, FX (the pedals).
 let scope: AnalyserNode | undefined;
 const analyser = () => {
   const ctx = engine.context, out = engine.jackNode('rig', 'out', 'out');
@@ -70,10 +71,12 @@ const seqPage = renderRigSeqPanel(rig, () => engine.currentTime);
 seqPage.classList.add('rig-page');
 const mixPage = renderRigMixPanel(rig, () => engine.readRigMeters('rig', 'synth'));
 mixPage.classList.add('rig-page');
+const fxPage = renderRigFxPanel(rig);
+fxPage.classList.add('rig-page');
 const setup = document.createElement('div');
 setup.className = 'rig-setup-frame';
 const shell = renderRigShell(rig, {
-  synth: synthPage, seq: seqPage, mix: mixPage,
+  synth: synthPage, seq: seqPage, mix: mixPage, fx: fxPage,
   multi: renderRigMultiBar(rig, multis), setup, keys: mountKeyboardBed(rig), extra: [renderTapeButton(tape)],
   start: () => page.power(true),
   stop: () => page.power(false),

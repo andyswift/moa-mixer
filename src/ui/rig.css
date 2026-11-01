@@ -123,7 +123,7 @@
 .rig-meter { position: relative; width: 5px; border-radius: 2px; background: #1d1e21; overflow: hidden; }
 .rig-meter::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--level, 0) * 100%); background: linear-gradient(to top, #5fdccb 0%, #d6ef6a 70%, #ffb84d 90%, #ff4a32 100%); background-size: 100% 180px; background-position: bottom; }
 .rig-fader-db { font-size: 11px; min-width: 4ch; text-align: center; }
-.rig-mix-fx { display: grid; grid-template-columns: 1.4fr 1.5fr 1.4fr 1fr 1.3fr 1.7fr; gap: 4px; }
+.rig-mix-fx { display: grid; grid-template-columns: 1.3fr 1.6fr 1.3fr 1.3fr 1.7fr; gap: 4px; }
 .rig-mix-fx .rig-controls { justify-content: flex-start; gap: 10px 12px; }
 @media (max-width: 1100px) { .rig-mix-desk { grid-template-columns: repeat(4, minmax(0, 1fr)); } .rig-mix-fx { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
@@ -285,3 +285,32 @@ body:has(.rig-shell) { background: #1b1c1f; }
 .rig-roll-tool:disabled { opacity: 0.4; cursor: default; }
 .rig-roll-edge { position: absolute; top: 0; right: 0; bottom: 0; width: 6px; cursor: ew-resize; }
 .rig-roll-playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #ff8466; pointer-events: none; }
+
+/* ---- the FX page: each part's pedalboard */
+.rig-fx { display: flex; flex-direction: column; gap: 8px; }
+.rig-fx-bar { align-items: center; }
+.rig-fx-parts { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; flex: 1; min-width: 0; }
+.rig-fx-part { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; height: 40px; padding: 4px 6px; border: 0; border-radius: 3px; background: #2a2c30; color: #e4e5e7; box-shadow: inset 0 0 0 1px #45474c; font: 700 11px/1 'Barlow Semi Condensed', system-ui, sans-serif; cursor: pointer; text-align: left; }
+.rig-fx-part.on { box-shadow: inset 0 0 0 2px var(--rig-accent); background: #3c3f45; }
+.rig-fx-part-name { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; letter-spacing: 0.04em; }
+.rig-fx-part-chain { display: flex; gap: 2px; }
+.rig-fx-tag { padding: 1px 3px; border-radius: 2px; background: var(--rig-accent); color: #1b1c1f; font-size: 9px; letter-spacing: 0.04em; }
+.rig-fx-tag.bypassed { background: transparent; color: var(--rig-accent); box-shadow: inset 0 0 0 1px var(--rig-accent); }
+.rig-fx-flow { display: flex; align-items: center; gap: 10px; padding: 0 4px; font: 700 12px/1 'Barlow Semi Condensed', system-ui, sans-serif; letter-spacing: 0.08em; color: #e4e5e7; }
+.rig-fx-flow-arrow { color: #9a9ca1; letter-spacing: 0.2em; }
+.rig-fx-flow .rig-seq-hint { margin-left: auto; letter-spacing: 0; font-weight: 400; }
+.rig-fx-board { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; flex: 1; min-height: 0; }
+.rig-pedal { gap: 10px; border-top: 4px solid var(--rig-accent); }
+.rig-pedal.empty { background: #3a3d42; }
+.rig-pedal.bypassed .rig-pedal-knobs { opacity: 0.55; }
+.rig-pedal-head { display: flex; align-items: center; gap: 8px; }
+.rig-pedal-head .rig-title { border: 0; padding: 0; font-size: 18px; color: var(--rig-accent); }
+.rig-pedal-type { flex: 1; min-width: 0; height: 26px; border-radius: 3px; border: 0; background: #2a2c30; color: #f1f1ec; box-shadow: inset 0 0 0 1px #45474c; font: 700 13px/1 'Barlow Semi Condensed', system-ui, sans-serif; letter-spacing: 0.06em; }
+.rig-pedal-knobs { flex: 1; align-content: flex-start; justify-content: flex-start; gap: 12px 14px; }
+.rig-pedal-foot { display: flex; align-items: flex-end; justify-content: space-between; padding: 8px 6px 4px; border-top: 1px solid #2c2e33; }
+.rig-pedal-switch { width: 44px; height: 44px; border-radius: 50%; border: 0; background: radial-gradient(circle at 40% 35%, #8a8d93, #3a3c41 70%); box-shadow: 0 2px 4px rgba(0,0,0,0.6), inset 0 0 0 2px #2a2c30; cursor: pointer; position: relative; }
+.rig-pedal-switch::after { content: ''; position: absolute; top: -10px; left: calc(50% - 4px); width: 8px; height: 8px; border-radius: 50%; background: #2a2c30; box-shadow: inset 0 0 0 1px #45474c; }
+.rig-pedal-switch.on::after { background: var(--rig-accent); box-shadow: 0 0 8px var(--rig-accent); }
+.rig-pedal-move { display: flex; justify-content: space-between; }
+.rig-pedal-move .rig-small:disabled { opacity: 0.3; cursor: default; }
+.rig-strip-pedals { display: flex; justify-content: center; min-height: 13px; }

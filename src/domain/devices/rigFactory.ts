@@ -1,6 +1,7 @@
 import { newRigPattern, type RigPattern, type RigStep, type RigTrack } from '../sequencer/rigSequencer';
 import { cloneKit, RIG_KITS } from './rigKit';
 import { RIG_MULTI_VERSION, type RigMulti, type RigMultiPart } from './rigMulti';
+import { pedalParams } from './rigPedals';
 import type { RigRoute, RigSide } from './rigParams';
 import { RIG_PRESETS } from './rigPresets';
 import { freshPart } from './rigSynth';
@@ -366,7 +367,8 @@ const scalpel: RigFactoryMulti = {
       // live set (measured): dark on top (the hats, metal, noise and returns cut over 4 kHz), the weight in the mids
       // (the perc, toms and bass pushed at 1 kHz), the percussion spread wide. And the dub delay everywhere, as he
       // plays it: the stabs and metal deep in it, the perc and toms and a touch of the bass; long, dark, saturating repeats
-      'drv.part': 1, 'drv.type': 0, 'drv.drive': 0.6, 'drv.tone': 0.5, 'drv.blend': 1, 'drv.level': 1,
+      // the kick through a tube drive (a pedal on part 1)
+      ...pedalParams(1, 1, 'DRIVE', { Type: 'TUBE', Drive: 0.6, Tone: 0.5, Level: 1 }),
       'p1.fader': 0.63, 'p1.lo': 2,
       'p2.fader': 1.3, 'p2.pan': 0.2, 'p2.c': 0.05, 'p2.hi': -3,
       'p3.fader': 2, 'p3.pan': -0.5, 'p3.a': 0.35, 'p3.c': 0.12, 'p3.mid': 3, 'p3.hi': -1,
@@ -375,10 +377,10 @@ const scalpel: RigFactoryMulti = {
       'p6.fader': 2, 'p6.pan': 0.4, 'p6.a': 0.5, 'p6.c': 0.25, 'p6.lo': -10, 'p6.hi': -5,
       'p7.fader': 2, 'p7.pan': -0.25, 'p7.a': 0.75, 'p7.c': 0.2, 'p7.lo': -8, 'p7.mid': 3,
       'p8.fader': 2, 'p8.c': 0.3, 'p8.lo': -12, 'p8.hi': -6,
-      // the bubbling bass a touch into the delay; the strings behind, through the chorus and the hall
+      // the bubbling bass a touch into the delay; the strings behind, through a chorus pedal and the hall
       'p9.fader': 1.9, 'p9.a': 0.12,
       'p11.fader': 1, 'p11.pan': 0.35, 'p11.c': 0.1,
-      'p12.fader': 0.89, 'p12.lo': -3, 'p12.a': 0.3, 'p12.b': 0.66, 'p12.c': 0.3, 'p12.d': 0.3,
+      'p12.fader': 0.89, 'p12.lo': -3, 'p12.a': 0.3, 'p12.b': 0.66, 'p12.c': 0.3, ...pedalParams(12, 1, 'CHORUS', {}, 0.15),
       // the BBD (B) as the user set it: synced, aged dark, its repeats wobbling, in the middle (no ping-pong:
       // focused); the synth well into it, the bass a good way
       'p5.b': 0.81,
@@ -386,7 +388,7 @@ const scalpel: RigFactoryMulti = {
       // the blips a side each, into the delay so they answer each other
       'p13.fader': 0.8, 'p13.pan': -0.6, 'p13.a': 0.35, 'p13.hi': -2,
       'p14.fader': 0.8, 'p14.pan': 0.6, 'p14.a': 0.35, 'p14.hi': -2,
-      'p10.fader': 0.7, 'p10.lo': -4, 'p10.c': 0.35, 'p10.d': 0.3,
+      'p10.fader': 0.7, 'p10.lo': -4, 'p10.c': 0.35, ...pedalParams(10, 1, 'CHORUS', {}, 0.15),
       'dub.sync': 1, 'dub.div': 3, 'dub.fdbk': 0.75, 'dub.tone': 1300, 'dub.wow': 0.35, 'dub.sat': 0.6,
       'rev.type': 2, 'rev.size': 0.7, 'rev.damp': 0.75, 'rev.pre': 0.02,
       'rA.lo': -8, 'rA.hi': -4, 'rA.filter': 0.15, 'rA.fader': 1, 'rC.fader': 0.8, 'rC.lo': -6, 'rC.hi': -5,
@@ -625,7 +627,7 @@ const darkRoom: RigFactoryMulti = {
       'p2.fader': 1, 'p2.a': 0.08,
       'p3.fader': 0.67, 'p3.a': 0.2, 'p3.pan': 0.15,
       'p4.fader': 2, 'p4.a': 0.7, 'p4.c': 0.2, 'p4.lo': -6,
-      'p5.fader': 0.53, 'p5.c': 0.35, 'p5.d': 0.6, 'p5.lo': -4,
+      'p5.fader': 0.53, 'p5.c': 0.35, 'p5.lo': -4, ...pedalParams(5, 1, 'CHORUS', { Mode: 'ENSEMBLE' }, 0.3),
       'p6.fader': 1, 'p6.b': 0.55, 'p6.c': 0.15, 'p6.pan': -0.2,
       'p8.fader': 1.23, 'p8.a': 0.9, 'p8.c': 0.4,
       'p9.fader': 1, 'p9.pan': -0.35, 'p9.c': 0.15,
@@ -635,7 +637,6 @@ const darkRoom: RigFactoryMulti = {
       // send B in Beads' mode, as the user set it: 3/16, the repeats multiplied and shaped
       'bbd.mode': 1, 'bbd.sync': 1, 'bbd.div': 3, 'bbd.fdbk': 0.5, 'bbd.age': 0.55, 'bbd.ping': 1, 'bds.multiply': 0.428, 'bds.shape': 0.329,
       'rev.type': 2, 'rev.size': 0.65, 'rev.damp': 0.65, 'rev.pre': 0.02,
-      'cho.mode': 3,
       'rA.lo': -6, 'rA.hi': -4,
       'cmp.key': 1, 'cmp.ratio': 2.5, 'cmp.thresh': -20, 'cmp.atk': 3, 'cmp.rel': 160, 'cmp.mix': 0.6,
     };
@@ -860,15 +861,15 @@ const noMercy: RigFactoryMulti = {
     // noise all hall and ensemble, wide.
     const mix: Record<string, number> = {
       // (the faders, filters, EQ and sends below as the user set them by ear, where they differ from the first mix)
-      'drv.part': 1, 'drv.type': 1, 'drv.drive': 0.128, 'drv.tone': 0.712, 'drv.blend': 1, 'drv.level': 1,
+      ...pedalParams(1, 1, 'DRIVE', { Type: 'DIODE', Drive: 0.128, Tone: 0.712, Level: 1 }),
       'p1.fader': 0.9, 'p1.lo': 2, 'p1.c': 0.35, 'p1.filter': 0.186,
-      'p2.fader': 1.495, 'p2.pan': 0.15, 'p2.b': 0.25, 'p2.d': 0.35, 'p2.hi': -3.3, 'p2.filter': -0.282,
+      'p2.fader': 1.495, 'p2.pan': 0.15, 'p2.b': 0.25, ...pedalParams(2, 1, 'CHORUS', { Mode: 'ENSEMBLE' }, 0.175), 'p2.hi': -3.3, 'p2.filter': -0.282,
       'p3.fader': 0.497, 'p3.pan': -0.15, 'p3.c': 0.45, 'p3.a': 0.12, 'p3.mid': 2, 'p3.hi': 6, 'p3.filter': 0.242,
       'p4.fader': 1, 'p4.c': 0.45, 'p4.mid': 3, 'p4.filter': -0.766,
-      'p5.fader': 1.8, 'p5.a': 0.7, 'p5.d': 0.3, 'p5.lo': -8, 'p5.mid': 3, 'p5.pan': -0.2,
-      'p6.fader': 1.344, 'p6.a': 0.204, 'p6.d': 0.404, 'p6.mid': 2, 'p6.lo': -19.3, 'p6.filter': 0.224,
-      'p7.fader': 1.995, 'p7.a': 0.6, 'p7.b': 1, 'p7.c': 0.3, 'p7.d': 1, 'p7.pan': 0.5, 'p7.lo': -30, 'p7.filter': -0.39,
-      'p8.fader': 0.408, 'p8.a': 0.578, 'p8.c': 0.6, 'p8.d': 0.5, 'p8.lo': -28, 'p8.filter': 0.402,
+      'p5.fader': 1.8, 'p5.a': 0.7, ...pedalParams(5, 1, 'CHORUS', { Mode: 'ENSEMBLE' }, 0.15), 'p5.lo': -8, 'p5.mid': 3, 'p5.pan': -0.2,
+      'p6.fader': 1.344, 'p6.a': 0.204, ...pedalParams(6, 1, 'CHORUS', { Mode: 'ENSEMBLE' }, 0.202), 'p6.mid': 2, 'p6.lo': -19.3, 'p6.filter': 0.224,
+      'p7.fader': 1.995, 'p7.a': 0.6, 'p7.b': 1, 'p7.c': 0.3, ...pedalParams(7, 1, 'CHORUS', { Mode: 'ENSEMBLE' }, 0.5), 'p7.pan': 0.5, 'p7.lo': -30, 'p7.filter': -0.39,
+      'p8.fader': 0.408, 'p8.a': 0.578, 'p8.c': 0.6, ...pedalParams(8, 1, 'CHORUS', { Mode: 'ENSEMBLE' }, 0.25), 'p8.lo': -28, 'p8.filter': 0.402,
       'p9.fader': 1.1, 'p9.pan': -0.5, 'p9.a': 0.4, 'p9.c': 0.3, 'p9.mid': 2,
       // A: the dub delay, long, saturating, fluttering, its repeats into the hall
       'dub.sync': 1, 'dub.div': 3, 'dub.fdbk': 0.7, 'dub.tone': 4390, 'dub.wow': 0.4, 'dub.sat': 0.7, 'dub.flutter': 0.4,
@@ -880,8 +881,7 @@ const noMercy: RigFactoryMulti = {
       // C: a smaller, darker hall with a long pre-delay; its return low-passed, its sub taken down and its low mids up: the rumble
       'rev.type': 2, 'rev.size': 0.412, 'rev.damp': 1, 'rev.pre': 0.114, 'rev.tone': 0.096,
       'rC.fader': 1.2, 'rC.filter': -0.3, 'rC.lo': -4, 'rC.mid': 3, 'rC.hi': -10,
-      // D: the ensemble, for width
-      'cho.mode': 3, 'rD.fader': 1,
+      // (the ensemble chorus, for width, is a pedal on each part that had it)
       // the compressor keyed by the kick, ducking all of it (the rumble pumps); the master onto tape
       'cmp.key': 1, 'cmp.ratio': 5, 'cmp.thresh': -26, 'cmp.atk': 1, 'cmp.rel': 160, 'cmp.mix': 0.9,
       'tape.drive': 15, 'tape.tone': 0.4,
@@ -1061,7 +1061,7 @@ const dubPressure: RigFactoryMulti = {
       'p5.fader': 1.3, 'p5.a': 0.7, 'p5.b': 0.3, 'p5.c': 0.3, 'p5.lo': -10, 'p5.pan': 0.2,
       'p6.fader': 0.9, 'p6.a': 0.8, 'p6.c': 0.3, 'p6.pan': -0.3, 'p6.lo': -12,
       'p7.fader': 1.3, 'p7.a': 0.85, 'p7.c': 0.35, 'p7.lo': -8,
-      'p8.fader': 0.6, 'p8.c': 0.4, 'p8.d': 0.4, 'p8.lo': -10,
+      'p8.fader': 0.6, 'p8.c': 0.4, 'p8.lo': -10, ...pedalParams(8, 1, 'CHORUS', { Mode: 'ENSEMBLE' }, 0.2),
       'p9.fader': 0.7, 'p9.pan': 0.35, 'p9.b': 0.25,
       'p10.fader': 0.8, 'p10.c': 0.5, 'p10.lo': -12,
       // A: the dub delay, dotted eighth, long and saturating, wow and flutter; its echoes into the spring
@@ -1071,7 +1071,6 @@ const dubPressure: RigFactoryMulti = {
       'bbd.sync': 1, 'bbd.div': 2, 'bbd.fdbk': 0.4, 'bbd.age': 0.5, 'bbd.ping': 1, 'rB.lo': -8,
       // C: the spring
       'rev.type': 0, 'rev.size': 0.65, 'rev.damp': 0.5, 'rev.tone': 0.45, 'rC.lo': -6,
-      'cho.mode': 3,
       'cmp.key': 1, 'cmp.ratio': 2.5, 'cmp.thresh': -18, 'cmp.atk': 3, 'cmp.rel': 180, 'cmp.mix': 0.6,
       'tape.drive': 6, 'tape.tone': 0.35, 'tape.wow': 0.08,
     };
@@ -1087,7 +1086,7 @@ const dubPressure: RigFactoryMulti = {
 // against the fours, the sync lead's sweeps, the vowel calls, the chord pad's random voicings. The dub is in the mix:
 // a long dotted-eighth tape echo, Beads on B for the grains, a hall, and throws.
 const MY = { DRUMS: 0, THROWS: 1, BASS: 2, DRONE: 3, KEYS: 4, SQUELCH: 5, CONGA: 6, KALIMBA: 7, VOX: 8, SWEEP: 9, PAD: 10, CHORDS: 11, ZAP: 12,
-  SHAKER: 13, NOISE: 14 };
+  SHAKER: 13, NOISE: 14, DUST: 15 };
 const D2 = 38, D3n = 50, D4 = 62;
 
 /** Like `sound`, but keeping the preset's B side (for a sound whose MOD wheel morphs A into B). */
@@ -1175,6 +1174,8 @@ const myPad = (): RigTrack => track([0, 16, 32, 48].map((i): Steps[number] => [i
 const myChords = (): RigTrack => track([0, 16, 32, 48].map((i): Steps[number] => [i, D4, { vel: 0.8, gate: 16, locks: { 'lfo1.level': 0.6 + i / 120 } }]), 64);
 /** Zaps: a laser falling from high, where `at` puts them. */
 const myZap = (at: [number, number][] = [[46, 86]]): RigTrack => track(at.map(([i, n]): Steps[number] => [i, n, { vel: 0.85, gate: 0.4 }]), 64);
+/** The dust: the hiss held under everything, a bar at a time. */
+const myDust = (): RigTrack => track([0, 16, 32, 48].map((i): Steps[number] => [i, 60, { vel: 0.8, gate: 16 }]), 64);
 /** A shaker in swung sixteenths. */
 function myShaker(): RigTrack {
   const t = track(Array.from({ length: 16 }, (_, i): Steps[number] => [i, 60, { vel: [0.5, 0.3, 0.75, 0.35][i % 4]!, gate: 0.3 }]), 16);
@@ -1232,43 +1233,51 @@ const mycelium: RigFactoryMulti = {
     };
     parts[MY.SHAKER] = { name: 'Shaker', voices: 1, channel: 14, ...sound('Shaker', { 'out.level': 1 }) };
     parts[MY.NOISE] = { name: 'Noise', voices: 1, channel: 15, ...sound('Noise Sweep', { 'out.level': 1 }) };
+    // the dust: pink noise, its lows taken off, held under the whole tune; its pedals make it crackle
+    parts[MY.DUST] = {
+      name: 'Dust', voices: 1, channel: 16,
+      ...sound('Init', {
+        'mix.osc1': 0, 'mix.noise': 1, 'noise.type': 1, 'lad.cutoff': 9000, 'lad.eg1': 0, 'filter.route': 1, 'sem.mode': 1, 'sem.cutoff': 900,
+        'eg2.a': 0.4, 'eg2.s': 1, 'eg2.r': 0.6, 'out.level': 1,
+      }),
+    };
 
-    const { DRUMS, THROWS, BASS, DRONE, KEYS, SQUELCH, CONGA, KALIMBA, VOX, SWEEP, PAD, CHORDS, ZAP, SHAKER, NOISE } = MY;
+    const { DRUMS, THROWS, BASS, DRONE, KEYS, SQUELCH, CONGA, KALIMBA, VOX, SWEEP, PAD, CHORDS, ZAP, SHAKER, NOISE, DUST } = MY;
     const ramp = (from: number, to: number) => (x: number) => from + (to - from) * x;
     const patterns = [
       // 0 intro: the drone, the vowels, the kalimba turning, a rim into the dub
-      pattern({ [DRONE]: myDrone(), [VOX]: myVox(), [KALIMBA]: dyn(myKalimba(), 0.8), [THROWS]: myThrows([[30, RS, 0.6], [62, RS, 0.5]]) }),
+      pattern({ [DUST]: myDust(), [DRONE]: myDrone(), [VOX]: myVox(), [KALIMBA]: dyn(myKalimba(), 0.8), [THROWS]: myThrows([[30, RS, 0.6], [62, RS, 0.5]]) }),
       // 1 intro: the hand drums and shaker, the bass coming in halfway, the snare thrown at the end
-      pattern({ [DRONE]: myDrone(), [CONGA]: dyn(myConga(), 0.85), [SHAKER]: dyn(myShaker(), 0.75), [BASS]: myBass(32), [KALIMBA]: dyn(myKalimba(), 0.8),
+      pattern({ [DUST]: myDust(), [DRONE]: myDrone(), [CONGA]: dyn(myConga(), 0.85), [SHAKER]: dyn(myShaker(), 0.75), [BASS]: myBass(32), [KALIMBA]: dyn(myKalimba(), 0.8),
         [THROWS]: myThrows() }),
       // 2 the groove: the drums, the bass, the keys on two offbeats, the hand drums
-      pattern({ [DRUMS]: dyn(myDrums(), 0.95), [BASS]: myBass(), [KEYS]: myKeys(true), [CONGA]: dyn(myConga(), 0.8), [SHAKER]: dyn(myShaker(), 0.75),
+      pattern({ [DUST]: myDust(), [DRUMS]: dyn(myDrums(), 0.95), [BASS]: myBass(), [KEYS]: myKeys(true), [CONGA]: dyn(myConga(), 0.8), [SHAKER]: dyn(myShaker(), 0.75),
         [THROWS]: myThrows() }),
       // 3 the squelch comes in, thin; the keys on every offbeat
-      pattern({ [DRUMS]: myDrums(), [BASS]: myBass(), [KEYS]: myKeys(), [SQUELCH]: dyn(mySquelch(true), 0.85), [SHAKER]: dyn(myShaker(), 0.8),
+      pattern({ [DUST]: myDust(), [DRUMS]: myDrums(), [BASS]: myBass(), [KEYS]: myKeys(), [SQUELCH]: dyn(mySquelch(true), 0.85), [SHAKER]: dyn(myShaker(), 0.8),
         [THROWS]: myThrows([[30, RS, 0.6], [44, MT, 0.7], [60, SD, 0.9]]) }),
       // 4 the squelch whole, alone with the drums and bass; a zap
-      pattern({ [DRUMS]: myDrums(), [BASS]: myBass(), [SQUELCH]: mySquelch(), [CONGA]: dyn(myConga(), 0.7), [ZAP]: myZap(), [THROWS]: myThrows() }),
+      pattern({ [DUST]: myDust(), [DRUMS]: myDrums(), [BASS]: myBass(), [SQUELCH]: mySquelch(), [CONGA]: dyn(myConga(), 0.7), [ZAP]: myZap(), [THROWS]: myThrows() }),
       // 5 the sync sweep over the groove, the vowels answering, the kalimba back
-      pattern({ [DRUMS]: myDrums(), [BASS]: myBass(), [KEYS]: myKeys(true), [SWEEP]: mySweep(), [VOX]: myVox(true), [KALIMBA]: dyn(myKalimba(), 0.75),
+      pattern({ [DUST]: myDust(), [DRUMS]: myDrums(), [BASS]: myBass(), [KEYS]: myKeys(true), [SWEEP]: mySweep(), [VOX]: myVox(true), [KALIMBA]: dyn(myKalimba(), 0.75),
         [SHAKER]: dyn(myShaker(), 0.8), [THROWS]: myThrows([[30, RS, 0.6], [60, SD, 0.9], [62, RS, 0.5]]) }),
       // 6 the break: no kick, no hats; the shimmer pad, the bass held, the hand drums, the snare thrown each second bar
-      pattern({ [PAD]: myPad(), [BASS]: myBassHeld(), [CONGA]: dyn(myConga(), 0.75), [VOX]: myVox(), [KALIMBA]: dyn(myKalimba(), 0.7),
+      pattern({ [DUST]: myDust(), [PAD]: myPad(), [BASS]: myBassHeld(), [CONGA]: dyn(myConga(), 0.75), [VOX]: myVox(), [KALIMBA]: dyn(myKalimba(), 0.7),
         [THROWS]: myThrows([[28, SD, 0.8], [60, SD, 0.9], [62, RS, 0.5]]) }),
       // 7 the build: the chord pad's voicings spinning, the noise rising, the drums back with the toms, the bass held
-      pattern({ [CHORDS]: myChords(), [NOISE]: mods(scNoise(), (i) => (i / 63) ** 2), [DRUMS]: dyn(myDrums({ kick: false, fill: true }), ramp(0.6, 1)),
+      pattern({ [DUST]: myDust(), [CHORDS]: myChords(), [NOISE]: mods(scNoise(), (i) => (i / 63) ** 2), [DRUMS]: dyn(myDrums({ kick: false, fill: true }), ramp(0.6, 1)),
         [BASS]: myBassHeld(), [SHAKER]: dyn(myShaker(), ramp(0.5, 0.9)) }),
       // 8 the drop: everything rolling, the squelch and keys interlocking
-      pattern({ [DRUMS]: myDrums(), [BASS]: myBass(), [KEYS]: myKeys(), [SQUELCH]: mySquelch(), [CONGA]: dyn(myConga(), 0.7), [SHAKER]: myShaker(),
+      pattern({ [DUST]: myDust(), [DRUMS]: myDrums(), [BASS]: myBass(), [KEYS]: myKeys(), [SQUELCH]: mySquelch(), [CONGA]: dyn(myConga(), 0.7), [SHAKER]: myShaker(),
         [ZAP]: myZap([[14, 86], [46, 91]]), [THROWS]: myThrows() }),
       // 9 the drop again: the squelch out, the sync sweep and the drone in
-      pattern({ [DRUMS]: myDrums(), [BASS]: myBass(), [KEYS]: myKeys(true), [SWEEP]: mySweep(32, 57), [DRONE]: myDrone(), [KALIMBA]: dyn(myKalimba(), 0.75),
+      pattern({ [DUST]: myDust(), [DRUMS]: myDrums(), [BASS]: myBass(), [KEYS]: myKeys(true), [SWEEP]: mySweep(32, 57), [DRONE]: myDrone(), [KALIMBA]: dyn(myKalimba(), 0.75),
         [SHAKER]: myShaker(), [THROWS]: myThrows([[30, RS, 0.6], [44, MT, 0.7], [60, SD, 0.9]]) }),
       // 10 the dub-out: the kick and snare alone under the keys and the vowels, everything thrown
-      pattern({ [DRUMS]: dyn(myDrums({ hats: false }), 0.9), [BASS]: myBass(), [KEYS]: myKeys(true), [VOX]: myVox(true), [DRONE]: myDrone(),
+      pattern({ [DUST]: myDust(), [DRUMS]: dyn(myDrums({ hats: false }), 0.9), [BASS]: myBass(), [KEYS]: myKeys(true), [VOX]: myVox(true), [DRONE]: myDrone(),
         [THROWS]: myThrows([[12, SD, 0.8], [30, RS, 0.6], [44, SD, 0.85], [46, MT, 0.7], [60, SD, 0.9], [62, LT, 0.7]]) }),
       // 11 out: the drone, the kalimba, a vowel, a rim into the delay
-      pattern({ [DRONE]: myDrone(), [KALIMBA]: dyn(myKalimba(), 0.7), [VOX]: myVox(), [THROWS]: myThrows([[30, RS, 0.5], [62, RS, 0.4]]) }),
+      pattern({ [DUST]: myDust(), [DRONE]: myDrone(), [KALIMBA]: dyn(myKalimba(), 0.7), [VOX]: myVox(), [THROWS]: myThrows([[30, RS, 0.5], [62, RS, 0.4]]) }),
     ];
 
     const mix: Record<string, number> = {
@@ -1276,21 +1285,54 @@ const mycelium: RigFactoryMulti = {
       'p1.fader': 1, 'p1.a': 0.05, 'p1.c': 0.1,
       'p2.fader': 0.8, 'p2.a': 1, 'p2.c': 0.35, 'p2.hi': -2,
       'p3.fader': 1.2,
-      // the drone wide in the hall and the grains; the keys in the dub and the chorus
-      'p4.fader': 0.8, 'p4.b': 0.4, 'p4.c': 0.5, 'p4.lo': -12,
-      'p5.fader': 1.4, 'p5.a': 0.5, 'p5.c': 0.25, 'p5.d': 0.4, 'p5.lo': -10, 'p5.pan': -0.15,
+      // the drone wide in the hall and the grains; the keys in the dub, an ensemble pedal on them
+      'p4.fader': 0.62, 'p4.b': 0.4, 'p4.c': 0.5, 'p4.lo': -12,
+      'p5.fader': 1.4, 'p5.a': 0.5, 'p5.c': 0.25, 'p5.lo': -10, 'p5.pan': -0.15,
       // the squelch into the grains and a little dub, panned off; the hand drums a touch of hall
       'p6.fader': 0.8, 'p6.a': 0.3, 'p6.b': 0.45, 'p6.c': 0.2, 'p6.lo': -8, 'p6.pan': 0.25,
       'p7.fader': 1.6, 'p7.c': 0.25, 'p7.pan': -0.3, 'p7.lo': -6,
       // the kalimba in the grains and the hall; the vowels deep in the dub
-      'p8.fader': 1, 'p8.b': 0.6, 'p8.c': 0.4, 'p8.pan': 0.35, 'p8.lo': -10,
+      'p8.fader': 0.6, 'p8.b': 0.6, 'p8.c': 0.4, 'p8.pan': 0.35, 'p8.lo': -10,
       'p9.fader': 1.6, 'p9.a': 0.6, 'p9.c': 0.45, 'p9.lo': -8,
-      'p10.fader': 0.8, 'p10.a': 0.55, 'p10.c': 0.4, 'p10.lo': -8, 'p10.pan': -0.2,
+      'p10.fader': 0.62, 'p10.a': 0.55, 'p10.c': 0.4, 'p10.lo': -8, 'p10.pan': -0.2,
       'p11.fader': 0.55, 'p11.b': 0.4, 'p11.c': 0.55, 'p11.lo': -8,
       'p12.fader': 0.9, 'p12.b': 0.5, 'p12.c': 0.45, 'p12.lo': -8,
       'p13.fader': 1.5, 'p13.a': 0.9, 'p13.c': 0.3, 'p13.lo': -12,
       'p14.fader': 1, 'p14.pan': 0.4, 'p14.c': 0.2,
       'p15.fader': 0.8, 'p15.c': 0.5, 'p15.lo': -12,
+      'p16.fader': 0.32, 'p16.c': 0.15, 'p16.lo': -12, 'p16.pan': 0,
+      // ---- the pedals: noise on the filters (the dirt that keeps it from sounding clean), the rest for movement
+      // the kit squashed in parallel, warmed, a little crushed
+      ...pedalParams(1, 1, 'COMP', { Threshold: -24, Ratio: 6, Attack: 10, Release: 120, 'Make-up': 6 }, 0.45),
+      ...pedalParams(1, 2, 'DRIVE', { Type: 'TUBE', Drive: 0.2, Tone: 0.55, Level: 0.28 }),
+      ...pedalParams(1, 3, 'BITCRUSH', { Bits: 12, Rate: 22000, Tone: 0.8, Level: 1 }, 0.25),
+      // the bass warmed, its filter wandering on slow noise
+      ...pedalParams(3, 1, 'DRIVE', { Type: 'TUBE', Drive: 0.25, Tone: 0.4, Level: 0.36 }),
+      ...pedalParams(3, 2, 'FILTER', { Mode: 'LP', Cutoff: 900, Res: 0.2, Source: 'NOISE', Depth: 0.15, Rate: 0.08 }),
+      // the drone drifting on very slow noise, then phased over four bars
+      ...pedalParams(4, 1, 'FILTER', { Mode: 'LP', Cutoff: 1800, Res: 0.35, Source: 'NOISE', Depth: 0.35, Rate: 0.03 }),
+      ...pedalParams(4, 2, 'PHASER', { Sync: '4 BARS', Depth: 0.8, Feedback: 0.6, Stages: '8', Centre: 600 }, 0.5),
+      // the keys dusty (fast noise on the filter, a grit), then the ensemble
+      ...pedalParams(5, 1, 'FILTER', { Mode: 'LP', Cutoff: 3000, Res: 0.25, Source: 'NOISE', Depth: 0.3, Rate: 4 }),
+      ...pedalParams(5, 2, 'CHORUS', { Mode: 'ENSEMBLE' }, 0.2),
+      // the squelch driven, gurgling through a band-pass on noise, into its own ping-pong echo in dotted eighths
+      ...pedalParams(6, 1, 'DRIVE', { Type: 'DIODE', Drive: 0.3, Tone: 0.5, Level: 0.37 }),
+      ...pedalParams(6, 2, 'FILTER', { Mode: 'BP', Cutoff: 1200, Res: 0.55, Source: 'NOISE', Depth: 0.5, Rate: 0.5 }, 0.6),
+      ...pedalParams(6, 3, 'DELAY', { Mode: 'BBD', Sync: '3/16', Feedback: 0.5, 'Ping-pong': 'ON', Tone: 3000 }, 0.3),
+      // the hand drums echoing in eighth triplets, left and right
+      ...pedalParams(7, 1, 'DELAY', { Mode: 'BBD', Sync: '1/8T', Feedback: 0.35, 'Ping-pong': 'ON', Tone: 2500 }, 0.25),
+      // the kalimba through a band-pass that noise moves
+      ...pedalParams(8, 1, 'FILTER', { Mode: 'BP', Cutoff: 2000, Res: 0.4, Source: 'NOISE', Depth: 0.25, Rate: 1 }, 0.5),
+      // the vowels a little ring-modulated, drifting
+      ...pedalParams(9, 1, 'RING MOD', { Freq: 220, Wave: 'SINE', 'LFO rate': 0.1, 'LFO depth': 0.3 }, 0.2),
+      // the sync sweep through a jet flanger over two bars
+      ...pedalParams(10, 1, 'FLANGER', { Sync: '2 BARS', Depth: 0.8, Delay: 1.5, Feedback: 0.7 }, 0.5),
+      // the shimmer phased; the chord pad spinning round the room in sixteenths
+      ...pedalParams(11, 1, 'PHASER', { Sync: '2 BARS', Depth: 0.7, Feedback: 0.5 }, 0.5),
+      ...pedalParams(12, 1, 'TREMOLO', { Sync: '1/16', Depth: 0.6, Shape: 'SINE', Pan: 1 }),
+      // the dust: a band of hiss pushed about by fast noise, then crushed: a crackle
+      ...pedalParams(16, 1, 'FILTER', { Mode: 'BP', Cutoff: 3000, Res: 0.2, Source: 'NOISE', Depth: 0.8, Rate: 20 }),
+      ...pedalParams(16, 2, 'BITCRUSH', { Bits: 4, Rate: 1500, Tone: 0.5, Level: 1 }, 0.4),
       // A: the dub delay, dotted eighth, long and saturating, wow and flutter; its echoes into the hall
       'dub.sync': 1, 'dub.div': 3, 'dub.fdbk': 0.72, 'dub.tone': 2000, 'dub.wow': 0.4, 'dub.sat': 0.55, 'dub.flutter': 0.3,
       'rA.fader': 1.2, 'rA.c': 0.4, 'rA.lo': -8,
@@ -1299,10 +1341,8 @@ const mycelium: RigFactoryMulti = {
       'bds.filter': 0.55, 'rB.fader': 0.9, 'rB.c': 0.5, 'rB.lo': -10,
       // C: a big dark hall
       'rev.type': 2, 'rev.size': 0.8, 'rev.damp': 0.55, 'rev.tone': 0.4, 'rev.pre': 0.03, 'rC.lo': -6,
-      // D: the ensemble
-      'cho.mode': 3,
       'cmp.key': 1, 'cmp.ratio': 2.5, 'cmp.thresh': -18, 'cmp.atk': 3, 'cmp.rel': 200, 'cmp.mix': 0.6,
-      'tape.drive': 6, 'tape.tone': 0.35, 'tape.wow': 0.1,
+      'tape.drive': 8, 'tape.tone': 0.35, 'tape.wow': 0.15,
     };
     // intro 16 bars, the groove 16, the squelch 16, its turn alone 8, the sweep 16, the break 16, the build 4, the drop 32,
     // the dub-out 8, out 8: about five and a half minutes

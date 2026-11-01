@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CircuitChange } from '../circuit/circuit';
 import type { NumberControl } from '../devices/controls';
 import { sanitiseMulti, sanitiseSound } from '../devices/rigMulti';
+import { PEDAL_NAMES, PEDAL_TYPES, pedalValue } from '../devices/rigPedals';
 import { RIG_PRESETS } from '../devices/rigPresets';
 import { freshPart, RIG_VOICES, RigSynth } from '../devices/rigSynth';
 
@@ -32,6 +33,33 @@ function busy(): RigSynth {
 }
 
 describe('MOA-RIG multis', () => {
+  it('move an old save (version 1) over: the drive insert and the chorus send become pedals, send D is dropped', () => {
+    const old = { v: 1, name: 'Old', parts: [], mix: {
+      'drv.part': 2, 'drv.type': 2, 'drv.drive': 0.7, 'drv.tone': 0.4, 'drv.level': 1.2, 'drv.blend': 1,
+      'p2.d': 0.5, 'p5.d': 1, 'p5.a': 0.3, 'cho.mode': 3, 'cho.depth': 0.8, 'rD.fader': 1.5, 'rD.lo': -6, 'rA.d': 0.2,
+    } };
+    const mix = sanitiseMulti(old, freshPart)!.mix;
+    const drive = PEDAL_TYPES[PEDAL_NAMES.indexOf('DRIVE')]!, chorus = PEDAL_TYPES[PEDAL_NAMES.indexOf('CHORUS')]!;
+    expect(mix['p2.fx1.type']).toBe(PEDAL_NAMES.indexOf('DRIVE'));
+    expect(pedalValue(drive.knobs[0]!, mix['p2.fx1.k1']!)).toBe(2); // FUZZ
+    expect(pedalValue(drive.knobs[1]!, mix['p2.fx1.k2']!)).toBeCloseTo(0.7, 5);
+    expect(pedalValue(drive.knobs[3]!, mix['p2.fx1.k4']!)).toBeCloseTo(1.2, 5);
+    expect(mix['p2.fx1.mix']).toBe(1);
+    // the part with both gets the chorus after the drive
+    expect(mix['p2.fx2.type']).toBe(PEDAL_NAMES.indexOf('CHORUS'));
+    expect(pedalValue(chorus.knobs[0]!, mix['p2.fx2.k1']!)).toBe(3); // ENSEMBLE
+    expect(mix['p2.fx2.mix']).toBeCloseTo(0.375, 5); // 0.5 x 1.5 of wet on top of the dry
+    expect(mix['p5.fx1.type']).toBe(PEDAL_NAMES.indexOf('CHORUS'));
+    expect(mix['p5.fx1.mix']).toBeCloseTo(1 - 1 / 3, 5); // 1.5 of wet: past a half, the dry comes down
+    expect(mix['p5.a']).toBe(0.3);
+    for (const id of ['drv.part', 'cho.mode', 'p2.d', 'p5.d', 'rD.fader', 'rD.lo', 'rA.d']) expect(mix[id], id).toBeUndefined();
+  });
+
+  it('leave a new save (version 2) alone: its send D is the second reverb', () => {
+    const mix = sanitiseMulti({ v: 2, name: 'New', parts: [], mix: { 'p3.d': 0.4, 'rD.fader': 0.8, 'rev2.size': 0.2 } }, freshPart)!.mix;
+    expect(mix).toEqual({ 'p3.d': 0.4, 'rD.fader': 0.8, 'rev2.size': 0.2 });
+  });
+
   it('come back exactly as saved, through JSON and the sanitiser', () => {
     const m = busy().toMulti();
     const back = sanitiseMulti(JSON.parse(JSON.stringify(m)), freshPart)!;

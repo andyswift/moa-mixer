@@ -6,6 +6,7 @@ import type { Playable } from './playable';
 import { RIG_DEFAULTS, RIG_PARAMS, type RigRoute, type RigSide } from './rigParams';
 import { cloneKit, padSoundId, RIG_FIRST_PAD_NOTE, RIG_KITS, RIG_PAD_ORDER, RIG_PADS, type RigKit, type RigPad } from './rigKit';
 import { RIG_MIX_DEFAULTS, RIG_MIX_PARAMS } from './rigMix';
+import { PEDAL_NAMES, PEDAL_SLOTS, type PedalName, pedalId, pedalParams, pedalSlotIds } from './rigPedals';
 import { RIG_MULTI_VERSION, type RigMulti, type RigMultiPart } from './rigMulti';
 import { RIG_PRESETS, type RigPreset } from './rigPresets';
 
@@ -180,9 +181,44 @@ export class RigSynth extends Device implements Playable {
 
   /** A mixer or effect control by id (`p3.fader`, `rA.a`, `dub.time`, `master.fader`). */
   deskControl(id: string): Control {
-    const c = this.desk.find((d) => d.id === id);
+    if (!this.deskById) this.deskById = new Map(this.desk.map((d) => [d.id, d]));
+    const c = this.deskById.get(id);
     if (!c) throw new Error(`Unknown mixer control: ${id}`);
     return c;
+  }
+  private deskById?: Map<string, Control>;
+
+  /** A mixer value as a number (a choice as its index, a toggle as 0 or 1). */
+  deskValue(id: string): number {
+    return this.mixValues[id] ?? RIG_MIX_DEFAULTS[id]!;
+  }
+
+  private setDesk(id: string, value: number): void {
+    const c = this.deskControl(id);
+    if (c.kind === 'number') c.set(value);
+    else if (c.kind === 'choice') c.set(c.options[Math.round(value)]!);
+    else if (c.kind === 'toggle') c.set(value >= 0.5);
+  }
+
+  // ---- The pedals (rigPedals.ts): each part's four insert slots ----
+
+  /** Part `part`'s (0-based) slot `slot` (0-based): its type's name. */
+  pedalType(part: number, slot: number): PedalName {
+    return PEDAL_NAMES[Math.round(this.deskValue(pedalId(part + 1, slot + 1, 'type')))] as PedalName;
+  }
+
+  /** Puts a pedal in a slot, switched on, its MIX and knobs at the type's own starting points (OFF empties it). */
+  setPedal(part: number, slot: number, type: PedalName): void {
+    for (const [id, v] of Object.entries(pedalParams(part + 1, slot + 1, type))) this.setDesk(id, v);
+  }
+
+  /** Moves a pedal along its part's chain: the slots between shift over to make room. */
+  movePedal(part: number, from: number, to: number): void {
+    if (from === to || to < 0 || to >= PEDAL_SLOTS) return;
+    const slots = Array.from({ length: PEDAL_SLOTS }, (_, s) => pedalSlotIds(part + 1, s + 1).map((id) => this.deskValue(id)));
+    const [moved] = slots.splice(from, 1);
+    slots.splice(to, 0, moved!);
+    slots.forEach((values, s) => pedalSlotIds(part + 1, s + 1).forEach((id, i) => this.setDesk(id, values[i]!)));
   }
 
   private setMix(id: string, value: number): void {

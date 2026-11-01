@@ -5,14 +5,16 @@ import { RIG_CLOCKS, RIG_PATTERNS } from '../domain/sequencer/rigSequencer';
 import { el } from './widgets';
 
 /**
- * The MOA-RIG's frame, after its design: a header (the name, the three pages, tempo, voices in use, the multi, SETUP
+ * The MOA-RIG's frame, after its design: a header (the name, the four pages, tempo, voices in use, the multi, SETUP
  * with the site's navigation and the audio and MIDI strip, KEYS with the keyboard, START AUDIO) over one page at a
- * time, sized for a 14" laptop's window. The number keys 1-3 change page.
+ * time, sized for a 14" laptop's window. The number keys 1-4 change page.
  */
 export interface RigShellPages {
   synth: HTMLElement;
   seq: HTMLElement;
   mix: HTMLElement;
+  /** Each part's pedals. */
+  fx: HTMLElement;
   /** The multi bar, the site's frame and the keyboard bed, each in a drop-down of the header. */
   multi: HTMLElement;
   setup: HTMLElement;
@@ -25,7 +27,7 @@ export interface RigShellPages {
   running(): boolean;
 }
 
-const TABS = [['synth', '1 SYNTH'], ['seq', '2 SEQUENCER'], ['mix', '3 MIXER · FX']] as const;
+const TABS = [['synth', '1 SYNTH'], ['seq', '2 SEQUENCER'], ['mix', '3 MIXER'], ['fx', '4 FX']] as const;
 type Tab = (typeof TABS)[number][0];
 const TAB_KEY = 'moa-rig.tab';
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -44,9 +46,9 @@ export function renderRigShell(rig: RigSynth, pages: RigShellPages): HTMLElement
   const logo = el('div', 'rig-logo', 'MOA-RIG');
   const tabs = el('nav', 'rig-tabs');
   tabs.setAttribute('aria-label', 'Pages');
-  const bodies: Record<Tab, HTMLElement> = { synth: pages.synth, seq: pages.seq, mix: pages.mix };
+  const bodies: Record<Tab, HTMLElement> = { synth: pages.synth, seq: pages.seq, mix: pages.mix, fx: pages.fx };
   let tab: Tab = 'synth';
-  try { const saved = localStorage.getItem(TAB_KEY); if (saved === 'seq' || saved === 'mix') tab = saved; } catch { /* the first page */ }
+  try { const saved = localStorage.getItem(TAB_KEY); if (saved === 'seq' || saved === 'mix' || saved === 'fx') tab = saved; } catch { /* the first page */ }
   const tabButtons = TABS.map(([id, label]) => {
     const b = button('rig-tab', label);
     b.addEventListener('click', () => show(id));
@@ -119,7 +121,7 @@ export function renderRigShell(rig: RigSynth, pages: RigShellPages): HTMLElement
 
   header.append(logo, tabs, bpm, voices, multi, multiButton, setupButton, keysButton, ...(pages.extra ?? []), power);
   const body = el('div', 'rig-pages');
-  body.append(pages.synth, pages.seq, pages.mix);
+  body.append(pages.synth, pages.seq, pages.mix, pages.fx);
   shell.append(header, ...drops.map(([, box]) => box), body, overlay);
 
   function syncHeader(): void {
@@ -137,12 +139,12 @@ export function renderRigShell(rig: RigSynth, pages: RigShellPages): HTMLElement
   rig.seq.onChange(syncHeader);
   syncHeader();
 
-  // 1, 2, 3 change page (not while typing)
+  // 1 to 4 change page (not while typing)
   document.addEventListener('keydown', (e) => {
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-    const i = ['1', '2', '3'].indexOf(e.key);
+    const i = ['1', '2', '3', '4'].indexOf(e.key);
     if (i >= 0) { e.preventDefault(); show(TABS[i]![0]); }
   });
   show(tab);
