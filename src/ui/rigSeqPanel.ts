@@ -1,7 +1,7 @@
 import { NumberControl } from '../domain/devices/controls';
 import { RIG_FIRST_PAD_NOTE, RIG_PAD_ORDER } from '../domain/devices/rigKit';
 import { RIG_PARAMS } from '../domain/devices/rigParams';
-import { RIG_PARTS, type RigSynth } from '../domain/devices/rigSynth';
+import { partPlays, RIG_PARTS, type RigSynth } from '../domain/devices/rigSynth';
 import {
   copyNotes, deleteNotes, moveNotes, notesIn, notesOfPitch, nudgeVelocity, pasteNotes, readNotes, resizeNotes, rollKey, writeNotes,
   type RollClip, type RollNote,
@@ -659,7 +659,7 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
       const t = pat.tracks[p]!;
       const pt = rig.parts[p]!;
       l.row.classList.toggle('selected', p === rig.part);
-      const on = pt.voices > 0 || pt.kind === 'kit';
+      const on = partPlays(pt);
       l.row.classList.toggle('empty', !on);
       l.row.classList.toggle('kit', pt.kind === 'kit');
       l.name.textContent = `${p + 1} ${on ? pt.name || 'Part' : 'EMPTY'}`;
@@ -718,7 +718,7 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   const frame = () => {
     const t = now();
     lane.forEach((l, p) => {
-      const step = seq.isPlaying && (rig.parts[p]!.voices > 0 || rig.parts[p]!.kind === 'kit') ? seq.stepAt(p, t) : -1;
+      const step = seq.isPlaying && (partPlays(rig.parts[p]!)) ? seq.stepAt(p, t) : -1;
       const k = step >= page * PAGE && step < (page + 1) * PAGE ? step - page * PAGE : -1;
       if (k === l.lit) return;
       if (l.lit >= 0) l.cells[l.lit]!.classList.remove('play');

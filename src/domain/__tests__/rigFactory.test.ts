@@ -80,5 +80,23 @@ describe('MOA-RIG factory multis', () => {
     expect(Math.min(m.mix['p6.a']!, m.mix['p7.a']!)).toBeGreaterThanOrEqual(0.5);
     expect(m.mix['dub.fdbk']).toBeGreaterThanOrEqual(0.7);
   });
-});
 
+  it('TENSION · 116: built on the strings: every string part plays, its notes in its instrument’s reach, dead notes in the bass and chops', () => {
+    const m = RIG_FACTORY_MULTIS.find((f) => f.name.startsWith('TENSION'))!.build();
+    const strung = m.parts.flatMap((p, i) => (p.kind === 'bass' || p.kind === 'guitar' ? [i] : []));
+    expect(strung.length).toBeGreaterThanOrEqual(6);
+    expect(new Set(strung.map((i) => m.parts[i]!.kind))).toEqual(new Set(['bass', 'guitar']));
+    const used = new Set(m.chain);
+    for (const i of strung) {
+      const p = m.parts[i]!;
+      const notes = [...used].flatMap((pat) => m.patterns[pat]!.tracks[i]!.steps.flatMap((s) => s.notes));
+      expect(notes.length, p.name).toBeGreaterThan(0);
+      const [lo, hi] = p.kind === 'bass' ? [26, 26 + 24 + 17] : [38, 64 + 22];
+      for (const n of notes) { expect(n, p.name).toBeGreaterThanOrEqual(lo); expect(n, p.name).toBeLessThanOrEqual(hi); }
+    }
+    const dead = (i: number) => m.patterns[5]!.tracks[i]!.steps.some((s) => s.notes.length && s.vel <= 40 / 127);
+    expect(dead(2)).toBe(true);
+    expect(dead(3)).toBe(true);
+    expect(m.parts.reduce((s, p) => s + p.voices, 0)).toBeLessThanOrEqual(8); // the synths only where needed
+  });
+});

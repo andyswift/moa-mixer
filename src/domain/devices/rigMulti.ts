@@ -3,6 +3,7 @@ import { PEDAL_SLOTS, pedalParams } from './rigPedals';
 import { DRUM_VOICES, newPad, RIG_PADS, rigDrumParams, type RigKit, type RigPad } from './rigKit';
 import { RIG_DESTS, RIG_PARAMS, RIG_SOURCES, type RigRoute, type RigSide } from './rigParams';
 import type { RigPreset } from './rigPresets';
+import { sanitiseStrings, type RigStringInstrument, type RigStrings } from './rigStrings';
 import {
   newRigPattern, newStep, RIG_CLOCKS, RIG_DIRECTIONS, RIG_MAX_STEPS, RIG_PATTERNS, RIG_TRACKS, type RigPattern, type RigStep, type RigTrack,
 } from '../sequencer/rigSequencer';
@@ -17,8 +18,10 @@ export const RIG_MULTI_VERSION = 2;
 
 export interface RigMultiPart {
   name: string;
-  kind: 'synth' | 'kit';
+  kind: 'synth' | 'kit' | RigStringInstrument;
   kit?: RigKit;
+  /** A bass or guitar part's sound. */
+  strings?: RigStrings;
   slot: number;
   /** The name of the sound in that slot when saved: finds it again if the list of sounds has changed since. */
   sound?: string;
@@ -178,8 +181,10 @@ export function sanitiseMulti(raw: unknown, defaults: (part: number) => RigMulti
       const r = parts[p];
       if (!isObject(r)) return d;
       const kit = sanitiseKit(r.kit);
+      const strung = r.kind === 'bass' || r.kind === 'guitar' ? r.kind : undefined;
       return {
-        name: text(r.name, d.name), kind: r.kind === 'kit' && kit ? 'kit' : 'synth', ...(kit ? { kit } : {}), slot: num(r.slot, 0, 9999, d.slot, true),
+        name: text(r.name, d.name), kind: strung ?? (r.kind === 'kit' && kit ? 'kit' : 'synth'), ...(kit ? { kit } : {}),
+        ...(strung ? { strings: sanitiseStrings(r.strings, strung) } : {}), slot: num(r.slot, 0, 9999, d.slot, true),
         ...(typeof r.sound === 'string' && r.sound ? { sound: text(r.sound, '') } : {}), voices: num(r.voices, 0, 64, d.voices, true),
         channel: num(r.channel, 0, 16, d.channel, true), lo: num(r.lo, 0, 127, d.lo, true), hi: num(r.hi, 0, 127, d.hi, true),
         octave: num(r.octave, -2, 2, d.octave, true), a: sanitiseSide(r.a), b: sanitiseSide(r.b ?? r.a),

@@ -1,9 +1,9 @@
 import type { RigMeters } from '../audio/engine';
 import type { Control, NumberControl, ToggleControl } from '../domain/devices/controls';
 import { RIG_MIX_PARTS, RIG_RETURN_NAMES, RIG_RETURNS } from '../domain/devices/rigMix';
-import type { RigSynth } from '../domain/devices/rigSynth';
+import { partPlays, type RigSynth } from '../domain/devices/rigSynth';
 import { PEDAL_SLOTS, pedalId } from '../domain/devices/rigPedals';
-import { pedalTags } from './rigFxPanel';
+import { partAccent, pedalTags } from './rigFxPanel';
 import { renderChoice, renderToggle } from './rigPanel';
 import { el, renderKnob } from './widgets';
 
@@ -12,7 +12,7 @@ import { el, renderKnob } from './widgets';
  * four returns and the master always in view, then the send effects and the compressor (the pedals have their own page).
  */
 const BANK = 8;
-const LIME = '#d6ef6a', PINK = '#ffa3c7', BLUE = '#8fc3ff', WHITE = '#ecece6';
+const LIME = '#d6ef6a', BLUE = '#8fc3ff', WHITE = '#ecece6';
 /** Fader travel: the bottom is silence, then -60 dB up to +6 dB at the top (0 dB at 91%). */
 const FADER_STEPS = 1000;
 const toGain = (pos: number) => (pos <= 0 ? 0 : 10 ** ((-60 + 66 * pos) / 20));
@@ -182,10 +182,10 @@ export function renderRigMixPanel(rig: RigSynth, meters: () => RigMeters | undef
     parts.forEach((s, p) => {
       const pt = rig.parts[p]!;
       s.sec.hidden = Math.floor(p / BANK) !== bank;
-      s.sec.style.setProperty('--rig-accent', pt.kind === 'kit' ? PINK : LIME);
+      s.sec.style.setProperty('--rig-accent', partAccent(pt.kind));
       s.title.textContent = `P${p + 1}`;
       s.sec.classList.toggle('selected', p === rig.part);
-      s.sub.textContent = pt.voices > 0 || pt.kind === 'kit' ? (pt.name || 'PART').toUpperCase() : 'EMPTY';
+      s.sub.textContent = partPlays(pt) ? (pt.name || 'PART').toUpperCase() : 'EMPTY';
     });
   }
   rig.onPartChange(sync);

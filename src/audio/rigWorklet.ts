@@ -1,4 +1,5 @@
 import { RIG_DESTS, RIG_DIVISION_BEATS, RIG_PARAMS, RIG_SOURCES, RIG_TABLES } from '../domain/devices/rigParams';
+import { RIG_STRINGS_SOURCE } from './rigStrings';
 
 export const RIG_NAME = 'moa-rig';
 
@@ -24,6 +25,7 @@ const DEFS = RIG_PARAMS.map((p) => [p.id, p.def, p.min, p.max, p.kind !== 'numbe
  * for the wavetables. The ladder is the MOA-1's (saturation inside the resonance loop), here without oversampling.
  */
 export const RIG_SOURCE = `
+${RIG_STRINGS_SOURCE}
 const RIG_PARAM_DEFS = ${JSON.stringify(DEFS)};
 const RIG_NP = RIG_PARAM_DEFS.length;
 const RIG_P = {};
@@ -303,6 +305,8 @@ class RigCore {
     this.kits = [];
     this.kitL = new Float32Array(RIG_MAX_BLOCK);
     this.kitR = new Float32Array(RIG_MAX_BLOCK);
+    // string parts (a bass or a guitar): RigStrings each, on StringCore from the string worklet's source
+    this.strs = [];
     // the mixer and effects (RigMixer, from the mixer's worklet source); without it the parts are simply summed
     this.mix = typeof RigMixer === 'function' ? new RigMixer(sampleRate, parts) : null;
     this.tables = rigTables();
@@ -384,16 +388,26 @@ class RigCore {
     }
   }
 
-  // A part becomes a kit ('kit'), its notes 36 to 51 playing pads 1 to 16, or goes back to being a synth ('synth').
+  // A part becomes a kit ('kit'), its notes 36 to 51 playing pads 1 to 16, a bass or a guitar ('bass', 'guitar': its
+  // strings set up by a 'strings' message), or goes back to being a synth ('synth').
   setKind(part, kind) {
     if (!this.parts[part]) return;
     this.allNotesOff(part);
     if (kind === 'kit') {
-      if (this.kits[part]) return;
-      const k = new SamplerCore(this.sr);
-      k.samples = this.samples;
-      this.kits[part] = k;
+      if (!this.kits[part]) {
+        const k = new SamplerCore(this.sr);
+        k.samples = this.samples;
+        this.kits[part] = k;
+      }
     } else this.kits[part] = null;
+    if ((kind === 'bass' || kind === 'guitar') && typeof RigStrings === 'function') {
+      if (!this.strs[part]) this.strs[part] = new RigStrings(this.sr);
+    } else this.strs[part] = null;
+  }
+
+  setStrings(part, setup) {
+    const s = this.strs[part];
+    if (s && setup) s.configure(setup);
   }
 
   addSample(id, rate, channels) {
@@ -440,6 +454,7 @@ class RigCore {
     else if (m.type === 'off') this.noteOff(m.part, m.note);
     else if (m.type === 'lock') this.setLocks(m.part, m.locks);
     else if (m.type === 'kind') this.setKind(m.part, m.kind);
+    else if (m.type === 'strings') this.setStrings(m.part, m.setup);
     else if (m.type === 'sample') this.addSample(m.id, m.rate, m.channels);
     else if (m.type === 'drop') this.dropSample(m.id);
     else if (m.type === 'pad') this.setPad(m.part, m.pad, m.settings);
@@ -488,6 +503,7 @@ class RigCore {
   noteOn(part, note, vel = 1) {
     const kit = this.kits[part];
     if (kit) { if (note >= 36 && note < 52) kit.hit(note - 36, vel, this.at); return; }
+    if (this.strs[part]) { this.strs[part].noteOn(note, vel, this.at); return; }
     const pt = this.parts[part];
     if (!pt || pt.voices.length === 0) return;
     const a = pt.a;
@@ -528,6 +544,7 @@ class RigCore {
   noteOff(part, note) {
     const kit = this.kits[part];
     if (kit) { if (note >= 36 && note < 52) kit.release(note - 36, this.at); return; }
+    if (this.strs[part]) { this.strs[part].noteOff(note, this.at); return; }
     const pt = this.parts[part];
     if (!pt) return;
     if (pt.a[Q_MODE] === 0) {
@@ -548,6 +565,7 @@ class RigCore {
 
   allNotesOff(part) {
     if (this.kits[part]) this.kits[part].stopAll();
+    if (this.strs[part]) this.strs[part].stopAll();
     const pt = this.parts[part];
     pt.stack = [];
     for (const v of pt.voices) if (v.gate) { v.gate = false; v.st1 = 3; v.st2 = 3; }
@@ -577,6 +595,15 @@ class RigCore {
       const L = this.kitL.subarray(0, n), R = this.kitR.subarray(0, n), pL = this.partL[p], pR = this.partR[p];
       k.frame = this.frame;
       k.process(L, R, n, 1);
+      for (let i = 0; i < n; i++) { pL[i] += L[i]; pR[i] += R[i]; outL[i] += L[i]; outR[i] += R[i]; }
+    }
+    // the string parts likewise: their plucks, strums and damping fall on their own samples
+    for (let p = 0; p < this.strs.length; p++) {
+      const s = this.strs[p];
+      if (!s) continue;
+      const L = this.kitL.subarray(0, n), R = this.kitR.subarray(0, n), pL = this.partL[p], pR = this.partR[p], c = this.parts[p].ctrl;
+      L.fill(0); R.fill(0);
+      s.process(L, R, n, this.frame, c.bend, c.mod);
       for (let i = 0; i < n; i++) { pL[i] += L[i]; pR[i] += R[i]; outL[i] += L[i]; outR[i] += R[i]; }
     }
     if (this.mix) this.mix.process(this.partL, this.partR, outL, outR, n, this.bpm);
@@ -948,6 +975,7 @@ if (typeof registerProcessor === 'function') {
       for (const p of st.patches || []) this.core.setPatch(p.part, p.a, p.b);
       if (st.bpm) this.core.bpm = st.bpm;
       (st.kinds || []).forEach((kind, p) => this.core.setKind(p, kind));
+      (st.strings || []).forEach((setup, p) => this.core.setStrings(p, setup));
       if (this.core.mix) for (const id in st.mix || {}) this.core.mix.set(id, st.mix[id]);
       this.since = 0;
       // \`when\` (an audio-clock time) places a message on its sample: the sequencer sends ahead of time

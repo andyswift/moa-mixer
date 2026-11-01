@@ -3,7 +3,7 @@ import { RIG_MIX_PARTS } from '../domain/devices/rigMix';
 import {
   PEDAL_NAMES, PEDAL_SLOTS, PEDAL_TYPES, type PedalKnob, type PedalName, pedalId, pedalKnob, pedalValue,
 } from '../domain/devices/rigPedals';
-import type { RigSynth } from '../domain/devices/rigSynth';
+import { partPlays, type RigSynth } from '../domain/devices/rigSynth';
 import { renderChoice } from './rigPanel';
 import { el, renderKnob } from './widgets';
 
@@ -14,6 +14,8 @@ import { el, renderKnob } from './widgets';
  * its type, a footswitch, MIX (dry/wet) and its own knobs, and arrows to move it along the chain.
  */
 const ORANGE = '#ff8466', LIME = '#d6ef6a', PINK = '#ffa3c7';
+/** A part's colour by its type: a synth, a kit, a bass, a guitar. */
+export const partAccent = (kind: string): string => ({ kit: PINK, bass: '#ffb347', guitar: '#7fe0c4' } as Record<string, string>)[kind] ?? LIME;
 /** Each type's colour on the board. */
 export const PEDAL_COLOURS: Record<string, string> = {
   DRIVE: ORANGE, COMP: '#ecece6', FILTER: '#ffd84a', PHASER: '#c9a3ff', FLANGER: '#c9a3ff', CHORUS: '#8fc3ff', TREMOLO: '#7fe0c4',
@@ -77,8 +79,8 @@ export function renderRigFxPanel(rig: RigSynth): HTMLElement {
     partButtons.forEach((b, p) => {
       const pt = rig.parts[p]!;
       b.classList.toggle('on', p === rig.part);
-      b.style.setProperty('--rig-accent', pt.kind === 'kit' ? PINK : LIME);
-      b.replaceChildren(el('span', 'rig-fx-part-name', `P${p + 1} ${pt.voices > 0 || pt.kind === 'kit' ? (pt.name || 'PART').toUpperCase() : ''}`));
+      b.style.setProperty('--rig-accent', partAccent(pt.kind));
+      b.replaceChildren(el('span', 'rig-fx-part-name', `P${p + 1} ${partPlays(pt) ? (pt.name || 'PART').toUpperCase() : ''}`));
       b.append(pedalTags(rig, p));
       b.setAttribute('aria-label', `Part ${p + 1} pedals`);
       b.setAttribute('aria-pressed', String(p === rig.part));

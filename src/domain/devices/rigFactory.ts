@@ -4,6 +4,8 @@ import { RIG_MULTI_VERSION, type RigMulti, type RigMultiPart } from './rigMulti'
 import { pedalParams } from './rigPedals';
 import type { RigRoute, RigSide } from './rigParams';
 import { RIG_PRESETS } from './rigPresets';
+import { RIG_STRING_PRESETS, rigStringParams } from './rigStrings';
+import { seeded } from '../../songs/feel';
 import { freshPart } from './rigSynth';
 
 /**
@@ -27,6 +29,9 @@ import { freshPart } from './rigSynth';
  * - DUB PRESSURE · 140: old-school dubstep, half-time, heavy on the dub: a sine sub, an offbeat skank, a siren, a voice,
  *   and throw parts: chosen hits sent whole into a long, saturating dub delay whose echoes fall into the spring. Now and
  *   then SCALPEL's tape strings swell up loud and are cut dead, leaving the echoes the space.
+ * - MYCELIUM · 96: psy-dub on D, a drone and parts interlocking round it, the dub in the mix.
+ * - TENSION · 116: mutant disco on the rig's strings: a picked bass, funk guitar chops through an auto-wah, a clean
+ *   guitar ringing into its echo, a crunch held under the peaks, and a dub break on flatwounds and a skank.
  */
 export interface RigFactoryMulti {
   name: string;
@@ -1396,4 +1401,240 @@ const mycelium: RigFactoryMulti = {
   },
 };
 
-export const RIG_FACTORY_MULTIS: readonly RigFactoryMulti[] = [init8, acidHouse, scalpel, darkRoom, noMercy, dubPressure, mycelium];
+// ================= TENSION · 116 =================
+// Mutant disco, post-punk funk: built on the rig's strings. Everything sits on E (both instruments' open low string),
+// with F leaning in (Phrygian) at the end of a phrase; no chord changes. The parts lock into each other's gaps: the bass
+// picks on the even sixteenths with dead-note ghosts between, the funk guitar scratches and stabs on the odd ones
+// through an auto-wah, a clean guitar rings in tens against the bar into its own echo, and a crunch guitar is held under
+// the peaks only. In the dub break a flatwound bass and an up-strummed skank go into the throws. Every part played, not
+// pressed: the figures change bar to bar, the velocities and timing breathe (seeded, so a build is the same each time).
+const TN = { DRUMS: 0, THROWS: 1, BASS: 2, CHOPS: 3, RING: 4, CRUNCH: 5, FLATS: 6, SKANK: 7, DRONE: 8, CONGA: 9, NOISE: 10 };
+const B1 = 35, D2n = 38, F2n = 41; // E1, F1, G1, A1 and E2 as above
+/** Dead notes: struck with the fretting hand damping the strings (the parts' velocity 40 of 127 or softer). */
+const DEAD = 0.24;
+const SD2 = 40, LTn = 41, MTn = 43, HTn = 45, CBn = 48, CRn = 49, CP2 = 50;
+
+/** The bass's four bars, [step, note, velocity, gate]: A the figure, B walking down to F, C with space, D leaning on F. */
+const TN_BASS: Record<'A' | 'B' | 'C' | 'D', [number, number, number, number][]> = {
+  A: [[0, E1, 1, 1.5], [2, E2, 0.7, 0.5], [3, E1, DEAD, 0.3], [4, E1, 0.85, 0.8], [6, E2, 0.75, 0.5], [7, D2n, 0.6, 0.5], [8, E1, 0.9, 1.2],
+    [10, E1, DEAD, 0.3], [11, E2, 0.7, 0.5], [12, G1, 0.8, 0.8], [14, A1, 0.75, 0.6], [15, E1, DEAD, 0.3]],
+  B: [[0, E1, 1, 1.5], [2, E2, 0.7, 0.5], [4, E1, 0.85, 0.8], [5, E1, DEAD, 0.3], [6, E2, 0.75, 0.5], [8, E1, 0.9, 1], [10, E2, 0.7, 0.4],
+    [11, D2n, 0.65, 0.4], [12, B1, 0.8, 0.6], [13, A1, 0.6, 0.4], [14, G1, 0.75, 0.6], [15, F1, 0.7, 0.5]],
+  C: [[0, E1, 1, 2.5], [4, E1, DEAD, 0.3], [6, E2, 0.8, 0.5], [7, E2, DEAD, 0.3], [8, E1, 0.9, 1], [11, E2, 0.7, 0.5], [12, D2n, 0.7, 0.5],
+    [14, E2, 0.85, 0.8]],
+  D: [[0, F1, 1, 1.5], [2, F2n, 0.7, 0.5], [3, F1, DEAD, 0.3], [4, F1, 0.85, 0.8], [6, F2n, 0.75, 0.5], [8, E1, 0.95, 1.2], [10, E1, DEAD, 0.3],
+    [11, E2, 0.7, 0.5], [12, D2n, 0.75, 0.5], [13, B1, 0.6, 0.4], [14, A1, 0.7, 0.5], [15, G1, 0.7, 0.5]],
+};
+/** Breath on a played part: velocities nudged and the off-beat sixteenths a touch late or early (dead notes stay dead). */
+function tnFeel(t: RigTrack, seed: number, spread = 0.08, late = 0.06): RigTrack {
+  const r = seeded(seed);
+  t.steps.forEach((s, i) => {
+    if (!s.notes.length) return;
+    if (s.vel > DEAD + 0.01) s.vel = Math.min(1, Math.max(DEAD + 0.05, Math.round((s.vel * (1 - spread / 2 + spread * r())) * 100) / 100));
+    if (i % 2 === 1) s.micro = Math.round((late + (r() - 0.5) * 0.06) * 100) / 100;
+  });
+  return t;
+}
+/** The bass over four bars in the order given (`bars` letters), from bar `from`; the sixteenths played, not quantised. */
+function tnBass(bars = 'ABCD', seed = 1, from = 0): RigTrack {
+  const steps: Steps = [];
+  [...bars].forEach((b, bar) => {
+    if (bar < from) return;
+    for (const [i, n, v, g] of TN_BASS[b as 'A']) steps.push([bar * 16 + i, n, { vel: v, gate: g }]);
+  });
+  return tnFeel(track(steps, 64), seed);
+}
+/** The bass alone in the break: only the roots, long, and the ghosts. */
+const tnBassSparse = (): RigTrack => tnFeel(track([0, 16, 32, 48].flatMap((bar): Steps => [
+  [bar, bar === 48 ? F1 : E1, { vel: 0.95, gate: 3 }], [bar + 6, E2, { vel: 0.7, gate: 0.6 }], [bar + 7, E2, { vel: DEAD, gate: 0.3 }],
+  [bar + 10, E1, { vel: DEAD, gate: 0.3 }], [bar + 11, E1, { vel: 0.8, gate: 2 }],
+]), 64), 7);
+/** The funk guitar: scratches (dead notes on an Em7 shape) on the odd sixteenths, the stabs where the bass rests (the
+ * a of one, the e of three, the a of three); the fourth bar stabs F. `thin`: the stabs only. */
+const TN_EM = [59, 62, 67], TN_F = [60, 65, 69];
+function tnChops(thin = false, seed = 3): RigTrack {
+  const r = seeded(seed + 100);
+  const steps: Steps = [];
+  for (let bar = 0; bar < 4; bar++) {
+    const stabs = bar === 3 ? [5, 10, 13] : bar === 1 ? [5, 9, 13, 14] : [5, 9, 13];
+    for (let b = 0; b < 16; b++) {
+      const i = bar * 16 + b;
+      if (stabs.includes(b)) steps.push([i, bar === 3 && b >= 10 ? TN_F : TN_EM, { vel: b === 13 ? 0.85 : 0.72, gate: 0.3 }]);
+      else if (!thin && b % 2 === 1 && r() < 0.8) steps.push([i, TN_EM, { vel: DEAD, gate: 0.2 }]);
+    }
+  }
+  return tnFeel(track(steps, 64), seed, 0.1, 0.04);
+}
+/** The clean guitar ringing: E, B and D high up over ten sixteenths (so it turns over the bar), each left to ring. */
+function tnRing(seed = 5, high = false): RigTrack {
+  const t = track(high
+    ? [[0, 79, { vel: 0.7, gate: 3 }], [3, 76, { vel: 0.55, gate: 3 }], [6, 71, { vel: 0.6, gate: 2 }], [8, 74, { vel: 0.5, gate: 2 }]]
+    : [[0, 76, { vel: 0.7, gate: 3 }], [3, 71, { vel: 0.55, gate: 3 }], [6, 74, { vel: 0.6, gate: 3 }]], 10);
+  t.steps[3]!.prob = 0.8;
+  t.steps[6]!.prob = 0.85;
+  return tnFeel(t, seed, 0.12, 0);
+}
+/** The crunch: E5 struck and left to ring, caught again softer the next bar, F5 cut short at the end of each two. */
+const tnCrunch = (): RigTrack => track([
+  [0, [40, 47, 52], { vel: 0.9, gate: 16 }], [16, [40, 47, 52], { vel: 0.6, gate: 13 }], [30, [41, 48, 53], { vel: 0.8, gate: 1.5 }],
+  [32, [40, 47, 52], { vel: 0.85, gate: 16 }], [48, [40, 47, 52], { vel: 0.55, gate: 9 }], [58, [41, 48, 53], { vel: 0.85, gate: 1 }],
+  [61, [41, 48, 53], { vel: 0.7, gate: 1 }],
+], 64);
+/** The dub bass on flats: E held, the octave, a walk up to G and A; F leaning in at the end. */
+const tnFlats = (): RigTrack => tnFeel(track([0, 16, 32, 48].flatMap((bar): Steps => [
+  [bar, bar === 48 ? F1 : E1, { vel: 0.95, gate: 6 }], [bar + 8, E2, { vel: 0.7, gate: 1.5 }],
+  ...(bar % 32 === 16 ? [[bar + 11, G1, { vel: 0.75, gate: 2 }], [bar + 14, A1, { vel: 0.8, gate: 2 }]] as Steps : []),
+]), 64), 11, 0.06, 0.08);
+/** The skank: up-strummed Em7 on the offbeat eighths, short; F in the fourth bar. */
+const tnSkank = (): RigTrack => tnFeel(track([0, 16, 32, 48].flatMap((bar): Steps =>
+  [2, 6, 10, 14].map((b): Steps[number] => [bar + b, bar === 48 && b >= 10 ? TN_F : TN_EM, { vel: b % 8 === 6 ? 0.8 : 0.65, gate: 0.4 }])), 64), 13, 0.1, 0.05);
+/** The drone: E, B and E low, bowed a bar at a time. */
+const tnDrone = (): RigTrack => track([0, 16, 32, 48].map((i): Steps[number] => [i, [E2, 47, 52], { vel: 0.7, gate: 16 }]), 64);
+/** The hand drums on E: the low one on the one, the high answering. */
+const tnConga = (seed = 9): RigTrack => tnFeel(track([[0, 52, { vel: 0.8 }], [3, 47, { vel: 0.45 }], [6, 59, { vel: 0.6 }], [7, 64, { vel: 0.35 }],
+  [10, 52, { vel: 0.7 }], [13, 59, { vel: 0.45 }], [14, 47, { vel: 0.65 }]], 16), seed, 0.1, 0.08);
+/**
+ * The drums (909): the kick on the beat, the clap on two and four, sixteenth hats with the off-beats up and the open hat
+ * on the and in the peaks, a cowbell in threes, ghost snares; `fill`: toms down the last beat, `crash` on the one.
+ */
+function tnDrums(o: { kick?: boolean; clap?: boolean; hats?: 'none' | 'eighths' | 'closed' | 'open'; bell?: boolean; fill?: boolean; crash?: boolean } = {}, seed = 21): RigTrack {
+  const { kick = true, clap = true, hats = 'closed', bell = false, fill = false, crash = false } = o;
+  const r = seeded(seed);
+  const steps: Steps = [];
+  for (let i = 0; i < 64; i++) {
+    const notes: number[] = [], vels: Record<number, number> = {}, b = i % 16, bar = i >> 4, end = fill && i >= 60;
+    if (kick && b % 4 === 0 && !end) { notes.push(BD); vels[BD] = b === 0 ? 1 : 0.88; }
+    if (clap && (b === 4 || b === 12) && !end) { notes.push(CP); vels[CP] = 0.85; }
+    if (clap && (b === 7 || b === 15) && r() < 0.35 && !end) { notes.push(SD2); vels[SD2] = 0.25 + 0.1 * r(); }
+    if (!end && hats !== 'none' && (hats !== 'eighths' || b % 2 === 0)) {
+      if (hats === 'open' && b % 4 === 2) { notes.push(OH); vels[OH] = 0.55; }
+      else { notes.push(CH); vels[CH] = b % 4 === 2 ? 0.7 : b % 2 === 0 ? 0.45 : 0.25 + 0.12 * r(); }
+    }
+    if (bell && [0, 3, 6, 10, 12].includes(b) && (bar !== 3 || b < 12)) { notes.push(CBn); vels[CBn] = b === 0 ? 0.5 : 0.35; }
+    if (crash && i === 0) { notes.push(CRn); vels[CRn] = 0.6; }
+    if (end) { const tom = [HTn, MTn, MTn, LTn][i - 60]!; notes.push(tom); vels[tom] = 0.6 + 0.1 * (i - 60); }
+    if (notes.length) steps.push([i, notes, { vel: 0.9, vels }]);
+  }
+  const t = track(steps, 64);
+  for (let i = 1; i < 64; i += 2) t.steps[i]!.micro = 0.05;
+  return t;
+}
+const tnThrows = (hits: [number, number, number?][] = [[28, CP2, 0.7], [60, CP, 0.85]]): RigTrack =>
+  track(hits.map(([i, n, v]): Steps[number] => [i, n, { vel: v ?? 0.85 }]), 64);
+
+const tension: RigFactoryMulti = {
+  name: 'TENSION · 116',
+  build: () => {
+    const parts: Partial<RigMultiPart>[] = [];
+    const kit = cloneKit(RIG_KITS[0]!);
+    kit.name = 'Disco 909';
+    kit.pads[BD - 36]!.analog = { 'kick.tune': 50, 'kick.decay': 0.4, 'kick.click': 0.3 };
+    Object.assign(kit.pads[CH - 36]!, { analog: { 'closedHat.decay': 0.04 }, cutoff: 11000 });
+    Object.assign(kit.pads[OH - 36]!, { analog: { 'openHat.decay': 0.25 } });
+    parts[TN.DRUMS] = { name: 'Drums', kind: 'kit', kit, channel: 10 };
+    parts[TN.THROWS] = { name: 'Throws', kind: 'kit', kit: cloneKit(kit), channel: 11 };
+    const strung = (name: string, sound: string, params: Record<string, number | string>, channel: number): Partial<RigMultiPart> => {
+      const p = RIG_STRING_PRESETS.find((x) => x.name === sound)!;
+      return { name, kind: p.instrument, strings: { instrument: p.instrument, params: rigStringParams(p.instrument, { ...p.params, ...params }) }, channel };
+    };
+    // the bass picked near the bridge, bright and a little pushed; the funk guitar thin and quick; the ring on the neck
+    parts[TN.BASS] = strung('Bass', 'Picked Bass', { gain: 0.5, mid: 4, bass: 3, blend: 0.4 }, 1);
+    parts[TN.CHOPS] = strung('Chops', 'Funk Chops', { strumTime: 3 }, 2);
+    parts[TN.RING] = strung('Ring', 'Clean Guitar', { pickups: 'NECK', tone: 7, strum: 'OFF' }, 3);
+    parts[TN.CRUNCH] = strung('Crunch', 'Crunch', { tuning: 'DROP D', strumTime: 14 }, 4);
+    parts[TN.FLATS] = strung('Dub Bass', 'Dub Flats', {}, 5);
+    parts[TN.SKANK] = strung('Skank', 'Dub Skank', {}, 6);
+    parts[TN.DRONE] = { name: 'Drone', voices: 3, channel: 7, ...sound('Swarm Pad', { 'lad.cutoff': 1400, 'mix.noise': 0.05, 'noise.type': 1, 'out.level': 1 }) };
+    parts[TN.CONGA] = { name: 'Hand Drums', voices: 3, channel: 8, ...sound('Hand Conga', { 'out.level': 1 }) };
+    parts[TN.NOISE] = { name: 'Riser', voices: 1, channel: 9, ...sound('Noise Sweep', { 'out.level': 1 }) };
+
+    const { DRUMS, THROWS, BASS, CHOPS, RING, CRUNCH, FLATS, SKANK, DRONE, CONGA, NOISE } = TN;
+    const ramp = (from: number, to: number) => (x: number) => from + (to - from) * x;
+    const patterns = [
+      // 0 intro: the ring alone in its echo over the drone, the hats ticking in eighths, a clap thrown
+      pattern({ [RING]: dyn(tnRing(5), 0.85), [DRONE]: tnDrone(), [DRUMS]: dyn(tnDrums({ kick: false, clap: false, hats: 'eighths' }), 0.7),
+        [THROWS]: tnThrows([[60, CP, 0.7]]) }),
+      // 1 the bass comes in, roots and ghosts; the hand drums
+      pattern({ [RING]: dyn(tnRing(6), 0.8), [BASS]: tnBassSparse(), [CONGA]: dyn(tnConga(), 0.8),
+        [DRUMS]: dyn(tnDrums({ kick: false, clap: false }), ramp(0.6, 0.85)), [THROWS]: tnThrows([[28, CP2, 0.6], [60, CP, 0.8]]) }),
+      // 2 the groove: drums, the bass's figure, the funk guitar's stabs only
+      pattern({ [DRUMS]: tnDrums({}, 22), [BASS]: tnBass('ABCD', 2), [CHOPS]: tnChops(true, 3), [CONGA]: dyn(tnConga(10), 0.7), [THROWS]: tnThrows() }),
+      // 3 the scratches fill in; the cowbell; the ring back over it
+      pattern({ [DRUMS]: tnDrums({ bell: true }, 23), [BASS]: tnBass('ABAD', 3), [CHOPS]: tnChops(false, 4), [RING]: dyn(tnRing(7), 0.75),
+        [CONGA]: dyn(tnConga(11), 0.7), [THROWS]: tnThrows() }),
+      // 4 the bass on its own with the kick and hats: the figure with space, the guitar's stabs answering
+      pattern({ [DRUMS]: dyn(tnDrums({ clap: false, hats: 'eighths' }, 24), 0.9), [BASS]: tnBass('CBCD', 4), [CHOPS]: dyn(tnChops(true, 5), 0.85),
+        [THROWS]: tnThrows([[12, CP, 0.7], [44, CP2, 0.7], [60, CP, 0.85]]) }),
+      // 5 the peak: the open hats, the crunch held under it all, the ring up high
+      pattern({ [DRUMS]: tnDrums({ hats: 'open', bell: true, crash: true }, 25), [BASS]: tnBass('ABCD', 6), [CHOPS]: tnChops(false, 6),
+        [CRUNCH]: tnCrunch(), [RING]: dyn(tnRing(8, true), 0.75), [CONGA]: dyn(tnConga(12), 0.75), [THROWS]: tnThrows() }),
+      // 6 the dub break: no kick; the flatwound bass, the skank, the drone, everything thrown
+      pattern({ [FLATS]: tnFlats(), [SKANK]: tnSkank(), [DRONE]: tnDrone(), [RING]: dyn(tnRing(9), 0.6), [CONGA]: dyn(tnConga(13), 0.65),
+        [DRUMS]: dyn(tnDrums({ kick: false, clap: false, hats: 'eighths' }, 26), 0.55),
+        [THROWS]: tnThrows([[12, CP, 0.8], [28, CP2, 0.7], [44, CP, 0.8], [46, MTn, 0.7], [60, CP, 0.9], [62, LTn, 0.7]]) }),
+      // 7 the build: the riser, the scratches alone, the drums coming back up into the toms, the bass on the root
+      pattern({ [NOISE]: mods(scNoise(), (i) => (i / 63) ** 2), [CHOPS]: dyn(tnChops(false, 7), ramp(0.6, 1)),
+        [DRUMS]: dyn(tnDrums({ kick: false, fill: true }, 27), ramp(0.5, 1)), [BASS]: dyn(tnBassSparse(), ramp(0.7, 1)) }),
+      // 8 the peak again, the bass's figures in another order, the crunch and the ring
+      pattern({ [DRUMS]: tnDrums({ hats: 'open', bell: true, crash: true }, 28), [BASS]: tnBass('ACBD', 8), [CHOPS]: tnChops(false, 8),
+        [CRUNCH]: tnCrunch(), [RING]: dyn(tnRing(10, true), 0.7), [CONGA]: dyn(tnConga(14), 0.75), [THROWS]: tnThrows([[28, CP2, 0.7], [44, CP, 0.8], [60, CP, 0.9]]) }),
+      // 9 stripped: the drums, the bass, the stabs
+      pattern({ [DRUMS]: tnDrums({ bell: true }, 29), [BASS]: tnBass('ABCD', 9), [CHOPS]: tnChops(true, 9), [THROWS]: tnThrows() }),
+      // 10 out: the ring and the drone, the clap thrown away into the echo
+      pattern({ [RING]: dyn(tnRing(11), 0.7), [DRONE]: tnDrone(), [BASS]: dyn(tnBassSparse(), 0.75), [THROWS]: tnThrows([[28, CP2, 0.6], [60, CP, 0.6]]) }),
+    ];
+
+    const mix: Record<string, number> = {
+      'p1.fader': 1, 'p1.a': 0.04, 'p1.c': 0.08,
+      'p2.fader': 0.8, 'p2.a': 1, 'p2.c': 0.3, 'p2.hi': -2,
+      'p3.fader': 1,
+      'p4.fader': 1.25, 'p4.pan': -0.25, 'p4.c': 0.12,
+      'p5.fader': 0.8, 'p5.pan': 0.3, 'p5.b': 0.2, 'p5.c': 0.35,
+      'p6.fader': 0.4, 'p6.pan': -0.1, 'p6.c': 0.25, 'p6.lo': -6,
+      'p7.fader': 1.25, 'p7.a': 0.15, 'p7.c': 0.1,
+      'p8.fader': 0.9, 'p8.pan': 0.2, 'p8.a': 0.7, 'p8.c': 0.3,
+      'p9.fader': 0.5, 'p9.c': 0.5, 'p9.lo': -12,
+      'p10.fader': 1.8, 'p10.pan': -0.35, 'p10.c': 0.2, 'p10.lo': -6,
+      'p11.fader': 0.8, 'p11.c': 0.5, 'p11.lo': -12,
+      // ---- the pedals
+      // the kit pumped in parallel and warmed
+      ...pedalParams(1, 1, 'COMP', { Threshold: -22, Ratio: 6, Attack: 8, Release: 100, 'Make-up': 6 }, 0.4),
+      ...pedalParams(1, 2, 'DRIVE', { Type: 'TUBE', Drive: 0.2, Tone: 0.6, Level: 0.3 }),
+      // the bass squeezed so the ghosts come up, and a filter breathing on slow noise
+      ...pedalParams(3, 1, 'COMP', { Threshold: -24, Ratio: 4, Attack: 5, Release: 120, 'Make-up': 5 }),
+      ...pedalParams(3, 2, 'FILTER', { Mode: 'LP', Cutoff: 2400, Res: 0.25, Source: 'NOISE', Depth: 0.2, Rate: 0.1 }),
+      // the funk guitar through an auto-wah (the filter following its own attack), then a little ensemble
+      ...pedalParams(4, 1, 'FILTER', { Mode: 'BP', Cutoff: 500, Res: 0.6, Source: 'ENV', Depth: 0.75, Drive: 0.2 }, 0.8),
+      ...pedalParams(4, 2, 'CHORUS', { Mode: 'I' }, 0.25),
+      // the ring into its own dotted-eighth echo, left and right, and a slow flanger
+      ...pedalParams(5, 1, 'FLANGER', { Sync: '4 BARS', Depth: 0.6, Delay: 2, Feedback: 0.4 }, 0.35),
+      ...pedalParams(5, 2, 'DELAY', { Mode: 'TAPE', Sync: '3/16', Feedback: 0.55, 'Ping-pong': 'ON', Tone: 3200, Mod: 0.3 }, 0.4),
+      // the crunch dirtier still, its top wandering on noise, a quarter-note echo behind it
+      ...pedalParams(6, 1, 'DRIVE', { Type: 'FUZZ', Drive: 0.35, Tone: 0.45, Level: 0.35 }, 0.6),
+      ...pedalParams(6, 2, 'FILTER', { Mode: 'LP', Cutoff: 2600, Res: 0.3, Source: 'NOISE', Depth: 0.35, Rate: 0.2 }),
+      ...pedalParams(6, 3, 'DELAY', { Mode: 'TAPE', Sync: '1/4', Feedback: 0.35, Tone: 2200 }, 0.25),
+      // the dub bass dark and round; the skank phased into a long echo
+      ...pedalParams(7, 1, 'FILTER', { Mode: 'LP', Cutoff: 700, Res: 0.3, Source: 'LFO', Sync: '2 BARS', Depth: 0.25 }),
+      ...pedalParams(8, 1, 'PHASER', { Sync: '1 BAR', Depth: 0.7, Feedback: 0.5 }, 0.5),
+      ...pedalParams(8, 2, 'DELAY', { Mode: 'BBD', Sync: '1/4', Feedback: 0.6, Tone: 2000, 'Ping-pong': 'ON' }, 0.35),
+      // the drone drifting on slow noise
+      ...pedalParams(9, 1, 'FILTER', { Mode: 'LP', Cutoff: 1500, Res: 0.35, Source: 'NOISE', Depth: 0.35, Rate: 0.04 }),
+      // the hand drums echoing in eighth triplets
+      ...pedalParams(10, 1, 'DELAY', { Mode: 'BBD', Sync: '1/8T', Feedback: 0.3, 'Ping-pong': 'ON', Tone: 2500 }, 0.2),
+      // A: the dub delay, dotted eighth, saturating; B: Beads, eighths; C: a dark room; D: a short plate on the guitars
+      'dub.sync': 1, 'dub.div': 3, 'dub.fdbk': 0.68, 'dub.tone': 2200, 'dub.wow': 0.3, 'dub.sat': 0.5, 'dub.flutter': 0.25,
+      'rA.fader': 1.1, 'rA.c': 0.35, 'rA.lo': -8,
+      'bbd.mode': 1, 'bbd.sync': 1, 'bbd.div': 2, 'bbd.fdbk': 0.4, 'bds.density': 0.5, 'bds.multiply': 0.2, 'bds.shape': 0.4, 'bds.pitch': 12,
+      'rB.fader': 0.8, 'rB.c': 0.4, 'rB.lo': -10,
+      'rev.type': 1, 'rev.size': 0.55, 'rev.damp': 0.6, 'rev.tone': 0.45, 'rev.pre': 0.02, 'rC.lo': -6,
+      'cmp.key': 1, 'cmp.ratio': 2.5, 'cmp.thresh': -16, 'cmp.atk': 3, 'cmp.rel': 160, 'cmp.mix': 0.55,
+      'tape.drive': 6, 'tape.tone': 0.45, 'tape.wow': 0.1,
+    };
+    // intro 8 bars, the bass in 8, the groove 16, the scratches 16, the bass's turn 8, the peak 16, the dub break 16,
+    // the build 4, the peak again 16, stripped 8, out 8: about four and a half minutes
+    const chain = [0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 7, 8, 8, 8, 8, 9, 9, 10, 10];
+    return multi('Tension', 116, parts, patterns, chain, mix);
+  },
+};
+
+export const RIG_FACTORY_MULTIS: readonly RigFactoryMulti[] = [init8, acidHouse, scalpel, darkRoom, noMercy, dubPressure, mycelium, tension];

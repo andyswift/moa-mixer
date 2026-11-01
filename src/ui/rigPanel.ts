@@ -4,8 +4,9 @@ import { RIG_FACTORY_MULTIS } from '../domain/devices/rigFactory';
 import { hasTune, readTuneFile, tuneFile, tuneFileName, tuneFromHash, tuneHash } from '../domain/devices/rigShare';
 import { RIG_CATEGORIES } from '../domain/devices/rigPresets';
 import type { RigMulti } from '../domain/devices/rigMulti';
-import { freshPart, RIG_PARTS, type RigSynth } from '../domain/devices/rigSynth';
+import { freshPart, isStringKind, partPlays, RIG_PARTS, type RigPartKind, type RigSynth } from '../domain/devices/rigSynth';
 import { renderRigKitPanel, type RigKitSource } from './rigKitPanel';
+import { renderRigStringsPanel } from './rigStringsPanel';
 import { el, renderKnob } from './widgets';
 
 /**
@@ -118,7 +119,9 @@ export function renderRigPanel(rig: RigSynth, kits?: RigKitSource): HTMLElement 
   kind.setAttribute('aria-label', 'Part type');
   kind.add(new Option('Synth', 'synth'));
   kind.add(new Option('Kit', 'kit'));
-  kind.addEventListener('change', () => rig.setKind(rig.part, kind.value as 'synth' | 'kit'));
+  kind.add(new Option('Bass', 'bass'));
+  kind.add(new Option('Guitar', 'guitar'));
+  kind.addEventListener('change', () => rig.setKind(rig.part, kind.value as RigPartKind));
   const partName = el('input', 'rig-name');
   partName.setAttribute('aria-label', 'Part name');
   partName.maxLength = 24;
@@ -169,6 +172,7 @@ export function renderRigPanel(rig: RigSynth, kits?: RigKitSource): HTMLElement 
     field('Range', lo, hi), sideField,
   );
   const kitPanel = renderRigKitPanel(rig, kits);
+  const stringsPanel = renderRigStringsPanel(rig);
 
   // ---- MOD mode: pick a source, and every knob it can reach shows (and sets) that source's amount on a ring
   let modSource: RigSource | undefined;
@@ -305,20 +309,24 @@ export function renderRigPanel(rig: RigSynth, kits?: RigKitSource): HTMLElement 
       const b = partButtons[p]!;
       b.classList.toggle('selected', p === rig.part);
       b.innerHTML = '';
-      const on = pt.voices > 0 || pt.kind === 'kit';
+      const on = partPlays(pt);
       b.classList.toggle('empty', !on);
       b.classList.toggle('kit', pt.kind === 'kit');
+      b.classList.toggle('strung', isStringKind(pt.kind));
+      const meta = pt.kind === 'synth' ? `${pt.voices} V` : pt.kind === 'guitar' ? 'GTR' : pt.kind.toUpperCase();
       b.append(el('span', 'rig-part-num', String(p + 1)), el('span', 'rig-part-name', on ? pt.name || 'Part' : 'EMPTY'),
-        el('span', 'rig-part-meta', `${pt.channel ? `CH ${pt.channel}` : 'ALL'} · ${pt.kind === 'kit' ? 'KIT' : `${pt.voices} V`}`));
+        el('span', 'rig-part-meta', `${pt.channel ? `CH ${pt.channel}` : 'ALL'} · ${meta}`));
       b.setAttribute('aria-pressed', String(p === rig.part));
     });
     const pt = rig.parts[rig.part]!;
-    const isKit = pt.kind === 'kit';
+    const isKit = pt.kind === 'kit', strung = isStringKind(pt.kind);
     kind.value = pt.kind;
-    for (const n of [...synthOnly, sideField, grid, mod]) n.hidden = isKit;
+    for (const n of [...synthOnly, sideField, grid, mod]) n.hidden = pt.kind !== 'synth';
     octave.disabled = isKit;
     kitPanel.hidden = !isKit;
     if (isKit) kitPanel.sync();
+    stringsPanel.hidden = !strung;
+    if (strung) stringsPanel.sync();
     if (sound.options.length !== rig.slots.length || [...sound.options].some((o) => o.text !== rig.slots[Number(o.value)]?.name)) fillSounds();
     sound.value = String(pt.slot);
     if (document.activeElement !== partName) partName.value = pt.name;
@@ -338,7 +346,7 @@ export function renderRigPanel(rig: RigSynth, kits?: RigKitSource): HTMLElement 
   rig.onEdit(syncRings); // routings changed elsewhere: a loaded sound, the other side copied over
   sync();
 
-  panel.append(partRow, setup, kitPanel, grid, mod);
+  panel.append(partRow, setup, kitPanel, stringsPanel, grid, mod);
   return panel;
 }
 

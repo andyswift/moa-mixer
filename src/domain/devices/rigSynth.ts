@@ -9,6 +9,7 @@ import { RIG_MIX_DEFAULTS, RIG_MIX_PARAMS } from './rigMix';
 import { PEDAL_NAMES, PEDAL_SLOTS, type PedalName, pedalId, pedalParams, pedalSlotIds } from './rigPedals';
 import { RIG_MULTI_VERSION, type RigMulti, type RigMultiPart } from './rigMulti';
 import { RIG_PRESETS, type RigPreset } from './rigPresets';
+import { rigStringPresets, rigStringSetup, sanitiseStrings, type RigStringInstrument, type RigStringPreset, type RigStrings } from './rigStrings';
 
 export const RIG_PARTS = 16;
 /** The pool of voices the parts share. */
@@ -23,6 +24,11 @@ export interface RigKitSound {
 /** The keyboard bed's middle C plays a kit's first pad. */
 const KIT_KEY_SHIFT = 60 - RIG_FIRST_PAD_NOTE;
 
+export type RigPartKind = RigMultiPart['kind'];
+export const isStringKind = (kind: string): kind is RigStringInstrument => kind === 'bass' || kind === 'guitar';
+/** Whether a part makes a sound at all: a synth with voices, a kit, or a bass or guitar. */
+export const partPlays = (pt: { kind: string; voices: number }): boolean => pt.kind !== 'synth' || pt.voices > 0;
+
 /** A step recorded with no note off yet gets this gate. */
 const RECORD_GATE = 0.5;
 const MOD_WHEEL_CC = 1;
@@ -31,9 +37,13 @@ const EXPRESSION_CC = 11;
 /** One of the sixteen parts: its sound (sides A and B, or a kit) and where it sits in the multi. */
 export interface RigPart {
   name: string;
-  /** A synth part plays the voice; a kit part plays its kit's pads (notes 36 to 51) and takes no voices. */
-  kind: 'synth' | 'kit';
+  /**
+   * A synth part plays the voice; a kit part plays its kit's pads (notes 36 to 51); a bass or guitar part plays its
+   * strings (`strings`). Only a synth part takes voices from the pool.
+   */
+  kind: RigPartKind;
   kit?: RigKit;
+  strings?: RigStrings;
   /** The preset slot it was loaded from. */
   slot: number;
   /** That sound's name, as last saved or loaded (`toMulti` writes the slot's own). */
@@ -236,20 +246,57 @@ export class RigSynth extends Device implements Playable {
 
   // ---- Kits ----
 
-  /** Makes a part a kit (with the first factory kit if it has none) or a synth again. A kit gives its voices back. */
-  setKind(part: number, kind: 'synth' | 'kit'): void {
+  /**
+   * Makes a part a kit (with the first factory kit if it has none), a bass or a guitar (with its first factory sound if
+   * it has none of that instrument), or a synth again. Only a synth keeps its voices.
+   */
+  setKind(part: number, kind: RigPartKind): void {
     const pt = this.parts[part]!;
     if (pt.kind === kind) return;
     pt.kind = kind;
+    if (kind !== 'synth' && pt.voices) this.setVoices(part, 0);
     if (kind === 'kit') {
-      if (pt.voices) this.setVoices(part, 0);
       pt.kit ??= cloneKit(RIG_KITS[0]!);
       pt.name = pt.kit.name;
+    } else if (isStringKind(kind)) {
+      if (pt.strings?.instrument !== kind) {
+        const first = rigStringPresets(kind)[0]!;
+        pt.strings = { instrument: kind, params: { ...first.params } };
+        pt.name = first.name;
+      }
     }
     this.circuit.send('synth', { type: 'kind', part, kind });
     this.saveState();
     this.sendKit(part);
+    this.sendStrings(part);
     this.notifyParts();
+  }
+
+  // ---- Bass and guitar parts ----
+
+  /** Loads a factory string sound into a part (making it that instrument's part). */
+  loadStrings(part: number, sound: RigStringPreset): void {
+    const pt = this.parts[part]!;
+    pt.strings = { instrument: sound.instrument, params: { ...sound.params } };
+    pt.name = sound.name;
+    if (pt.kind !== sound.instrument) this.setKind(part, sound.instrument);
+    else { this.sendStrings(part); this.saveState(); this.notifyParts(); }
+  }
+
+  /** Sets one of a bass or guitar part's params (a choice as its option's index). */
+  setStringParam(part: number, id: string, value: number): void {
+    const s = this.parts[part]?.strings;
+    if (!s || s.params[id] === value) return;
+    s.params[id] = value;
+    this.sendStrings(part);
+    this.saveState();
+    this.notifyParts();
+  }
+
+  private sendStrings(part: number): void {
+    const pt = this.parts[part]!;
+    if (!isStringKind(pt.kind) || !pt.strings) return;
+    this.circuit.send('synth', { type: 'strings', part, setup: rigStringSetup(pt.strings) });
   }
 
   /** Loads a kit into a part (making it a kit part). */
@@ -494,10 +541,13 @@ export class RigSynth extends Device implements Playable {
       return src.slot < this.slots.length ? src.slot : 0;
     };
     m.parts.forEach((src, p) => {
-      Object.assign(this.parts[p]!, copy(src), { voices: 0, slot: slotOf(src), kit: src.kit ? copy(src.kit) : undefined });
+      Object.assign(this.parts[p]!, copy(src), {
+        voices: 0, slot: slotOf(src), kit: src.kit ? copy(src.kit) : undefined,
+        strings: isStringKind(src.kind) ? sanitiseStrings(src.strings, src.kind) : undefined,
+      });
     });
     // voices last, so a save that asks for more than the pool still gets what fits, in part order
-    m.parts.forEach((src, p) => { this.parts[p]!.voices = src.kind === 'kit' ? 0 : Math.max(0, Math.min(this.freeVoices, src.voices)); });
+    m.parts.forEach((src, p) => { this.parts[p]!.voices = src.kind !== 'synth' ? 0 : Math.max(0, Math.min(this.freeVoices, src.voices)); });
     this.seq.patterns = copy(m.patterns);
     this.seq.current = m.current;
     this.seq.next = undefined;
@@ -512,6 +562,7 @@ export class RigSynth extends Device implements Playable {
       this.sendPatch(p);
       this.circuit.send('synth', { type: 'kind', part: p, kind: pt.kind });
       this.sendKit(p);
+      this.sendStrings(p);
     });
     this.dropUnused();
     this.editPart = 0;
@@ -532,7 +583,7 @@ export class RigSynth extends Device implements Playable {
 
   /** Gives a part `voices` of the pool, as many as the other parts leave free. */
   setVoices(part: number, voices: number): void {
-    if (this.parts[part]!.kind === 'kit') voices = 0;
+    if (this.parts[part]!.kind !== 'synth') voices = 0;
     const others = this.parts.reduce((sum, pt, i) => sum + (i === part ? 0 : pt.voices), 0);
     this.parts[part]!.voices = Math.max(0, Math.min(RIG_VOICES - others, Math.round(voices)));
     this.circuit.send('synth', { type: 'layout', counts: this.parts.map((pt) => pt.voices) });
@@ -824,6 +875,7 @@ export class RigSynth extends Device implements Playable {
       counts: this.parts.map((pt) => pt.voices),
       patches: this.parts.map((pt, part) => ({ part, a: pt.a, b: pt.b })),
       kinds: this.parts.map((pt) => pt.kind),
+      strings: this.parts.map((pt) => (isStringKind(pt.kind) && pt.strings ? rigStringSetup(pt.strings) : null)),
       mix: this.mixValues,
       bpm: this.bpmValue,
     }));
@@ -855,7 +907,7 @@ export class RigSynth extends Device implements Playable {
     switch (event.type) {
       case 'noteOn': {
         const parts = this.followEdit ? [this.editPart] : this.parts.flatMap((pt, i) =>
-          (pt.voices > 0 || pt.kind === 'kit') && (pt.channel === 0 || pt.channel === event.channel) && event.note >= pt.lo && event.note <= pt.hi ? [i] : []);
+          partPlays(pt) && (pt.channel === 0 || pt.channel === event.channel) && event.note >= pt.lo && event.note <= pt.hi ? [i] : []);
         this.start(`${event.channel}:${event.note}`, parts, event.note, event.velocity / 127);
         break;
       }
