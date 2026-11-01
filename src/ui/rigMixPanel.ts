@@ -8,7 +8,7 @@ import { renderChoice, renderToggle } from './rigPanel';
 import { el, renderKnob } from './widgets';
 
 /**
- * The MOA-RIG's mixer, plain for now (the MIXER · FX page's design replaces it): eight part strips at a time, the
+ * The MOA-RIG's mixer, page 4: eight part strips at a time, the
  * four returns and the master always in view, then the send effects and the compressor (the pedals have their own page).
  */
 const BANK = 8;

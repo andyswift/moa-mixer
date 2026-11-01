@@ -209,7 +209,7 @@ body:has(.rig-shell) { background: #1b1c1f; }
 .rig-pages > .rig-seq .rig-seq-lanes { gap: 2px; }
 .rig-pages > .rig-seq .rig-piano-roll, .rig-pages > .rig-seq .rig-seq-step { grid-column: 1 / -1; align-self: start; }
 
-/* MIXER · FX */
+/* MIXER (page 4) */
 .rig-pages > .rig-mix { display: flex; flex-direction: column; }
 .rig-pages > .rig-mix[hidden] { display: none; }
 .rig-pages > .rig-mix .rig-fader-travel { height: 150px; }

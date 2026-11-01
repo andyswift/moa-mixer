@@ -27,7 +27,7 @@ export interface RigShellPages {
   running(): boolean;
 }
 
-const TABS = [['synth', '1 SYNTH'], ['seq', '2 SEQUENCER'], ['mix', '3 MIXER'], ['fx', '4 FX']] as const;
+const TABS = [['synth', '1 SYNTH'], ['seq', '2 SEQUENCER'], ['fx', '3 FX'], ['mix', '4 MIXER']] as const;
 type Tab = (typeof TABS)[number][0];
 const TAB_KEY = 'moa-rig.tab';
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -121,7 +121,7 @@ export function renderRigShell(rig: RigSynth, pages: RigShellPages): HTMLElement
 
   header.append(logo, tabs, bpm, voices, multi, multiButton, setupButton, keysButton, ...(pages.extra ?? []), power);
   const body = el('div', 'rig-pages');
-  body.append(pages.synth, pages.seq, pages.mix, pages.fx);
+  body.append(pages.synth, pages.seq, pages.fx, pages.mix);
   shell.append(header, ...drops.map(([, box]) => box), body, overlay);
 
   function syncHeader(): void {

@@ -43,7 +43,7 @@ const multis = {
 
 const engine = new AudioEngine(patch);
 
-// The pages, after the design: SYNTH (the edited part, its track, the detail column), SEQUENCER, MIXER, FX (the pedals).
+// The pages, after the design: SYNTH (the edited part, its track, the detail column), SEQUENCER, FX (the pedals), MIXER.
 let scope: AnalyserNode | undefined;
 const analyser = () => {
   const ctx = engine.context, out = engine.jackNode('rig', 'out', 'out');
