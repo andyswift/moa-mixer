@@ -230,6 +230,18 @@ describe('MOA-RIG sequencer', () => {
       expect(played(m, 1, 2)).toEqual([1, 1]);
     });
 
+    it('a block picked sets where play starts: at once when stopped, after a stop while playing', () => {
+      const m = song([0, 1, 2, 3]);
+      m.seq.setCue(2);
+      m.seq.play(0);
+      expect(played(m, 0, 1)).toEqual([2]);
+      m.seq.setCue(1); // while playing: the song plays on
+      expect(played(m, 0.425, 1)).toEqual([3]);
+      m.seq.stop(1);
+      m.seq.play(1);
+      expect(played(m, 1, 1)).toEqual([1]);
+    });
+
     it('editing the song while it plays keeps the same block playing, or goes on to the next if it went', () => {
       const m = song([0, 1, 2, 3]);
       m.seq.play(0);

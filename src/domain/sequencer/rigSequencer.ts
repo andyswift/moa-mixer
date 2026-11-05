@@ -291,6 +291,14 @@ export class RigSequencer {
     this.notify();
   }
 
+  /** Where play starts the song (a block picked): straight away when stopped, else the next time play is pressed. */
+  setCue(pos: number): void {
+    if (pos < 0 || pos >= this.chain.length) return;
+    this.cue = pos;
+    if (!this.playing && this.songMode && !this.loop) { this.chainPos = pos; this.current = this.chain[pos]!; }
+    this.notify();
+  }
+
   /** Loops chain positions `from` to `to` (inclusive); none plays the whole song. */
   setLoop(loop?: { from: number; to: number }): void {
     if (loop && this.chain.length) {

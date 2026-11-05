@@ -18,7 +18,8 @@ const button = (cls: string, text: string, label?: string) => {
 /**
  * The song strip at the top of the SEQUENCER page: the song (the chain) as a row of blocks, a block a pattern played
  * so many times, as wide as it is long. The block playing is lit and fills as it plays.
- * - Click a block: pick it (shift: a stretch of blocks) and edit its pattern; the song plays on.
+ * - Click a block: pick it (shift: a stretch of blocks) and edit its pattern; the song plays on, and play (space)
+ *   starts the song from it next time.
  * - Double-click: play from it (at the end of the pattern playing, or from there when play is pressed).
  * - Drag a block to move it, alt-drag to copy it; drag a pattern pad in to add it there.
  * - − / + change the picked block's repeats; DUP copies it; ✕ (or Delete) takes the picked blocks out.
@@ -153,6 +154,7 @@ export function renderRigSongStrip(rig: RigSynth, now: () => number): HTMLElemen
       v.addEventListener('click', (e) => {
         pick = e.shiftKey && pick ? { a: pick.a, b: i } : { a: i, b: i };
         lane.focus({ preventScroll: true });
+        seq.setCue(b.start); // play (space) starts the song here
         seq.select(b.pattern);
         sync();
       });
