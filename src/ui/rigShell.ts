@@ -2,6 +2,8 @@ import { RIG_FIRST_PAD_NOTE } from '../domain/devices/rigKit';
 import { RIG_DEFAULTS } from '../domain/devices/rigParams';
 import { RIG_VOICES, type RigSynth } from '../domain/devices/rigSynth';
 import { RIG_CLOCKS, RIG_PATTERNS } from '../domain/sequencer/rigSequencer';
+import { songBlocks } from '../domain/sequencer/rigSong';
+import { patternPad, syncPatternPad } from './rigSongStrip';
 import { el } from './widgets';
 
 /**
@@ -191,7 +193,7 @@ export function renderRigTrackStrip(rig: RigSynth, now: () => number): HTMLEleme
     const pt = rig.parts[rig.part]!, t = seq.pattern.tracks[rig.part]!;
     const kit = pt.kind === 'kit';
     title.textContent = `TRACK ${rig.part + 1} · ${(pt.name || 'PART').toUpperCase()}`;
-    info.textContent = `${t.length} STEPS · ${RIG_CLOCKS.find((c) => c[1] === t.clock)?.[0] ?? ''} · ${t.direction.toUpperCase()} · PATTERN ${seq.current + 1}`;
+    info.textContent = `${t.length} STEPS · ${RIG_CLOCKS.find((c) => c[1] === t.clock)?.[0] ?? ''} · ${t.direction.toUpperCase()} · PATTERN ${seq.editing + 1}`;
     pages.forEach((b, p) => b.classList.toggle('on', p === page));
     cellButtons.forEach((c, k) => {
       const i = page * 16 + k, s = t.steps[i]!, beyond = i >= t.length;
@@ -212,7 +214,7 @@ export function renderRigTrackStrip(rig: RigSynth, now: () => number): HTMLEleme
   rig.onPartChange(sync);
   sync();
   const frame = () => {
-    const step = seq.isPlaying ? seq.stepAt(rig.part, now()) : -1;
+    const step = seq.isPlaying && seq.editing === seq.current ? seq.stepAt(rig.part, now()) : -1;
     const k = step >= page * 16 && step < page * 16 + 16 ? step - page * 16 : -1;
     if (k !== lit) {
       if (lit >= 0) cellButtons[lit]!.classList.remove('play');
@@ -250,13 +252,7 @@ export function renderRigDetail(rig: RigSynth, analyser: () => AnalyserNode | un
   const pads = el('div', 'rig-pattern-pads');
   const padButtons = Array.from({ length: RIG_PATTERNS }, (_, i) => {
     const b = button('rig-seq-pad', String(i + 1), `Pattern ${i + 1}`);
-    b.title = 'Click: play next. Shift-click: add to or take out of the chain.';
-    b.addEventListener('click', (e) => {
-      if (e.shiftKey) {
-        const at = rig.seq.chain.indexOf(i);
-        rig.seq.setChain(at >= 0 ? rig.seq.chain.filter((_, k) => k !== at) : [...rig.seq.chain, i]);
-      } else rig.seq.queue(i);
-    });
+    patternPad(rig, b, i);
     pads.append(b);
     return b;
   });
@@ -266,9 +262,15 @@ export function renderRigDetail(rig: RigSynth, analyser: () => AnalyserNode | un
   rec.addEventListener('click', () => rig.setRecording(!rig.isRecording));
   const click = button('rig-key rig-wide rig-seq-click', 'CLICK', 'Metronome: a click on each beat while playing');
   click.addEventListener('click', () => { rig.metronome = !rig.metronome; });
+  const songBtn = button('rig-key rig-wide', 'SONG', 'Play the song');
+  songBtn.addEventListener('click', () => rig.seq.setMode('song'));
+  const patBtn = button('rig-key rig-wide', 'PATTERN', 'Loop the edited pattern (the song is kept)');
+  patBtn.addEventListener('click', () => { rig.seq.queue(rig.seq.editing); });
   const transport = el('div', 'rig-field');
   transport.append(play, rec, click);
-  pats.append(patTitle, pads, transport);
+  const modes = el('div', 'rig-field');
+  modes.append(songBtn, patBtn);
+  pats.append(patTitle, pads, modes, transport);
   col.append(scopeBox, facts, pats, ...below);
 
   const kv = (k: string, v: string) => [el('dt', '', k), el('dd', '', v)];
@@ -282,13 +284,15 @@ export function renderRigDetail(rig: RigSynth, analyser: () => AnalyserNode | un
       : [kv('VOICES', `${pt.voices} OF ${RIG_VOICES}`), kv('LADDER', val('lad.cutoff', ' Hz')), kv('SEM', val('sem.cutoff', ' Hz')),
         kv('ROUTINGS', String(side.matrix.length)), kv('MORPH', val('out.morph', '', 2))];
     list.replaceChildren(...rows.flat(), ...kv('CHANNEL', pt.channel ? String(pt.channel) : 'ALL'), ...kv('RANGE', `${noteName(pt.lo)}–${noteName(pt.hi)}`));
-    patTitle.textContent = `PATTERNS${rig.seq.chain.length ? ` · CHAIN ${rig.seq.chain.map((i) => i + 1).join(' → ')}` : ''}`;
-    padButtons.forEach((b, i) => {
-      b.classList.toggle('now', i === rig.seq.current);
-      b.classList.toggle('next', i === rig.seq.next);
-      b.classList.toggle('chained', rig.seq.chain.includes(i));
-      b.classList.toggle('used', rig.seq.patterns[i]!.tracks.some((t) => t.steps.some((s) => s.notes.length)));
-    });
+    const seq = rig.seq;
+    const blocks = songBlocks(seq.chain), at = blocks.findIndex((b) => seq.songPos >= b.start && seq.songPos < b.start + b.count);
+    patTitle.textContent = seq.songMode
+      ? `PATTERNS · SONG ${at + 1}/${blocks.length}${seq.loop ? ' · LOOP' : ''}${seq.editing !== seq.current ? ` · EDIT ${seq.editing + 1}` : ''}`
+      : `PATTERNS · PATTERN ${seq.current + 1}${seq.chain.length ? ' · SONG KEPT' : ''}`;
+    padButtons.forEach((b, i) => syncPatternPad(rig, b, i));
+    songBtn.classList.toggle('on', seq.mode === 'song');
+    songBtn.disabled = !seq.chain.length;
+    patBtn.classList.toggle('on', seq.mode === 'pattern' || !seq.chain.length);
     play.textContent = rig.seq.isPlaying ? 'STOP' : 'PLAY';
     play.classList.toggle('on', rig.seq.isPlaying);
     rec.classList.toggle('on', rig.isRecording);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { seeded } from '../../sequencer/engine';
 import { RigSequencer, stepIndex } from '../../sequencer/rigSequencer';
+import { moveBlock, removeBlocks } from '../../sequencer/rigSong';
 
 interface Ev { type: 'on' | 'off' | 'locks' | 'mod' | 'flush'; part?: number; note?: number; vel?: number; when?: number; locks?: Record<string, number>; value?: number }
 function make(random: () => number = () => 0) {
@@ -161,8 +162,88 @@ describe('MOA-RIG sequencer', () => {
     expect(ons(ev).map((e) => [e[1], e[2]])).toEqual([[60, 0], [65, 4], [65, 8]]);
     ev.length = 0;
     seq.setChain([1, 2]);
+    seq.setMode('song');
     runFor(seq, 1.125, 2.6);
     expect(ons(ev).map((e) => e[1])).toEqual([61, 62, 61]);
+  });
+
+  describe('the song', () => {
+    /** Every pattern four sixteenths long, its first step a note of its own (60 + pattern), and a song of `chain`. */
+    function song(chain: number[]) {
+      const m = make();
+      m.seq.patterns.forEach((p, i) => { p.length = 4; p.tracks[0]!.length = 4; p.tracks[0]!.steps[0]!.notes = [60 + i]; });
+      m.seq.setChain(chain);
+      return m;
+    }
+    /** The patterns played, a sixteenth is 0.125 s and a pattern 0.5 s: `n` patterns from `from` seconds. */
+    const played = (m: ReturnType<typeof song>, from: number, n: number) => {
+      m.ev.length = 0;
+      runFor(m.seq, from, from + n * 0.5 - 0.1);
+      return ons(m.ev).map((e) => (e[1] as number) - 60);
+    };
+
+    it('picking another pattern while the song plays edits it, and the song plays on', () => {
+      const m = song([0, 1, 2]);
+      m.seq.play(0);
+      expect(played(m, 0, 1)).toEqual([0]);
+      m.seq.select(7);
+      expect(m.seq.editing).toBe(7);
+      expect(m.seq.pattern).toBe(m.seq.patterns[7]);
+      expect(m.seq.follow).toBe(false);
+      expect(played(m, 0.425, 3)).toEqual([1, 2, 0]);
+      expect(m.seq.chain).toEqual([0, 1, 2]);
+      expect(m.seq.editing).toBe(7); // not following
+    });
+
+    it('PATTERN mode loops one pattern; back to SONG it goes on from the block it left', () => {
+      const m = song([0, 1, 2, 3]);
+      m.seq.play(0);
+      played(m, 0, 2); // 0, 1
+      m.seq.queue(9); // at the end of 1
+      expect(played(m, 0.925, 3)).toEqual([9, 9, 9]);
+      expect(m.seq.chain).toEqual([0, 1, 2, 3]);
+      m.seq.setMode('song'); // back to block 1, where it left
+      expect(played(m, 2.425, 3)).toEqual([1, 2, 3]);
+    });
+
+    it('jumps to a block at the end of this pattern, and loops a stretch of the song', () => {
+      const m = song([0, 1, 2, 3, 4]);
+      m.seq.play(0);
+      played(m, 0, 1);
+      m.seq.jumpTo(3);
+      expect(played(m, 0.425, 2)).toEqual([3, 4]);
+      m.seq.setLoop({ from: 1, to: 2 });
+      expect(played(m, 1.425, 5)).toEqual([1, 2, 1, 2, 1]);
+      m.seq.setLoop();
+      expect(played(m, 3.925, 3)).toEqual([2, 3, 4]);
+    });
+
+    it('stopped, play starts from the block picked, or the loop’s start', () => {
+      const m = song([0, 1, 2, 3]);
+      m.seq.jumpTo(2);
+      m.seq.play(0);
+      expect(played(m, 0, 2)).toEqual([2, 3]);
+      m.seq.stop(1);
+      expect(m.seq.songPos).toBe(2);
+      m.seq.setLoop({ from: 1, to: 1 });
+      m.seq.play(1);
+      expect(played(m, 1, 2)).toEqual([1, 1]);
+    });
+
+    it('editing the song while it plays keeps the same block playing, or goes on to the next if it went', () => {
+      const m = song([0, 1, 2, 3]);
+      m.seq.play(0);
+      played(m, 0, 2); // 0, 1: block 1 playing
+      // move the playing block to the end: it plays on, then the song wraps round
+      m.seq.editSong(moveBlock(m.seq.chain, 1, 4));
+      expect(m.seq.chain).toEqual([0, 2, 3, 1]);
+      expect(m.seq.songPos).toBe(3);
+      expect(played(m, 0.925, 2)).toEqual([0, 2]);
+      // take out the block playing (2): the next block left (3) comes next
+      m.seq.editSong(removeBlocks(m.seq.chain, 1));
+      expect(m.seq.chain).toEqual([0, 3, 1]);
+      expect(played(m, 1.925, 1)).toEqual([3]);
+    });
   });
 
   it('keeps the steps already sent in place when the tempo changes', () => {

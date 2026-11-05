@@ -549,9 +549,11 @@ export class RigSynth extends Device implements Playable {
     // voices last, so a save that asks for more than the pool still gets what fits, in part order
     m.parts.forEach((src, p) => { this.parts[p]!.voices = src.kind !== 'synth' ? 0 : Math.max(0, Math.min(this.freeVoices, src.voices)); });
     this.seq.patterns = copy(m.patterns);
-    this.seq.current = m.current;
     this.seq.next = undefined;
-    this.seq.chain = [...m.chain];
+    this.seq.mode = 'song';
+    this.seq.follow = true;
+    this.seq.setChain([...m.chain]);
+    if (!m.chain.length) { this.seq.current = m.current; this.seq.editing = m.current; }
     this.seq.shuffle = m.shuffle;
     this.bpm = m.tempo;
     this.syncing = true;
@@ -694,9 +696,12 @@ export class RigSynth extends Device implements Playable {
    * chord is the keys held together), REC or not; with REC the step then moves on. Playing, only with REC.
    */
   private recordOn(note: number, velocity: number): void {
-    const track = this.seq.pattern.tracks[this.editPart]!;
+    let track = this.seq.pattern.tracks[this.editPart]!;
     if (this.seq.isPlaying) {
       if (!this.recording) return;
+      // a live take goes into what is playing: the editor goes back to it
+      if (this.seq.editing !== this.seq.current) { this.seq.editing = this.seq.current; this.seq.follow = true; }
+      track = this.seq.playingPattern.tracks[this.editPart]!;
       const near = this.seq.stepNear(this.editPart, this.heard());
       if (!near) return;
       const step = track.steps[near.step]!;

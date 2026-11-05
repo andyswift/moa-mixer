@@ -9,6 +9,7 @@ import {
 import {
   cloneRigPattern, newStep, RIG_CLOCKS, RIG_DIRECTIONS, RIG_MAX_STEPS, RIG_PATTERNS, type RigPattern, type RigStep,
 } from '../domain/sequencer/rigSequencer';
+import { patternPad, renderRigSongStrip, syncPatternPad } from './rigSongStrip';
 import { el, renderKnob } from './widgets';
 
 /**
@@ -64,7 +65,8 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   };
   const changed = () => seq.notify();
 
-  // ---- transport and patterns
+  // ---- the song, then the transport and patterns
+  const song = renderRigSongStrip(rig, now);
   const bar = el('div', 'rig-setup rig-seq-bar');
   const play = button('rig-key rig-seq-play', 'PLAY');
   play.addEventListener('click', () => (seq.isPlaying ? rig.stop() : rig.play()));
@@ -79,21 +81,14 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   const pads = el('div', 'rig-seq-pads');
   const padButtons = Array.from({ length: RIG_PATTERNS }, (_, i) => {
     const b = button('rig-seq-pad', String(i + 1), `Pattern ${i + 1}`);
-    b.title = 'Click: play this pattern next. Shift-click: add to or take out of the chain.';
-    b.addEventListener('click', (e) => {
-      if (e.shiftKey) {
-        const at = seq.chain.indexOf(i);
-        seq.setChain(at >= 0 ? seq.chain.filter((_, k) => k !== at) : [...seq.chain, i]);
-      } else seq.queue(i);
-    });
+    patternPad(rig, b, i);
     pads.append(b);
     return b;
   });
-  const chain = el('span', 'rig-readout rig-seq-chain');
   const copy = button('rig-small rig-wide', 'COPY');
   copy.addEventListener('click', () => { clipboard = cloneRigPattern(seq.pattern); });
   const paste = button('rig-small rig-wide', 'PASTE');
-  paste.addEventListener('click', () => { if (clipboard) { seq.patterns[seq.current] = cloneRigPattern(clipboard); changed(); } });
+  paste.addEventListener('click', () => { if (clipboard) { seq.patterns[seq.editing] = cloneRigPattern(clipboard); changed(); } });
   const pageButtons = [0, 1, 2, 3].map((k) => {
     const b = button('rig-small', `${k * PAGE + 1}–${(k + 1) * PAGE}`, `Steps ${k * PAGE + 1} to ${(k + 1) * PAGE}`);
     b.addEventListener('click', () => { page = k; sync(); });
@@ -106,7 +101,7 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   };
   bar.append(
     play, rec, click, renderKnob(tempo, 'Sequencer', 'TEMPO', 30), renderKnob(shuffle, 'Sequencer', 'SHUFFLE', 30),
-    field('Pattern', pads), field('Chain', chain), field('Length', length), field('', copy, paste), field('Steps', ...pageButtons),
+    field('Pattern', pads), field('Length', length), field('', copy, paste), field('Steps', ...pageButtons),
   );
 
   // ---- a lane per part
@@ -647,12 +642,8 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
     rec.classList.toggle('on', rig.isRecording);
     click.classList.toggle('on', rig.metronome);
     padButtons.forEach((b, i) => {
-      b.classList.toggle('now', i === seq.current);
-      b.classList.toggle('next', i === seq.next);
-      b.classList.toggle('chained', seq.chain.includes(i));
-      b.classList.toggle('used', seq.patterns[i]!.tracks.some((t) => t.steps.some((s) => s.notes.length || Object.keys(s.locks).length)));
+      syncPatternPad(rig, b, i);
     });
-    chain.textContent = seq.chain.length ? seq.chain.map((i) => i + 1).join(' → ') : '—';
     length.value = String(pat.length);
     pageButtons.forEach((b, k) => b.classList.toggle('on', k === page));
     lane.forEach((l, p) => {
@@ -717,8 +708,9 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   // ---- the playheads
   const frame = () => {
     const t = now();
+    song.frame();
     lane.forEach((l, p) => {
-      const step = seq.isPlaying && (partPlays(rig.parts[p]!)) ? seq.stepAt(p, t) : -1;
+      const step = seq.isPlaying && seq.editing === seq.current && partPlays(rig.parts[p]!) ? seq.stepAt(p, t) : -1;
       const k = step >= page * PAGE && step < (page + 1) * PAGE ? step - page * PAGE : -1;
       if (k === l.lit) return;
       if (l.lit >= 0) l.cells[l.lit]!.classList.remove('play');
@@ -727,7 +719,7 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
     });
     // the piano roll: open a new part's on its notes, and its playhead along the whole loop
     scrollRoll();
-    const rollStep = !roll.hidden && seq.isPlaying ? seq.stepAt(rig.part, t) : -1;
+    const rollStep = !roll.hidden && seq.isPlaying && seq.editing === seq.current ? seq.stepAt(rig.part, t) : -1;
     rollPlay.hidden = rollStep < 0;
     if (rollStep >= 0) rollPlay.style.left = `${(rollStep / track().length) * 100}%`;
     requestAnimationFrame(frame);
@@ -735,6 +727,6 @@ export function renderRigSeqPanel(rig: RigSynth, now: () => number): HTMLElement
   requestAnimationFrame(frame);
 
   sync();
-  panel.append(bar, lanes, roll, editor);
+  panel.append(song, bar, lanes, roll, editor);
   return panel;
 }

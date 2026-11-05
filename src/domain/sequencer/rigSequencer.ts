@@ -8,6 +8,11 @@
  * A pattern restarts every track at its length (0 runs them free). A queued pattern, or the next in a chain, takes
  * over at the end of the pattern (at the next bar when it runs free).
  *
+ * The song is the chain (`chain`, shown as blocks by rigSong.ts). In SONG mode it plays in turn, looping, or only a
+ * stretch of it (`loop`); in PATTERN mode one pattern loops and the song waits, untouched, to be gone back to. What is
+ * edited (`editing`, the `pattern` getter) need not be what is playing (`current`): with `follow` on the editor goes
+ * along with the playback, otherwise it stays on the pattern picked while the song plays on.
+ *
  * Time is the audio clock, as on the MOA-60: `schedule(now)` is called every few milliseconds and sends everything
  * due before `now + LOOKAHEAD`, each event with its exact time, for the worklet to place on its sample.
  */
@@ -119,11 +124,20 @@ const freshRun = (at: number): TrackRun => ({ next: at, k: 0, locked: false, mod
 
 export class RigSequencer {
   patterns: RigPattern[] = Array.from({ length: RIG_PATTERNS }, newRigPattern);
+  /** The pattern playing (or to play, stopped). */
   current = 0;
-  /** Patterns to play in turn, looping; empty plays `current` (or `next`) only. */
+  /** The song: patterns to play in turn, looping; empty plays `current` (or `next`) only. */
   chain: number[] = [];
-  /** The pattern queued to take over at the end of this one. */
+  /** The pattern queued to take over at the end of this one (PATTERN mode). */
   next?: number;
+  /** SONG plays the chain; PATTERN loops one pattern, leaving the song as it was. */
+  mode: 'song' | 'pattern' = 'song';
+  /** A stretch of the song to loop: its first and last chain positions. */
+  loop?: { from: number; to: number };
+  /** The pattern the editor shows. */
+  editing = 0;
+  /** The editor goes along with the playing pattern. */
+  follow = true;
   tempo = 120;
   /** Late second sixteenths (and eighths), as a share of a step: 0 straight, 0.5 a dotted feel. */
   shuffle = 0;
@@ -137,13 +151,36 @@ export class RigSequencer {
   private sentTick = 0; // the latest tick a step has been sent for (steps go out up to half a step past `scheduled`)
   private patternStart = 0;
   private chainPos = 0;
+  /** Where the song starts from when play is pressed (the block last picked while stopped). */
+  private cue = 0;
+  /** A chain position to go to at the next turn. */
+  private jump?: number;
   private runs: TrackRun[] = [];
+  /** When each of the last patterns started (audio time), its chain position and length: for showing where the song is. */
+  private starts: { time: number; pos: number; seconds: number }[] = [];
   private readonly listeners = new Set<() => void>();
 
   constructor(private readonly out: RigSeqOutput, private readonly random: () => number = Math.random) {}
 
+  /** The pattern being edited. */
   get pattern(): RigPattern {
+    return this.patterns[this.editing]!;
+  }
+  /** The pattern playing (or to play). */
+  get playingPattern(): RigPattern {
     return this.patterns[this.current]!;
+  }
+  /** Whether the song is what plays: SONG mode with a song. */
+  get songMode(): boolean {
+    return this.mode === 'song' && this.chain.length > 0;
+  }
+  /** The chain position playing (or to play from), or -1. */
+  get songPos(): number {
+    return this.chain.length ? this.chainPos : -1;
+  }
+  /** The chain position queued to play next, if one is. */
+  get songJump(): number | undefined {
+    return this.jump;
   }
   get isPlaying(): boolean {
     return this.playing;
@@ -160,9 +197,13 @@ export class RigSequencer {
 
   play(now: number): void {
     if (this.playing) return;
-    if (this.chain.length) { this.chainPos = 0; this.current = this.chain[0]!; }
-    else if (this.next !== undefined) this.current = this.next;
+    if (this.songMode) {
+      this.chainPos = this.loop ? this.loop.from : Math.min(this.cue, this.chain.length - 1);
+      this.current = this.chain[this.chainPos]!;
+    } else if (this.next !== undefined) this.current = this.next;
     this.next = undefined;
+    this.jump = undefined;
+    if (this.follow) this.editing = this.current;
     this.tempoUsed = this.tempo;
     this.t0 = now + 0.05;
     this.base = 0;
@@ -172,6 +213,8 @@ export class RigSequencer {
     this.runs = Array.from({ length: RIG_TRACKS }, () => freshRun(0));
     this.skip.clear();
     this.playing = true;
+    this.starts = [];
+    this.started(0);
     this.notify();
   }
 
@@ -186,22 +229,136 @@ export class RigSequencer {
       if (run.touched) { this.out.locks(part, {}); this.out.mod(part, 0); }
     });
     this.runs = [];
+    // the song goes back to where play starts it from
+    if (this.songMode) {
+      this.chainPos = this.loop ? this.loop.from : Math.min(this.cue, this.chain.length - 1);
+      this.current = this.chain[this.chainPos]!;
+      if (this.follow) this.editing = this.current;
+    }
+    this.jump = undefined;
+    this.next = undefined;
     this.notify();
   }
 
-  /** Queues a pattern for the end of this one (straight away when stopped); it ends any chain. */
+  /** PATTERN mode: plays `index` from the end of this pattern (straight away when stopped), and edits it. The song stays. */
   queue(index: number): void {
-    this.chain = [];
+    this.mode = 'pattern';
+    this.jump = undefined;
     if (this.playing) this.next = index;
     else this.current = index;
+    this.editing = index;
+    this.follow = true;
     this.notify();
   }
 
+  /**
+   * A pattern picked to work on: it is edited. While the song plays it plays on (the editor no longer following it,
+   * unless the pick is the pattern playing); otherwise the pick is what plays.
+   */
+  select(index: number): void {
+    if (index < 0 || index >= RIG_PATTERNS) return;
+    if (this.songMode) {
+      this.editing = index;
+      this.follow = index === this.current && this.playing;
+      if (!this.playing && !this.chain.includes(index)) { this.current = index; this.mode = 'pattern'; this.follow = true; }
+      this.notify();
+    } else this.queue(index);
+  }
+
+  /** SONG or PATTERN mode. Back to the song, it goes on from the block it was on (at the end of this pattern). */
+  setMode(mode: 'song' | 'pattern'): void {
+    if (mode === this.mode) return;
+    this.mode = mode;
+    this.next = undefined;
+    if (mode === 'song' && this.chain.length) {
+      const pos = Math.max(0, Math.min(this.chain.length - 1, this.chainPos));
+      if (this.playing) this.jump = pos;
+      else { this.chainPos = pos; this.current = this.chain[pos]!; }
+      this.follow = true;
+      if (!this.playing) this.editing = this.current;
+    }
+    this.notify();
+  }
+
+  /** Plays the song from chain position `pos`: at the end of this pattern, or from there when play is pressed. */
+  jumpTo(pos: number): void {
+    if (pos < 0 || pos >= this.chain.length) return;
+    this.mode = 'song';
+    this.next = undefined;
+    this.follow = true;
+    if (this.playing) this.jump = pos;
+    else { this.chainPos = pos; this.cue = pos; this.current = this.chain[pos]!; this.editing = this.current; }
+    this.notify();
+  }
+
+  /** Loops chain positions `from` to `to` (inclusive); none plays the whole song. */
+  setLoop(loop?: { from: number; to: number }): void {
+    if (loop && this.chain.length) {
+      const from = Math.max(0, Math.min(loop.from, loop.to)), to = Math.min(this.chain.length - 1, Math.max(loop.from, loop.to));
+      this.loop = { from, to };
+      if (this.playing && (this.chainPos < from || this.chainPos > to)) this.jump = from;
+      else if (!this.playing) { this.chainPos = from; this.cue = from; this.current = this.chain[from]!; if (this.follow) this.editing = this.current; }
+    } else this.loop = undefined;
+    this.notify();
+  }
+
+  /** Replaces the song (a loaded multi): played from its start. */
   setChain(indices: number[]): void {
     this.chain = indices.filter((i) => i >= 0 && i < RIG_PATTERNS);
-    this.chainPos = this.chain.indexOf(this.current); // -1: the chain starts at its first pattern at the next turn
+    this.loop = undefined;
+    this.jump = undefined;
+    this.chainPos = this.playing ? this.chain.indexOf(this.current) : 0; // -1: from its first pattern at the next turn
+    this.cue = 0;
     if (!this.playing && this.chain.length) this.current = this.chain[0]!;
+    if (this.follow && !this.playing) this.editing = this.current;
     this.notify();
+  }
+
+  /**
+   * The song edited (rigSong.ts): `moved` says where each old position went, so what is playing goes on in its place;
+   * if its block went, the song goes on with the next block left. The loop keeps its ends where they survive.
+   */
+  editSong(edit: { chain: number[]; moved: number[] }): void {
+    const old = this.chain.length;
+    const next = (pos: number) => { for (let p = pos; p < old; p++) if (edit.moved[p]! >= 0) return edit.moved[p]!; return edit.chain.length; };
+    const map = (pos: number, after: boolean) => (edit.moved[pos] ?? -1) >= 0 ? edit.moved[pos]! : after ? next(pos) : -1;
+    this.chain = edit.chain.filter((i) => i >= 0 && i < RIG_PATTERNS);
+    const len = this.chain.length;
+    if (this.chainPos >= 0) {
+      const kept = edit.moved[this.chainPos] ?? -1;
+      this.chainPos = kept >= 0 ? kept : next(this.chainPos) - 1; // gone: the turn goes on to the block after
+    }
+    if (this.jump !== undefined) { const j = map(this.jump, true); this.jump = j < len ? j : undefined; }
+    this.cue = Math.min(Math.max(0, map(this.cue, true)), Math.max(0, len - 1));
+    if (this.loop) {
+      const from = map(this.loop.from, true);
+      let to = map(this.loop.to, false);
+      if (to < 0) { to = -1; for (let p = this.loop.to; p >= this.loop.from; p--) if (edit.moved[p]! >= 0) { to = edit.moved[p]!; break; } }
+      this.loop = from < len && to >= from ? { from, to } : undefined;
+    }
+    if (!len) this.mode = 'song';
+    if (!this.playing && len) {
+      this.chainPos = Math.min(Math.max(0, this.chainPos), len - 1);
+      if (this.songMode) this.current = this.chain[this.chainPos]!;
+    }
+    this.notify();
+  }
+
+  /**
+   * Where the song is at an audio time (what is heard, not what has been sent ahead): the chain position and how far
+   * through its pattern, 0..1 (0 for a pattern running free). Undefined when stopped.
+   */
+  songAt(time: number): { pos: number; pattern: number; fraction: number } | undefined {
+    if (!this.playing) return undefined;
+    let s = this.starts[0];
+    for (const x of this.starts) if (x.time <= time) s = x;
+    if (!s) return undefined;
+    return { pos: s.pos, pattern: this.chain[s.pos] ?? this.current, fraction: s.seconds > 0 ? Math.min(1, Math.max(0, (time - s.time) / s.seconds)) : 0 };
+  }
+  private started(at: number): void {
+    const pos = this.songMode ? this.chainPos : -1;
+    this.starts.push({ time: this.timeAt(at), pos, seconds: this.playingPattern.length * SIXTEENTH * this.secondsPerTick });
+    if (this.starts.length > 8) this.starts.shift();
   }
 
   /** The step of a track sounding at an audio time, or -1 (for the playhead). */
@@ -218,7 +375,7 @@ export class RigSequencer {
   stepNear(track: number, time: number): { step: number; tick: number } | undefined {
     const run = this.runs[track];
     if (!this.playing || !run) return undefined;
-    const t = this.pattern.tracks[track]!;
+    const t = this.playingPattern.tracks[track]!;
     const tick = this.tickAt(time);
     const k = Math.max(0, Math.round((tick - this.trackStart(track)) / t.clock));
     const step = t.direction === 'random' ? k % t.length : stepIndex(t.direction, t.length, k, this.random);
@@ -232,7 +389,7 @@ export class RigSequencer {
 
   private trackStart(track: number): number {
     const run = this.runs[track]!;
-    return run.next - run.k * this.pattern.tracks[track]!.clock;
+    return run.next - run.k * this.playingPattern.tracks[track]!.clock;
   }
 
   /** Sends everything due before `now + LOOKAHEAD`. */
@@ -258,34 +415,40 @@ export class RigSequencer {
 
   /** The next tick a pattern can turn over at. */
   private boundary(): number {
-    const len = this.pattern.length * SIXTEENTH;
+    const len = this.playingPattern.length * SIXTEENTH;
     if (len > 0) return this.patternStart + len * (Math.floor((this.scheduled - this.patternStart) / len) + 1);
-    const wants = this.next !== undefined || this.chain.length > 1;
+    const wants = this.next !== undefined || this.jump !== undefined || (this.songMode && this.chain.length > 1);
     return wants ? (Math.floor(this.scheduled / BAR) + 1) * BAR : Infinity;
   }
 
   private turn(at: number): void {
-    const len = this.pattern.length * SIXTEENTH;
+    const len = this.playingPattern.length * SIXTEENTH;
     let changed = false;
-    if (this.chain.length) {
-      this.chainPos = (this.chainPos + 1) % this.chain.length;
+    if (this.songMode) {
+      if (this.jump !== undefined) this.chainPos = this.jump;
+      else if (this.loop && (this.chainPos >= this.loop.to || this.chainPos < this.loop.from - 1)) this.chainPos = this.loop.from;
+      else this.chainPos = (this.chainPos + 1) % this.chain.length;
+      this.jump = undefined;
       changed = this.chain[this.chainPos] !== this.current;
       this.current = this.chain[this.chainPos]!;
+      if (this.follow) this.editing = this.current;
     } else if (this.next !== undefined) {
       changed = this.next !== this.current;
       this.current = this.next;
       this.next = undefined;
+      if (this.follow) this.editing = this.current;
     }
-    if (!changed && len === 0) return;
+    if (!changed && len === 0) { if (this.songMode) this.started(at); return; }
     this.patternStart = at;
     for (const run of this.runs) { run.next = at; run.k = 0; }
+    this.started(at);
     this.skip.clear();
     this.notify();
   }
 
   /** Sends the steps before `until` (and half a step past, as micro-timing can pull a step that early), not past `boundary`. */
   private runTracks(until: number, boundary: number): void {
-    const p = this.pattern;
+    const p = this.playingPattern;
     const solo = p.tracks.some((t) => t.solo);
     p.tracks.forEach((t, part) => {
       const run = this.runs[part]!;
