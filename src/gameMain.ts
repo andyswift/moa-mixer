@@ -11,6 +11,7 @@ import { Patch } from './domain/patch/patch';
 import { WebMidi } from './midi/webMidi';
 import { drillScreen } from './ui/game/drillScreen';
 import type { Game, Screen, ScreenName } from './ui/game/game';
+import { gigScreen, rehearseScreen, tourScreen } from './ui/game/gigScreens';
 import { grooveScreen } from './ui/game/grooveScreen';
 import { lessonScreen } from './ui/game/lessonScreen';
 import { bandScreen, gateScreen, knobsScreen, treeScreen } from './ui/game/screens';
@@ -71,6 +72,9 @@ const game: Game = {
         : screen === 'knobs' ? knobsScreen(game)
           : screen === 'band' ? bandScreen(game)
             : screen === 'tree' ? treeScreen(game)
+              : screen === 'tour' ? tourScreen(game)
+              : 'rehearse' in screen ? rehearseScreen(game, screen.rehearse)
+              : 'gig' in screen ? gigScreen(game, screen.gig)
               : 'drill' in screen ? drillScreen(game, screen.drill)
                 : 'groove' in screen ? grooveScreen(game, screen.groove)
                   : lessonScreen(game, screen.lesson);

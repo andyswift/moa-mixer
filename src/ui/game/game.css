@@ -212,3 +212,60 @@ button, input { font: inherit; color: inherit; }
 .vr-scatter-centre { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--vr-dim); }
 .vr-scatter-dot { position: absolute; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--vr-paper); }
 .vr-scatter-dot.good { background: var(--vr-amber); }
+
+/* Tour */
+.vr-road { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; align-items: end; }
+.vr-venue { border: 1px dashed var(--vr-line); padding: 14px; display: flex; flex-direction: column; gap: 6px; min-height: 120px; color: var(--vr-muted); }
+.vr-venue .name { font-family: var(--vr-display); font-size: 24px; line-height: 1.05; text-transform: uppercase; color: var(--vr-muted); }
+.vr-venue .need { font-size: 13px; }
+.vr-venue.here { border: 2px solid var(--vr-amber); background: var(--vr-panel-hot); color: var(--vr-paper); min-height: 150px; }
+.vr-venue.here .name { color: var(--vr-paper); }
+.vr-venue.here .vr-mono { color: var(--vr-amber); }
+.vr-venue:nth-child(2) { min-height: 140px; } .vr-venue:nth-child(3) { min-height: 160px; } .vr-venue:nth-child(4) { min-height: 180px; } .vr-venue:nth-child(5) { min-height: 200px; }
+.vr-gigpanel { display: flex; gap: 32px; flex-wrap: wrap; align-items: flex-start; }
+.vr-setlist { display: flex; flex-direction: column; gap: 8px; }
+.vr-song { display: grid; grid-template-columns: 28px minmax(0, 1fr) 150px 130px; gap: 14px; align-items: center; background: var(--vr-panel); border: 1px solid var(--vr-line); padding: 10px 14px; }
+.vr-song .n { font-family: var(--vr-display); font-size: 24px; }
+.vr-song .t { display: flex; flex-direction: column; gap: 2px; }
+.vr-song .t b { font-size: 16px; }
+.vr-song .t span { font-family: var(--vr-mono); font-size: 12px; color: var(--vr-muted); }
+.vr-song .state { font-family: var(--vr-mono); font-size: 12px; color: var(--vr-muted); }
+.vr-song .state.ready { color: var(--vr-amber); }
+.vr-song .vr-btn { min-height: 44px; }
+
+/* The scrolling chart */
+.vr-chart { position: relative; height: 112px; overflow: hidden; background: var(--vr-panel); border: 1px solid var(--vr-line); }
+.vr-chart-track { position: absolute; left: 0; top: 0; bottom: 0; will-change: transform; }
+.vr-chart-section { position: absolute; top: 0; height: 24px; border-left: 2px solid var(--vr-dim); padding-left: 6px; font-family: var(--vr-mono); font-size: 11px; color: var(--vr-muted); line-height: 24px; white-space: nowrap; }
+.vr-chart-bar { position: absolute; top: 24px; bottom: 0; width: 1px; background: #2e2823; }
+.vr-chart-cue { position: absolute; top: 40px; height: 52px; box-sizing: border-box; background: #3a332d; border: 1px solid #4a423a; display: flex; align-items: center; padding-left: 8px; font-family: var(--vr-display); font-size: 22px; color: var(--vr-paper); overflow: hidden; white-space: nowrap; } /* no uppercase: Am must not read AM */
+.vr-chart-cue.now { border: 2px solid var(--vr-amber); }
+.vr-chart-cue.good { background: var(--vr-amber); border-color: var(--vr-amber); color: var(--vr-ground); }
+.vr-chart-cue.close { background: var(--vr-panel-hot); border: 2px solid var(--vr-amber); color: var(--vr-amber); }
+.vr-chart-cue.off, .vr-chart-cue.wrong, .vr-chart-cue.missed { background: repeating-linear-gradient(45deg, #2a2521 0 6px, #3a332d 6px 8px); color: var(--vr-dim); border-color: var(--vr-line); }
+.vr-chart-playhead { position: absolute; top: 24px; bottom: 0; width: 3px; background: var(--vr-amber); }
+
+/* Gig */
+.vr-gig-top { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.vr-live { background: var(--vr-live); color: var(--vr-ground); font-family: var(--vr-mono); font-size: 13px; font-weight: 600; padding: 6px 12px; }
+.vr-gig-title { font-family: var(--vr-display); font-size: 34px; text-transform: uppercase; line-height: 1.05; }
+.vr-crowd { display: flex; gap: 2px; height: 16px; background: #2a2521; }
+.vr-crowd span { flex: 1 1 0; }
+.vr-crowd span.on { background: var(--vr-amber); }
+.vr-streak { font-family: var(--vr-mono); font-size: 30px; font-weight: 600; color: var(--vr-amber); min-width: 70px; text-align: right; }
+
+/* Review */
+.vr-review { display: flex; gap: 40px; flex-wrap: wrap; align-items: flex-start; }
+.vr-zine { flex: 0 1 460px; background: var(--vr-paper); color: var(--vr-ground); padding: 28px 32px; display: flex; flex-direction: column; gap: 14px; transform: rotate(-1deg); box-shadow: 10px 12px 0 #000; }
+.vr-zine-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 3px solid var(--vr-ground); padding-bottom: 8px; font-family: var(--vr-display); font-size: 28px; text-transform: uppercase; }
+.vr-zine-head .vr-mono { color: var(--vr-ground); }
+.vr-zine-stars { font-family: var(--vr-display); font-size: 80px; line-height: 0.9; }
+.vr-zine-band { font-family: var(--vr-mono); font-size: 13px; }
+.vr-zine-quote { font-family: var(--vr-display); font-size: 34px; line-height: 1.05; text-transform: uppercase; }
+.vr-zine-songs { display: flex; flex-direction: column; gap: 4px; border-top: 1px solid #b8ad99; padding-top: 10px; font-size: 15px; }
+.vr-zine-songs div { display: flex; justify-content: space-between; }
+
+@media (max-width: 960px) {
+  .vr-road { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vr-song { grid-template-columns: 24px minmax(0, 1fr); }
+}

@@ -7,10 +7,8 @@ import { bassBase } from '../../domain/game/sounds';
 import { button, h } from './dom';
 import type { Game, Screen } from './game';
 import { renderFretboard } from './fretboardView';
+import { renderKeys } from './keysView';
 
-const KEYS_FROM = 36; // C2
-const KEYS_TO = 84; // C6
-const BLACK = new Set([1, 3, 6, 8, 10]);
 const CHORD_MS = 2000;
 const NOTE_MS = 900;
 const SHOW_DELAY_MS = 450;
@@ -18,33 +16,6 @@ const SHOW_DELAY_MS = 450;
 type Chord = Extract<Prompt, { kind: 'chord' }>;
 /** A pitch class's name without an octave: 0 is C. */
 const pcName = (pc: number) => noteName(60 + pc).slice(0, -1);
-
-/** A keyboard picture: held keys light up, guide keys (a chord to copy) are marked; the Cs carry their names. */
-function renderKeys(): { el: HTMLElement; set(held: ReadonlySet<number>): void; guide(keys: readonly number[]): void } {
-  const keys = new Map<number, HTMLElement>();
-  const whites = h('div.vr-keys-white');
-  const blacks = h('div.vr-keys-black');
-  let whiteCount = 0;
-  for (let n = KEYS_FROM; n <= KEYS_TO; n++) if (!BLACK.has(n % 12)) whiteCount++;
-  let w = 0;
-  for (let n = KEYS_FROM; n <= KEYS_TO; n++) {
-    if (BLACK.has(n % 12)) {
-      const k = h('div.vr-key.black', { style: `left: calc(${(w / whiteCount) * 100}% - 0.9%)` });
-      keys.set(n, k);
-      blacks.append(k);
-    } else {
-      const k = h('div.vr-key.white', null, n % 12 === 0 ? `C${n / 12 - 1}` : '');
-      keys.set(n, k);
-      whites.append(k);
-      w++;
-    }
-  }
-  return {
-    el: h('div.vr-keys', { 'aria-hidden': 'true' }, whites, blacks),
-    set(held) { for (const [n, k] of keys) k.classList.toggle('down', held.has(n)); },
-    guide(g) { for (const [n, k] of keys) k.classList.toggle('guide', g.includes(n)); },
-  };
-}
 
 const PART_LABEL = { learn: 'Learn it: copy what is shown', test: 'From memory', ear: 'By ear: major or minor? Play it back' };
 
@@ -151,9 +122,10 @@ export function drillScreen(game: Game, lessonId: string): Screen {
     chips.replaceChildren(...lesson.prompts.map((p, i) => {
       const first = session.firstTry(i);
       const learn = part(p) === 'learn';
-      const state = i === session.index ? 'now' : i >= session.index ? (learn ? 'learn' : '') : learn ? 'learned' : first ? 'right' : 'missed';
+      const answeredNow = i === session.index && session.answered;
+      const state = answeredNow ? (learn ? 'learned' : first ? 'right' : 'missed') : i === session.index ? 'now' : i > session.index ? (learn ? 'learn' : '') : learn ? 'learned' : first ? 'right' : 'missed';
       return h(`span.vr-chip${state ? '.' + state : ''}` as 'span', { title: i < session.index ? answerLabel(p) : undefined },
-        i < session.index || learn ? shortLabel(p) : String(i + 1));
+        i < session.index || learn || answeredNow ? shortLabel(p) : String(i + 1));
     }));
     renderChart();
   }
@@ -198,15 +170,10 @@ export function drillScreen(game: Game, lessonId: string): Screen {
         feedback.textContent = 'Root. Now the fifth.';
         feedback.className = 'vr-feedback right';
       } else if (j === 'right' && asked) {
-        const next = session.prompt;
-        const newPart = hasParts && next && part(next) !== part(asked);
-        feedback.textContent = newPart && part(next) === 'test' ? 'You have learned them all. Now play them from memory: nothing is shown any more.'
-          : newPart ? 'Now by ear: the game plays a chord and names its root. Is it major or minor?'
-            : `Right: ${answerLabel(asked)}`;
+        // shown as right now; the next prompt comes when every key is up
+        feedback.textContent = `Right: ${answerLabel(asked)}`;
         feedback.className = 'vr-feedback right';
         renderChips();
-        if (session.done) finish();
-        else renderPrompt();
       } else if (j === 'wrong' && asked) {
         const played = keysLabel(session.lastPlayed);
         feedback.textContent = part(asked) === 'learn'
@@ -219,7 +186,16 @@ export function drillScreen(game: Game, lessonId: string): Screen {
     } else if (e.type === 'noteOff') {
       held.delete(e.note);
       show();
-      session.keyUp(e.note);
+      const asked = session.prompt;
+      if (!session.keyUp(e.note) || !asked) return;
+      const next = session.prompt;
+      if (hasParts && next && part(next) !== part(asked)) {
+        feedback.textContent = part(next) === 'test' ? 'You have learned them all. Now play them from memory: nothing is shown any more.'
+          : 'Now by ear: the game plays a chord and names its root. Is it major or minor?';
+      }
+      renderChips();
+      if (session.done) finish();
+      else renderPrompt();
     }
   });
 

@@ -22,18 +22,18 @@ const answer = (l: PlayLesson, i: number): number[] => {
 describe('T1 · note names', () => {
   it('accepts a note in any octave unless the prompt names one', () => {
     const s = new DrillSession(t1);
-    expect(s.keyDown(36)).toBe('right'); // C2 for "C"
-    expect(s.keyDown(76)).toBe('right'); // E5 for "E"
+    expect(play(s, [36])).toEqual(['right']); // C2 for "C"
+    expect(play(s, [76])).toEqual(['right']); // E5 for "E"
     for (let i = 2; i < 7; i++) play(s, answer(t1, i));
     expect(promptLabel(s.prompt!)).toBe('C4');
-    expect(s.keyDown(48)).toBe('wrong'); // C3 is not middle C
-    expect(s.keyDown(60)).toBe('right');
+    expect(play(s, [48])).toEqual(['wrong']); // C3 is not middle C
+    expect(play(s, [60])).toEqual(['right']);
   });
 
   it('scores right-first-time answers, but needs every prompt answered', () => {
     const s = new DrillSession(t1);
-    s.keyDown(61); // C# for "C": wrong
-    s.keyDown(62); // still wrong: one miss counts once
+    play(s, [61]); // C# for "C": wrong
+    play(s, [62]); // still wrong: one miss counts once
     for (let i = 0; i < t1.prompts.length; i++) play(s, answer(t1, i));
     expect(s.done).toBe(true);
     expect(s.firstTry(0)).toBe(false);
@@ -45,7 +45,7 @@ describe('T1 · note names', () => {
   it('fails below the pass mark', () => {
     const s = new DrillSession(t1);
     for (let i = 0; i < t1.prompts.length; i++) {
-      if (i < 4) s.keyDown(1); // a wrong key first on four prompts
+      if (i < 4) play(s, [1]); // a wrong key first on four prompts
       play(s, answer(t1, i));
     }
     expect(s.score).toBeLessThan(DRILL_PASS_MARK);
@@ -69,7 +69,36 @@ describe('H1 · triads', () => {
     expect(s.keyDown(55)).toBeUndefined(); // G3
     expect(s.keyDown(64)).toBeUndefined(); // E4
     expect(s.keyDown(72)).toBe('right'); // C5: G E C is still C major
+    for (const k of [55, 64, 72]) s.keyUp(k);
     expect(s.index).toBe(1);
+  });
+
+  it('stays on a right chord while it is held, and moves on when the last key comes up', () => {
+    const s = new DrillSession(h1); // C major, then C minor
+    s.keyDown(60); s.keyDown(64);
+    expect(s.keyDown(67)).toBe('right');
+    expect(s.answered).toBe(true);
+    expect(s.index).toBe(0); // still held: the prompt has not changed
+    expect(promptLabel(s.prompt!)).toBe('C major');
+    expect(s.keyUp(60)).toBe(false);
+    expect(s.keyUp(64)).toBe(false);
+    expect(s.index).toBe(0); // one key still down
+    expect(s.keyUp(67)).toBe(true); // the last key up: next prompt
+    expect(s.index).toBe(1);
+    expect(promptLabel(s.prompt!)).toBe('C minor');
+    expect(s.answered).toBe(false);
+  });
+
+  it('stays on a right single note while it is held, too', () => {
+    const s = new DrillSession(t1);
+    expect(s.keyDown(60)).toBe('right');
+    expect(s.index).toBe(0);
+    expect(s.keyDown(64)).toBeUndefined(); // keys pressed while the answer is held are not answers
+    s.keyUp(60);
+    expect(s.index).toBe(0);
+    expect(s.keyUp(64)).toBe(true);
+    expect(s.index).toBe(1);
+    expect(s.firstTry(0)).toBe(true);
   });
 
   it('waits for every key to be up before the next chord, and judges once per attempt', () => {
@@ -108,8 +137,10 @@ describe('H1 · triads', () => {
   it('does not count a chord left held over into the next prompt', () => {
     const s = new DrillSession(h1);
     s.keyDown(60); s.keyDown(64); s.keyDown(67); // right, then still held
-    expect(s.keyDown(69)).toBeUndefined(); // a key added to the held chord is not an answer to A minor
+    expect(s.keyDown(69)).toBeUndefined(); // a key added to the held chord is not an answer to the next one
+    for (const k of [60, 64, 67, 69]) s.keyUp(k);
     expect(s.index).toBe(1);
+    expect(s.firstTry(1)).toBeUndefined();
   });
 
   it('rejects three keys that are not the triad', () => {

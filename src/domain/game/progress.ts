@@ -11,9 +11,16 @@ export interface GameProgress {
   passed: Record<string, number>;
   /** XP per role: each band member levels up on their own. */
   xp: Record<Role, number>;
+  fans: number;
+  cash: number;
+  gigs: number;
+  /** Best full-tempo rehearsal score per member and song, keyed `role:songId`. */
+  rehearsed: Record<string, number>;
+  /** Best gig score per venue. */
+  gigBest: Record<string, number>;
 }
 
-export const NEW_GAME: GameProgress = { band: '', knobs: [], passed: {}, xp: { synth: 0, bass: 0 } };
+export const NEW_GAME: GameProgress = { band: '', knobs: [], passed: {}, xp: { synth: 0, bass: 0 }, fans: 0, cash: 0, gigs: 0, rehearsed: {}, gigBest: {} };
 
 const KEY = 'virtualRockstar.progress';
 const XP_PER_LEVEL = 150;
@@ -48,6 +55,8 @@ export function loadProgress(storage: Pick<Storage, 'getItem'> | undefined = saf
     const raw = storage?.getItem(KEY);
     if (!raw) return structuredCopy(NEW_GAME);
     const p = JSON.parse(raw) as Partial<Omit<GameProgress, 'xp'>> & { xp?: unknown };
+    const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+    const scores = (v: unknown): Record<string, number> => (v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([, x]) => typeof x === 'number')) : {});
     // The first version kept one number: the synth player's XP.
     const xp = typeof p.xp === 'number' ? { synth: p.xp } : p.xp && typeof p.xp === 'object' ? (p.xp as Partial<Record<Role, unknown>>) : {};
     return {
@@ -55,6 +64,11 @@ export function loadProgress(storage: Pick<Storage, 'getItem'> | undefined = saf
       knobs: Array.isArray(p.knobs) ? p.knobs.filter((n) => Number.isInteger(n) && n >= 0 && n < 128) : [],
       passed: p.passed && typeof p.passed === 'object' ? p.passed : {},
       xp: Object.fromEntries(ROLES.map((r) => [r, typeof xp[r] === 'number' ? xp[r] : 0])) as Record<Role, number>,
+      fans: num(p.fans),
+      cash: num(p.cash),
+      gigs: num(p.gigs),
+      rehearsed: scores(p.rehearsed),
+      gigBest: scores(p.gigBest),
     };
   } catch {
     return structuredCopy(NEW_GAME);
@@ -70,7 +84,7 @@ export function saveProgress(p: GameProgress, storage: Pick<Storage, 'setItem'> 
 }
 
 function structuredCopy(p: GameProgress): GameProgress {
-  return { ...p, knobs: [...p.knobs], passed: { ...p.passed }, xp: { ...p.xp } };
+  return { ...p, knobs: [...p.knobs], passed: { ...p.passed }, xp: { ...p.xp }, rehearsed: { ...p.rehearsed }, gigBest: { ...p.gigBest } };
 }
 
 function safeStorage(): Storage | undefined {

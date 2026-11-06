@@ -60,6 +60,9 @@ describe('B-H1 · roots and fifths', () => {
     expect(s.keyDown(48)).toBeUndefined(); // C3: the root, the fifth still to come
     expect(s.sequenceStep).toBe(1);
     expect(s.keyDown(31)).toBe('right'); // G1
+    expect(s.index).toBe(0); // the root is still held: no change yet
+    s.keyUp(48);
+    expect(s.keyUp(31)).toBe(true);
     expect(s.index).toBe(1);
   });
 
@@ -78,7 +81,8 @@ describe('B-H1 · roots and fifths', () => {
     for (const p of bh1.prompts) expect(taught).toContain(promptLabel(p));
     const s = new DrillSession(bh1);
     s.keyDown(1); // a wrong note while learning
-    for (const p of bh1.prompts) if (p.kind === 'sequence') for (const n of p.notes) s.keyDown(36 + n);
+    s.keyUp(1);
+    for (const p of bh1.prompts) if (p.kind === 'sequence') for (const n of p.notes) { s.keyDown(36 + n); s.keyUp(36 + n); }
     expect(s.done).toBe(true);
     expect(s.score).toBe(1);
   });

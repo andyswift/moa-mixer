@@ -148,7 +148,10 @@ export function lessonScreen(game: Game, lessonId: string): Screen {
       const k = knobIndex(game.progress.knobs, e.controller);
       if (k >= 0) session.turnKnob(k, e.value);
     } else if (e.type === 'noteOn' && phase === 'riff') {
-      if (session.playRiffNote(e.note)) renderRiff();
+      session.playRiffNote(e.note);
+    } else if (e.type === 'noteOff' && phase === 'riff') {
+      // the next note lights when every key is up
+      if (session.releaseRiffNote(e.note)) renderRiff();
       if (session.riffDone) pass();
     }
   });

@@ -211,7 +211,8 @@ export function part(p: Prompt): 'learn' | 'test' | 'ear' {
 /**
  * One go at a playing lesson. Feed it the player's keys; it says when an answer is right or wrong and moves on.
  * A note prompt is judged on each key. A chord prompt is judged once three or more keys are down, once per attempt
- * (letting every key go starts a new attempt), and the next chord waits until every key is up. Each prompt counts as
+ * (letting every key go starts a new attempt). A right answer moves on only when every key is up, so the next prompt
+ * never shows while the last one is still held. Each prompt counts as
  * right only if the first attempt was right; the player still has to get it right to move on. Teaching prompts
  * have to be played too, but are left out of the score.
  */
@@ -221,7 +222,8 @@ export class DrillSession {
   private missed = new Set<number>();
   private judgedThisAttempt = false;
   private step = 0;
-  private waitForRelease = false;
+  /** The current prompt was answered right; the next one waits until every key is up. */
+  private rightAndHeld = false;
   /** The key or chord last played, for feedback. */
   lastPlayed: number[] = [];
 
@@ -240,6 +242,11 @@ export class DrillSession {
     return this.lesson.prompts[this.at];
   }
 
+  /** The current prompt is answered right and still held: it moves on when the keys come up. */
+  get answered(): boolean {
+    return this.rightAndHeld;
+  }
+
   get done(): boolean {
     return this.at >= this.lesson.prompts.length;
   }
@@ -247,12 +254,12 @@ export class DrillSession {
   /** Was prompt i right first time? (undefined while it has not been answered.) */
   firstTry(i: number): boolean | undefined {
     if (this.missed.has(i)) return false;
-    return i < this.at ? true : undefined;
+    return i < this.at || (i === this.at && this.rightAndHeld) ? true : undefined;
   }
 
   /** Share of the scored prompts right first time, 0..1. */
   get score(): number {
-    const scored = this.lesson.prompts.map((p, i) => i).filter((i) => part(this.lesson.prompts[i]!) !== 'learn');
+    const scored = this.lesson.prompts.map((_, i) => i).filter((i) => part(this.lesson.prompts[i]!) !== 'learn');
     const n = scored.length;
     return n ? (n - scored.filter((i) => this.missed.has(i)).length) / n : 1;
   }
@@ -261,10 +268,11 @@ export class DrillSession {
     return this.done && this.score >= DRILL_PASS_MARK;
   }
 
+  /** A key goes down: judged against the current prompt (keys pressed while a right answer is still held are ignored). */
   keyDown(key: number): Judgement {
     this.held.add(key);
     const p = this.prompt;
-    if (!p) return undefined;
+    if (!p || this.rightAndHeld) return undefined;
     if (p.kind === 'note') {
       this.lastPlayed = [key];
       const right = key % 12 === p.pc && (p.octave === undefined || Math.floor(key / 12) - 1 === p.octave);
@@ -280,27 +288,28 @@ export class DrillSession {
       this.step = 0;
       return this.judge(true);
     }
-    if (this.waitForRelease || this.judgedThisAttempt || this.held.size < 3) return undefined;
+    if (this.judgedThisAttempt || this.held.size < 3) return undefined;
     this.lastPlayed = [...this.held].sort((a, b) => a - b);
     const played = new Set([...this.held].map((n) => n % 12));
     const wanted = triad(p);
     const right = played.size === 3 && wanted.every((n) => played.has(n));
     this.judgedThisAttempt = true;
-    const j = this.judge(right);
-    if (right) this.waitForRelease = true;
-    return j;
+    return this.judge(right);
   }
 
-  keyUp(key: number): void {
+  /** A key comes up. Returns true when that moved on to the next prompt: the last key of a right answer let go. */
+  keyUp(key: number): boolean {
     this.held.delete(key);
-    if (this.held.size === 0) {
-      this.judgedThisAttempt = false;
-      this.waitForRelease = false;
-    }
+    if (this.held.size > 0) return false;
+    this.judgedThisAttempt = false;
+    if (!this.rightAndHeld) return false;
+    this.rightAndHeld = false;
+    this.at++;
+    return true;
   }
 
   private judge(right: boolean): Judgement {
-    if (right) this.at++;
+    if (right) this.rightAndHeld = true;
     else this.missed.add(this.at);
     return right ? 'right' : 'wrong';
   }

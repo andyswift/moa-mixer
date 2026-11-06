@@ -7,7 +7,7 @@ import type { GameProgress, Role } from '../../domain/game/progress';
 import type { MidiEvent } from '../../domain/midi/events';
 import type { WebMidi } from '../../midi/webMidi';
 
-export type ScreenName = 'gate' | 'knobs' | 'band' | 'tree' | { lesson: string } | { drill: string } | { groove: string };
+export type ScreenName = 'gate' | 'knobs' | 'band' | 'tree' | 'tour' | { lesson: string } | { drill: string } | { groove: string } | { rehearse: string } | { gig: string };
 
 /** Which instrument the player's keys play. */
 export type Instrument = 'mono' | 'poly' | 'bass';

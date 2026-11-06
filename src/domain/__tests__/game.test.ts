@@ -143,8 +143,24 @@ describe('a lesson session', () => {
   it('follows the riff, ignoring wrong notes', () => {
     const session = new LessonSession(new Synthesizer(), s3);
     expect(session.playRiffNote(60)).toBe(false);
-    for (const n of s3.riff) expect(session.playRiffNote(n)).toBe(true);
+    session.releaseRiffNote(60);
+    for (const n of s3.riff) {
+      expect(session.playRiffNote(n)).toBe(true);
+      session.releaseRiffNote(n);
+    }
     expect(session.riffDone).toBe(true);
+  });
+
+  it('moves the riff on only when the right key comes up', () => {
+    const session = new LessonSession(new Synthesizer(), s3);
+    const first = s3.riff[0]!;
+    const other = first + 7;
+    expect(session.playRiffNote(first)).toBe(true);
+    expect(session.riffProgress).toBe(0); // still held
+    expect(session.playRiffNote(other)).toBe(false); // nothing counts until the right key is let go
+    expect(session.releaseRiffNote(first)).toBe(false); // another key is still down
+    expect(session.releaseRiffNote(other)).toBe(true);
+    expect(session.riffProgress).toBe(1);
   });
 });
 
@@ -175,7 +191,7 @@ describe('progress', () => {
   it('survives a round trip and junk in storage', () => {
     const store = new Map<string, string>();
     const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
-    const saved = { band: 'The Filters', knobs: [74, 71], passed: { S1: 0.9 }, xp: { synth: 90, bass: 30 } };
+    const saved = { band: 'The Filters', knobs: [74, 71], passed: { S1: 0.9 }, xp: { synth: 90, bass: 30 }, fans: 38, cash: 51, gigs: 1, rehearsed: { 'bass:night-bus': 0.8 }, gigBest: { cellar: 0.7 } };
     saveProgress(saved, storage);
     expect(loadProgress(storage)).toEqual(saved);
     store.set('virtualRockstar.progress', '{not json');
@@ -184,7 +200,7 @@ describe('progress', () => {
 
   it('reads the first version, whose XP was the synth player\'s alone', () => {
     const storage = { getItem: () => JSON.stringify({ band: 'Old', knobs: [1, 74], passed: { S1: 1 }, xp: 310 }) };
-    expect(loadProgress(storage)).toEqual({ band: 'Old', knobs: [1, 74], passed: { S1: 1 }, xp: { synth: 310, bass: 0 } });
+    expect(loadProgress(storage)).toEqual({ band: 'Old', knobs: [1, 74], passed: { S1: 1 }, xp: { synth: 310, bass: 0 }, fans: 0, cash: 0, gigs: 0, rehearsed: {}, gigBest: {} });
   });
 
   it('starts every new game fresh (no shared state between games)', () => {

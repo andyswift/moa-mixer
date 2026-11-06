@@ -7,10 +7,10 @@ import { button, h } from './dom';
 import type { Game, Screen } from './game';
 
 /** Where to go after the MIDI check: whichever setup step is missing, else the skill tree. */
-export function nextAfterGate(game: Game): 'knobs' | 'band' | 'tree' {
+export function nextAfterGate(game: Game): 'knobs' | 'band' | 'tour' {
   if (game.progress.knobs.length < KNOB_COUNT) return 'knobs';
   if (!game.progress.band.trim()) return 'band';
-  return 'tree';
+  return 'tour';
 }
 
 /** "Plug in to play": audio and MIDI start from one click, then a note from the player's device proves it works. */
@@ -82,7 +82,7 @@ export function knobsScreen(game: Game): Screen {
   const done = button('Continue', () => {
     game.progress = { ...game.progress, knobs };
     game.save();
-    game.go(game.progress.band.trim() ? 'tree' : 'band');
+    game.go(game.progress.band.trim() ? 'tour' : 'band');
   }, 'primary');
   const turns = new Map<number, number>();
 
@@ -127,7 +127,7 @@ export function bandScreen(game: Game): Screen {
   const go = button('Form the band', () => {
     game.progress = { ...game.progress, band: input.value.trim() };
     game.save();
-    game.go('tree');
+    game.go('tour');
   }, 'primary');
   const sync = () => { go.disabled = !input.value.trim(); };
   input.addEventListener('input', sync);
@@ -211,6 +211,7 @@ export function treeScreen(game: Game): Screen {
         h('div', { style: 'display: flex; flex-direction: column; gap: 6px' },
           h('span.vr-kicker', null, `${p.band || 'Your band'} · ${ROLE_NAMES[role].toLowerCase()} player`),
           h('h1.vr-title', null, 'Skills'),
+          button('← Tour', () => game.go('tour')),
         ),
         h('div.vr-stats', null,
           h('div.vr-stat', null, h('span.k', null, 'LEVEL'), h('span.v', null, String(level(xp))), bar),

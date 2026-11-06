@@ -18,6 +18,8 @@ export class LessonSession {
   /** How many times the player has checked; from REVEAL_AFTER on, the panel shows where the target sits. */
   checks = 0;
   private riffAt = 0;
+  private riffRight = false;
+  private riffHeld = new Set<number>();
   private yours?: PresetValues;
 
   /** `base` is the whole panel before the lesson's start goes on top: the SOLO-1's INIT unless the instrument has its own. */
@@ -86,9 +88,22 @@ export class LessonSession {
     return this.riffAt >= this.lesson.riff.length;
   }
 
-  /** A key played during the riff: the right one moves it on; a wrong one is ignored. Returns whether it was right. */
+  /**
+   * A key played during the riff: the right one is marked, and the riff moves on when every key is up again (so the
+   * next note never shows while the last is held); a wrong one is ignored. Returns whether it was right.
+   */
   playRiffNote(note: number): boolean {
-    if (this.riffDone || this.lesson.riff[this.riffAt] !== note) return false;
+    this.riffHeld.add(note);
+    if (this.riffDone || this.riffRight || this.lesson.riff[this.riffAt] !== note) return false;
+    this.riffRight = true;
+    return true;
+  }
+
+  /** A key coming up during the riff. Returns true when that moved the riff on. */
+  releaseRiffNote(note: number): boolean {
+    this.riffHeld.delete(note);
+    if (this.riffHeld.size || !this.riffRight) return false;
+    this.riffRight = false;
     this.riffAt++;
     return true;
   }
