@@ -1,0 +1,167 @@
+/* Virtual Rockstar: gig-poster noir. One amber stage light; the SOLO-1 is the only grey thing on the page. */
+:root {
+  --vr-ground: #14110f;
+  --vr-panel: #1f1b18;
+  --vr-panel-hot: #2a2116;
+  --vr-line: #3a332d;
+  --vr-paper: #f2ebdd;
+  --vr-muted: #a89f91;
+  --vr-dim: #8f867a;
+  --vr-amber: #ffb000;
+  --vr-live: #ff5a3c;
+  --vr-face: #bdb9b0;
+  --vr-ink: #1a1714;
+  --vr-face-hot: #9a4d00;
+  --vr-display: 'Anton', 'Impact', sans-serif;
+  --vr-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --vr-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--vr-ground); color: var(--vr-paper); font-family: var(--vr-sans); }
+body { min-height: 100vh; }
+button, input { font: inherit; color: inherit; }
+
+.vr-screen { max-width: 1440px; margin: 0 auto; padding: 48px 64px; display: flex; flex-direction: column; gap: 28px; min-height: 100vh; }
+.vr-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+.vr-kicker { font-family: var(--vr-mono); font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--vr-muted); }
+.vr-kicker.hot { color: var(--vr-amber); }
+.vr-title { margin: 0; font-family: var(--vr-display); font-weight: 400; text-transform: uppercase; line-height: 0.95; font-size: 64px; }
+.vr-title.huge { font-size: 112px; }
+.vr-lede { margin: 0; font-size: 19px; line-height: 1.55; color: #c9bfaf; max-width: 640px; }
+.vr-mono { font-family: var(--vr-mono); font-size: 13px; color: var(--vr-muted); }
+.vr-label { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--vr-muted); }
+
+.vr-btn { min-height: 52px; padding: 0 22px; border: 1px solid var(--vr-paper); background: transparent; color: var(--vr-paper); font-family: var(--vr-mono); font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.vr-btn:hover:not(:disabled) { border-color: var(--vr-amber); color: var(--vr-amber); }
+.vr-btn.primary { background: var(--vr-amber); border-color: var(--vr-amber); color: var(--vr-ground); font-family: var(--vr-display); font-size: 22px; text-transform: uppercase; letter-spacing: 0.04em; }
+.vr-btn.primary:hover:not(:disabled) { background: #ffc233; color: var(--vr-ground); }
+.vr-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.vr-btn:focus-visible, .vr-input:focus-visible, .vr-node:focus-visible { outline: 3px solid var(--vr-amber); outline-offset: 2px; }
+
+.vr-card { background: var(--vr-panel); border: 1px solid var(--vr-line); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.vr-card.hot { background: var(--vr-panel-hot); border: 2px solid var(--vr-amber); }
+.vr-card.hint { background: transparent; border: 1px dashed var(--vr-amber); }
+
+.vr-input { height: 72px; padding: 0 18px; background: var(--vr-panel); border: 2px solid var(--vr-paper); font-family: var(--vr-display); font-size: 34px; text-transform: uppercase; width: 100%; max-width: 640px; }
+
+.vr-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--vr-line); flex-shrink: 0; }
+.vr-dot.on { background: var(--vr-amber); }
+
+/* MIDI check */
+.vr-gate { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: start; }
+.vr-devices { display: flex; flex-direction: column; gap: 10px; }
+.vr-device { display: flex; align-items: center; gap: 14px; background: var(--vr-panel); border: 1px solid var(--vr-line); padding: 14px 16px; min-height: 56px; cursor: pointer; text-align: left; width: 100%; }
+.vr-device.selected { border: 2px solid var(--vr-amber); background: var(--vr-panel-hot); }
+.vr-device .name { font-weight: 600; flex-grow: 1; }
+
+/* Knob setup */
+.vr-knobs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.vr-knob { border: 1px dashed var(--vr-line); padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.vr-knob.next { border: 2px solid var(--vr-amber); background: var(--vr-panel-hot); }
+.vr-knob.done { border: 1px solid var(--vr-line); background: var(--vr-panel); }
+.vr-knob .dial { width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--vr-dim); position: relative; }
+.vr-knob.done .dial, .vr-knob.next .dial { border-color: var(--vr-amber); }
+.vr-knob .dial::after { content: ''; position: absolute; left: 29px; top: 4px; width: 3px; height: 22px; background: currentColor; transform-origin: 1.5px 26px; transform: rotate(var(--turn, -135deg)); }
+.vr-knob .num { font-family: var(--vr-display); font-size: 28px; }
+
+/* Skill tree */
+.vr-stats { display: flex; gap: 32px; font-family: var(--vr-mono); }
+.vr-stat { display: flex; flex-direction: column; gap: 2px; }
+.vr-stat .k { font-size: 12px; color: var(--vr-muted); }
+.vr-stat .v { font-size: 28px; font-weight: 600; }
+.vr-xpbar { height: 6px; background: var(--vr-line); width: 160px; }
+.vr-xpbar > div { height: 6px; background: var(--vr-amber); }
+.vr-tracks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; }
+.vr-track-head { border-bottom: 2px solid var(--vr-paper); padding-bottom: 10px; display: flex; flex-direction: column; gap: 4px; }
+.vr-track-head .name { font-family: var(--vr-display); font-size: 30px; text-transform: uppercase; }
+.vr-nodes { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.vr-node { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 14px; background: transparent; border: 1px dashed var(--vr-line); color: var(--vr-muted); text-align: left; width: 100%; }
+.vr-node .k { font-family: var(--vr-mono); font-size: 12px; width: 24px; }
+.vr-node .t { display: flex; flex-direction: column; gap: 1px; flex-grow: 1; }
+.vr-node .t b { font-size: 15px; font-weight: 600; }
+.vr-node .t span { font-size: 12px; }
+.vr-node .score { font-family: var(--vr-mono); font-size: 12px; }
+.vr-node.done { background: var(--vr-panel); border: 1px solid var(--vr-line); color: var(--vr-paper); cursor: pointer; }
+.vr-node.ready { background: var(--vr-panel-hot); border: 2px solid var(--vr-amber); color: var(--vr-paper); cursor: pointer; }
+.vr-node.ready .k { color: var(--vr-amber); }
+
+/* Lesson */
+.vr-lesson { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 28px; align-items: start; }
+.vr-side { display: flex; flex-direction: column; gap: 16px; }
+.vr-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.vr-row > .vr-btn { flex: 1 1 auto; white-space: nowrap; }
+.vr-row > .vr-btn.primary { font-size: 19px; }
+.vr-intro p { margin: 0; font-size: 15px; line-height: 1.55; color: #d8cfbf; }
+.vr-meter { height: 8px; background: var(--vr-line); }
+.vr-meter > div { height: 8px; background: var(--vr-amber); transition: width 200ms; }
+.vr-scores { display: flex; flex-direction: column; }
+.vr-score { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; padding: 6px 0; border-bottom: 1px solid #2a2521; }
+.vr-score .s { font-family: var(--vr-mono); font-size: 13px; text-align: right; }
+.vr-score .s.off { color: var(--vr-amber); }
+.vr-riff { display: flex; gap: 8px; flex-wrap: wrap; }
+.vr-riff span { font-family: var(--vr-display); font-size: 26px; min-width: 64px; text-align: center; padding: 8px 10px; border: 1px solid var(--vr-line); }
+.vr-riff span.done { background: var(--vr-amber); color: var(--vr-ground); border-color: var(--vr-amber); }
+.vr-riff span.next { border: 2px solid var(--vr-amber); color: var(--vr-amber); }
+.vr-toast { font-family: var(--vr-mono); font-size: 13px; color: var(--vr-amber); min-height: 18px; }
+
+/* Playing lessons */
+.vr-prompt-card { align-items: flex-start; }
+.vr-prompt { font-family: var(--vr-display); font-size: 120px; line-height: 1; text-transform: uppercase; }
+.vr-feedback { font-family: var(--vr-mono); font-size: 15px; min-height: 20px; color: var(--vr-muted); }
+.vr-feedback.right { color: var(--vr-paper); }
+.vr-feedback.wrong { color: var(--vr-amber); }
+.vr-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.vr-chip { font-family: var(--vr-mono); font-size: 14px; font-weight: 600; min-width: 52px; height: 40px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; border: 1px dashed var(--vr-line); color: var(--vr-muted); }
+.vr-chip.now { border: 2px solid var(--vr-amber); color: var(--vr-amber); }
+.vr-chip.right { background: var(--vr-amber); border: 1px solid var(--vr-amber); color: var(--vr-ground); }
+.vr-chip.missed { border: 1px solid var(--vr-paper); color: var(--vr-paper); }
+.vr-keys { position: relative; height: 120px; background: #000; padding: 2px; }
+.vr-keys-white { display: flex; gap: 2px; height: 100%; }
+.vr-key.white { flex: 1 1 0; background: #ede8df; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; font-family: var(--vr-mono); font-size: 11px; color: var(--vr-ink); }
+.vr-keys-black { position: absolute; left: 2px; right: 2px; top: 2px; height: 62%; pointer-events: none; }
+.vr-key.black { position: absolute; top: 0; width: 1.8%; height: 100%; background: var(--vr-ink); }
+.vr-key.white.guide { background: #f5cf7a; box-shadow: inset 0 0 0 3px var(--vr-amber); }
+.vr-key.black.guide { background: #9a6a00; box-shadow: inset 0 0 0 2px var(--vr-amber); }
+.vr-key.down { background: var(--vr-amber); }
+.vr-spelled { font-family: var(--vr-mono); font-size: 22px; font-weight: 600; white-space: pre; min-height: 0; }
+.vr-spelled:empty { display: none; }
+.vr-chip.learn { border: 1px dashed var(--vr-dim); color: var(--vr-dim); }
+.vr-chip.learned { border: 1px solid var(--vr-dim); color: var(--vr-muted); }
+.vr-chart-rows { display: flex; flex-direction: column; }
+.vr-chart-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) 60px; gap: 12px; padding: 7px 0; border-bottom: 1px solid #2a2521; color: var(--vr-dim); font-size: 15px; }
+.vr-chart-row .name { font-weight: 600; }
+.vr-chart-row .notes { font-family: var(--vr-mono); }
+.vr-chart-row .q { font-family: var(--vr-mono); font-size: 12px; text-align: right; }
+.vr-chart-row.learned { color: var(--vr-paper); }
+.vr-chart-row.now { color: var(--vr-amber); }
+
+/* The SOLO-1 faceplate */
+.solo1 { background: var(--vr-face); color: var(--vr-ink); border-radius: 6px; padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 18px; box-shadow: inset 0 -10px 0 rgba(0, 0, 0, 0.22); }
+.solo1-head { display: flex; justify-content: space-between; align-items: center; }
+.solo1-head .brand { font-family: var(--vr-display); font-size: 28px; letter-spacing: 0.06em; }
+.solo1-head .kind { font-family: var(--vr-mono); font-size: 12px; }
+.solo1-sections { display: flex; gap: 12px; flex-wrap: wrap; }
+.solo1-section { display: flex; flex-direction: column; gap: 10px; border-top: 4px solid var(--vr-ink); padding-top: 8px; }
+.solo1-section .sname { font-family: var(--vr-mono); font-size: 12px; font-weight: 600; letter-spacing: 0.1em; }
+.solo1-section .sliders { display: flex; gap: 2px; }
+.solo1-slider { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 4px; border: 2px solid transparent; border-radius: 4px; min-width: 42px; }
+.solo1-slider.locked { opacity: 0.42; }
+.solo1-slider.active { border-color: var(--vr-face-hot); }
+.solo1-slider .knobtag { font-family: var(--vr-mono); font-size: 11px; font-weight: 600; background: var(--vr-ink); color: var(--vr-face); padding: 1px 6px; border-radius: 2px; }
+.solo1-slider .knobtag.blank { visibility: hidden; }
+.solo1-slider .track { position: relative; width: 24px; height: 160px; display: flex; justify-content: center; }
+.solo1-slider .track::before { content: ''; width: 4px; height: 100%; background: #3a3530; }
+.solo1-slider .cap { position: absolute; left: 0; width: 24px; height: 12px; background: var(--vr-ink); }
+.solo1-slider .ghost { position: absolute; left: 0; width: 24px; height: 12px; border: 2px dashed var(--vr-face-hot); }
+.solo1-slider .lbl { font-family: var(--vr-mono); font-size: 12px; font-weight: 600; }
+.solo1-slider .val { font-family: var(--vr-mono); font-size: 11px; min-height: 14px; white-space: nowrap; }
+
+@media (max-width: 960px) {
+  .vr-screen { padding: 28px 16px; }
+  .vr-gate, .vr-lesson, .vr-tracks { grid-template-columns: minmax(0, 1fr); }
+  .vr-knobs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vr-title { font-size: 44px; }
+  .vr-title.huge { font-size: 64px; }
+}

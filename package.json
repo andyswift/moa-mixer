@@ -30,7 +30,8 @@
     "build:mpc": "tsc --noEmit && vite build --config vite.mpc.config.ts",
     "build:unicorn": "tsc --noEmit && vite build --config vite.unicorn.config.ts",
     "build:vox": "tsc --noEmit && vite build --config vite.vox.config.ts",
-    "build:rig": "tsc --noEmit && vite build --config vite.rig.config.ts"
+    "build:rig": "tsc --noEmit && vite build --config vite.rig.config.ts",
+    "build:game": "tsc --noEmit && vite build --config vite.game.config.ts"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
