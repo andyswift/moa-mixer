@@ -269,3 +269,33 @@ button, input { font: inherit; color: inherit; }
   .vr-road { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .vr-song { grid-template-columns: 24px minmax(0, 1fr); }
 }
+
+/* Note lengths on the chart: a bar under each block grows while it is held */
+.vr-chart-hold { position: absolute; top: 96px; height: 8px; background: var(--vr-paper); border-radius: 0 4px 4px 0; }
+.vr-chart-hold.good { background: var(--vr-amber); }
+.vr-chart-hold.short, .vr-chart-hold.long { background: repeating-linear-gradient(45deg, var(--vr-paper) 0 4px, #5c544c 4px 7px); }
+.vr-chart-cue.dead { justify-content: center; padding-left: 0; font-family: var(--vr-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; background: #1b1714; border: 2px dashed var(--vr-amber); color: var(--vr-amber); }
+.vr-chart-cue.dead.good { background: var(--vr-amber); color: var(--vr-ground); border-style: solid; }
+.vr-next { display: flex; align-items: baseline; gap: 14px; }
+.vr-next .what { font-family: var(--vr-display); font-size: 40px; line-height: 1; }
+.vr-next .what.dead { color: var(--vr-amber); }
+.vr-chart-cue.palm { box-shadow: inset 0 -6px 0 #6b5a3a; }
+.vr-chart-cue.narrow { font-family: var(--vr-mono); font-size: 11px; font-weight: 600; padding-left: 0; justify-content: center; }
+
+/* Venue cards you can choose */
+button.vr-venue { text-align: left; font: inherit; cursor: pointer; background: var(--vr-panel); border: 1px solid var(--vr-paper); color: var(--vr-paper); }
+button.vr-venue .name { color: var(--vr-paper); }
+button.vr-venue.here { border: 2px solid var(--vr-amber); background: var(--vr-panel-hot); }
+button.vr-venue:focus-visible { outline: 3px solid var(--vr-amber); outline-offset: 2px; }
+
+/* Touch meter */
+.vr-touch { display: flex; flex-direction: column; gap: 6px; }
+.vr-touch-bar { position: relative; height: 22px; background: #2a2521; border: 1px solid var(--vr-line); }
+.vr-touch-zone { position: absolute; left: 0; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, #3a332d 0 6px, #2a2521 6px 10px); border-right: 2px dashed var(--vr-amber); }
+.vr-touch-mark { position: absolute; top: -4px; bottom: -4px; width: 4px; margin-left: -2px; background: var(--vr-paper); }
+.vr-touch-mark.dead { background: var(--vr-amber); }
+.vr-touch-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.vr-touch-step { border: 1px dashed var(--vr-line); padding: 14px; text-align: center; font-family: var(--vr-display); font-size: 30px; color: var(--vr-dim); }
+.vr-touch-step.done { border: 1px solid var(--vr-amber); color: var(--vr-paper); }
+
+.vr-touch-ask { font-family: var(--vr-display); font-size: 30px; text-transform: uppercase; line-height: 1.05; }

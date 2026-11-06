@@ -18,6 +18,8 @@ export interface GameProgress {
   rehearsed: Record<string, number>;
   /** Best gig score per venue. */
   gigBest: Record<string, number>;
+  /** The player's dead-note threshold from touch setup; undefined until it is done. */
+  touch?: { threshold: number; sensitive: boolean };
 }
 
 export const NEW_GAME: GameProgress = { band: '', knobs: [], passed: {}, xp: { synth: 0, bass: 0 }, fans: 0, cash: 0, gigs: 0, rehearsed: {}, gigBest: {} };
@@ -69,6 +71,7 @@ export function loadProgress(storage: Pick<Storage, 'getItem'> | undefined = saf
       gigs: num(p.gigs),
       rehearsed: scores(p.rehearsed),
       gigBest: scores(p.gigBest),
+      ...(p.touch && typeof p.touch.threshold === 'number' ? { touch: { threshold: p.touch.threshold, sensitive: p.touch.sensitive !== false } } : {}),
     };
   } catch {
     return structuredCopy(NEW_GAME);

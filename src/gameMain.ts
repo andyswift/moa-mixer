@@ -5,6 +5,7 @@ import type { DrumMachine } from './domain/devices/drumMachine';
 import type { PolySynth } from './domain/devices/polySynth';
 import type { Synthesizer } from './domain/devices/synthesizer';
 import { loadProgress, saveProgress } from './domain/game/progress';
+import { DEFAULT_THRESHOLD, mapVelocity } from './domain/game/touch';
 import { MidiClock } from './domain/midi/clock';
 import { parseMidi, type MidiEvent } from './domain/midi/events';
 import { Patch } from './domain/patch/patch';
@@ -13,8 +14,9 @@ import { drillScreen } from './ui/game/drillScreen';
 import type { Game, Screen, ScreenName } from './ui/game/game';
 import { gigScreen, rehearseScreen, tourScreen } from './ui/game/gigScreens';
 import { grooveScreen } from './ui/game/grooveScreen';
+import { lengthScreen } from './ui/game/lengthScreen';
 import { lessonScreen } from './ui/game/lessonScreen';
-import { bandScreen, gateScreen, knobsScreen, treeScreen } from './ui/game/screens';
+import { bandScreen, gateScreen, knobsScreen, touchScreen, treeScreen } from './ui/game/screens';
 
 // Virtual Rockstar. Each instrument is one of the site's own engines with a new face: the SOLO-1 is the MOA-1, chords
 // play on the MOA-6, the bass is the MOA-BASS and grooves come from the drum machine. A patch has one output, so each
@@ -45,7 +47,7 @@ const drums = drumsPatch.device<DrumMachine>('drums');
 const midi = new WebMidi();
 const app = document.querySelector<HTMLDivElement>('#app')!;
 let current: Screen | undefined;
-let listener: ((e: MidiEvent, time: number) => void) | undefined;
+let listener: ((e: MidiEvent, time: number, rawVelocity?: number) => void) | undefined;
 
 const game: Game = {
   synth,
@@ -70,6 +72,7 @@ const game: Game = {
     current =
       screen === 'gate' ? gateScreen(game)
         : screen === 'knobs' ? knobsScreen(game)
+        : screen === 'touch' ? touchScreen(game)
           : screen === 'band' ? bandScreen(game)
             : screen === 'tree' ? treeScreen(game)
               : screen === 'tour' ? tourScreen(game)
@@ -77,6 +80,7 @@ const game: Game = {
               : 'gig' in screen ? gigScreen(game, screen.gig)
               : 'drill' in screen ? drillScreen(game, screen.drill)
                 : 'groove' in screen ? grooveScreen(game, screen.groove)
+              : 'length' in screen ? lengthScreen(game, screen.length)
                   : lessonScreen(game, screen.lesson);
     app.replaceChildren(current.el);
     window.scrollTo(0, 0);
@@ -86,13 +90,16 @@ const game: Game = {
 midi.onMessage = (data, time) => {
   let e = parseMidi(data);
   if (!e) return;
+  const raw = e.type === 'noteOn' ? e.velocity : undefined;
   const target = game.instrument === 'poly' ? poly : game.instrument === 'bass' ? bass : synth;
   if ((e.type === 'noteOn' || e.type === 'noteOff') && target === bass) e = { ...e, note: e.note + BASS_TRANSPOSE };
+  // on the bass, the player's touch setup decides which notes are dead: soft for them is dead for the bass and the judge
+  if (e.type === 'noteOn' && target === bass) e = { ...e, velocity: mapVelocity(e.velocity, game.progress.touch?.threshold ?? DEFAULT_THRESHOLD) };
   if (e.type === 'noteOn') { if (target === poly) poly.keyDown(e.note); else target.keyDown(e.note, e.velocity); }
   else if (e.type === 'noteOff') target.keyUp(e.note);
   else if (e.type === 'pitchBend') target.setPitchBend(e.value);
   else if (e.type === 'cc' && e.controller === 1) target.setModWheel(e.value / 127);
-  listener?.(e, time);
+  listener?.(e, time, raw);
 };
 void midi.connectIfPermitted();
 

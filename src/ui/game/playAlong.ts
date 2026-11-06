@@ -1,4 +1,4 @@
-import { cuesOf, PartJudge, type CueResult } from '../../domain/game/performance';
+import { cuesOf, PartJudge, withPalm, type CueResult, type LengthGrade, type LengthMode } from '../../domain/game/performance';
 import type { Role } from '../../domain/game/progress';
 import type { GameSong } from '../../domain/game/songs';
 import { playSong, setUpBand } from './bandPlayer';
@@ -17,22 +17,28 @@ export interface AlongHooks {
   onEnd(judge: PartJudge): void;
   /** Every MIDI message, before judging (to show the keys held). */
   onMidi?(e: MidiEvent): void;
+  /** A held cue was let go: how its length went. */
+  onLength?(i: number, g: LengthGrade, judge: PartJudge): void;
 }
 
 /**
  * One play-along: the band plays the song, the player plays their part on their keys, and each cue is judged as it
  * comes. The chart scrolls with the song. Used by a rehearsal run (slowed if asked) and by each song of a gig.
  */
-export function playAlong(game: Game, song: GameSong, role: Role, opts: { tempo?: number; crowdStart?: number; seed?: number }, hooks: AlongHooks): {
+export function playAlong(game: Game, song: GameSong, role: Role,
+  opts: { tempo?: number; crowdStart?: number; seed?: number; lengths?: LengthMode; touch?: boolean }, hooks: AlongHooks): {
   chart: HTMLElement;
   stop(): void;
 } | undefined {
   setUpBand(game, role);
-  const cues = cuesOf(song.parts[role]);
+  const cues = withPalm(cuesOf(song.parts[role]), role === 'bass' ? song.palm ?? [] : []);
   const chart = renderChart(song, role, cues);
   const run = playSong(game, song, { player: role, tempo: opts.tempo, seed: opts.seed });
   if (!run) return undefined;
-  const judge = new PartJudge(cues, run.heardAt(0), run.beatMs, opts.crowdStart);
+  const judge = new PartJudge(cues, run.heardAt(0), run.beatMs, opts.crowdStart, { lengths: opts.lengths, touch: opts.touch });
+  /** Cues being held: their fill grows on the chart until they are let go. */
+  const holding = new Set<number>();
+  let wheel = 0;
   // Dev handle: the run in progress, so a test can play the part on its beats.
   if (import.meta.env.DEV) Object.assign(window, { __along: judge });
   let frame = 0;
@@ -45,9 +51,19 @@ export function playAlong(game: Game, song: GameSong, role: Role, opts: { tempo?
   };
   game.listen((e, time) => {
     hooks.onMidi?.(e);
-    if (e.type !== 'noteOn' || ended) return;
-    const { cue, result } = judge.play(e.note, time);
-    report(cue, result);
+    if (ended) return;
+    if (e.type === 'cc' && e.controller === 1) wheel = e.value / 127;
+    else if (e.type === 'noteOn') {
+      const { cue, result } = judge.play(e.note, time, e.velocity, wheel);
+      if (cue !== undefined && result?.grade !== 'wrong') holding.add(cue);
+      report(cue, result);
+    } else if (e.type === 'noteOff') {
+      const { cue, length } = judge.release(e.note, time);
+      if (cue === undefined) return;
+      holding.delete(cue);
+      chart.hold(cue, judge.holdShare(cue, time), length);
+      if (length) hooks.onLength?.(cue, length, judge);
+    }
   });
 
   const tick = () => {
@@ -56,6 +72,7 @@ export function playAlong(game: Game, song: GameSong, role: Role, opts: { tempo?
     const beat = run.beatNow();
     chart.scroll(beat);
     chart.focus(judge.current(now));
+    for (const i of holding) chart.hold(i, judge.holdShare(i, now));
     hooks.onFrame?.(beat, judge);
     if (judge.finished(now) && now > run.heardAt(run.endBeat) + TAIL_MS) {
       ended = true;

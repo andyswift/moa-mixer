@@ -1,3 +1,4 @@
+import type { LengthMode } from './performance';
 import { level, type GameProgress, type Role } from './progress';
 
 /**
@@ -17,15 +18,20 @@ export interface Venue {
   readonly fee: number;
   /** Fans won by a perfect gig with the room at its loudest. */
   readonly maxFans: number;
+  /** What note lengths do to the score there. */
+  readonly lengths: LengthMode;
 }
 
 export const VENUES: readonly Venue[] = [
-  { id: 'cellar', name: 'The Cellar Bar', capacity: 40, setlist: ['first-light', 'night-bus', 'static-hearts'], needs: { fans: 0, level: 1 }, fee: 60, maxFans: 40 },
-  { id: 'northside', name: 'Northside Club', capacity: 300, setlist: [], needs: { fans: 250, level: 2 }, fee: 240, maxFans: 160 },
-  { id: 'palace', name: 'Old Palace Theatre', capacity: 1500, setlist: [], needs: { fans: 3000, level: 4 }, fee: 1200, maxFans: 900 },
-  { id: 'arena', name: 'The Arena', capacity: 12000, setlist: [], needs: { fans: 25000, level: 6 }, fee: 9000, maxFans: 6000 },
-  { id: 'stadium', name: 'The Stadium', capacity: 60000, setlist: [], needs: { fans: 100000, level: 8 }, fee: 40000, maxFans: 25000 },
+  { id: 'cellar', name: 'The Cellar Bar', capacity: 40, setlist: ['first-light', 'night-bus', 'static-hearts'], needs: { fans: 0, level: 1 }, fee: 60, maxFans: 80, lengths: 'off' },
+  { id: 'northside', name: 'Northside Club', capacity: 300, setlist: ['glasshouse', 'paper-planes', 'last-train-home'], needs: { fans: 250, level: 2 }, fee: 240, maxFans: 400, lengths: 'bonus' },
+  { id: 'palace', name: 'Old Palace Theatre', capacity: 1500, setlist: [], needs: { fans: 3000, level: 4 }, fee: 1200, maxFans: 900, lengths: 'bonus' },
+  { id: 'arena', name: 'The Arena', capacity: 12000, setlist: [], needs: { fans: 25000, level: 6 }, fee: 9000, maxFans: 6000, lengths: 'scored' },
+  { id: 'stadium', name: 'The Stadium', capacity: 60000, setlist: [], needs: { fans: 100000, level: 8 }, fee: 40000, maxFans: 25000, lengths: 'scored' },
 ];
+
+/** The first gig at a venue brings this share of its best fan haul again: word of mouth. */
+export const WORD_OF_MOUTH = 0.3;
 
 /** A rehearsal run at full tempo with at least this score marks a song as learned for the gig. */
 export const REHEARSED_MARK = 0.5;
@@ -55,18 +61,26 @@ export interface GigOutcome {
   readonly fans: number;
   readonly cash: number;
   readonly xp: number;
+  /** Fans from word of mouth (the first gig at a venue), included in `fans`. */
+  readonly wordOfMouth: number;
 }
 
-/** What a gig earns: fans by score and crowd, cash from half to all of the fee, XP for the member who played. */
-export function gigOutcome(v: Venue, songScores: readonly number[], crowd: number): GigOutcome {
+/**
+ * What a gig earns: fans by score and crowd (plus word of mouth the first time the band plays there), cash from half
+ * to all of the fee, XP for the member who played.
+ */
+export function gigOutcome(v: Venue, songScores: readonly number[], crowd: number, firstTime = false): GigOutcome {
   const score = songScores.length ? songScores.reduce((a, b) => a + b, 0) / songScores.length : 0;
+  const earned = Math.round(v.maxFans * score * (0.5 + 0.5 * crowd));
+  const wordOfMouth = firstTime ? Math.round(earned * WORD_OF_MOUTH) : 0;
   return {
     score,
     crowd,
     stars: Math.max(1, Math.min(5, Math.round(score * 5))),
-    fans: Math.round(v.maxFans * score * (0.5 + 0.5 * crowd)),
+    fans: earned + wordOfMouth,
     cash: Math.round(v.fee * (0.5 + 0.5 * score)),
     xp: Math.round(40 + 80 * score),
+    wordOfMouth,
   };
 }
 
@@ -97,12 +111,14 @@ export interface PlayStats {
   readonly missed: number;
   /** Mean offset of notes on time-ish, ms: negative rushes. */
   readonly meanOffsetMs: number;
+  /** Lengths of the notes played on time and let go: how many were right, too short, too long. */
+  readonly lengths?: { readonly measured: number; readonly good: number; readonly short: number; readonly long: number };
 }
 
 export interface Advice {
   readonly text: string;
   /** A lesson to go to, if one teaches it. */
-  readonly lesson?: { readonly kind: 'drill' | 'groove'; readonly id: string; readonly title: string };
+  readonly lesson?: { readonly kind: 'drill' | 'groove' | 'length'; readonly id: string; readonly title: string };
   /** A song to rehearse again. */
   readonly song?: string;
 }
@@ -126,6 +142,15 @@ export function adviceFor(role: Role, stats: PlayStats, weakestSong: string): Ad
       : { text: `${way} Run the songs slower in rehearsal, listening to the kick.`, song: weakestSong });
   }
   if (share(stats.missed) >= 0.1) out.push({ text: 'Notes went by unplayed: learn the weakest song again, section by section.', song: weakestSong });
-  if (!out.length) out.push({ text: 'A tight set. Push for a better score, or start on the next lessons.', song: weakestSong });
+  const len = stats.lengths;
+  if (len && len.measured >= 8 && (len.short + len.long) / len.measured >= 0.3) {
+    const text = len.short >= len.long
+      ? (role === 'synth' ? 'You let go of the chords early: hold the pads through the bar.' : 'Your notes were cut short: hold the long ones until the next.')
+      : (role === 'synth' ? 'Chords ran into each other: let each one go before the next.' : 'Notes rang into each other and muddied: let each go before the next.');
+    out.push(role === 'synth'
+      ? { text, lesson: { kind: 'length', id: 'T2', title: 'Pads and stabs' } }
+      : { text, lesson: { kind: 'length', id: 'B-T3', title: 'Long and short notes' } });
+  }
+  if (!out.length) out.push({ text: 'A tight set: nothing to fix. Push for a better score, or start on the next lessons.' });
   return out.slice(0, 3);
 }

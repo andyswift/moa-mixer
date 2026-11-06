@@ -1,4 +1,4 @@
-import type { Cue, CueResult } from '../../domain/game/performance';
+import type { Cue, CueResult, LengthGrade } from '../../domain/game/performance';
 import type { Role } from '../../domain/game/progress';
 import { noteName } from '../../domain/game/lessons';
 import { chordAt, songBeats, type GameSong } from '../../domain/game/songs';
@@ -23,16 +23,25 @@ export function renderChart(song: GameSong, role: Role, cues: readonly Cue[]): {
   grade(i: number, r: CueResult): void;
   /** Marks the cue due now. */
   focus(i: number | undefined): void;
+  /** Shows how long cue i has been held (a share of its written length), and how that went once let go. */
+  hold(i: number, share: number, g?: LengthGrade): void;
 } {
   const track = h('div.vr-chart-track', { style: `width: ${songBeats(song) * PX_PER_BEAT}px` });
   for (const s of song.sections) {
     track.append(h('div.vr-chart-section', { style: `left: ${s.from * PX_PER_BEAT}px; width: ${(s.to - s.from) * PX_PER_BEAT}px` }, s.name));
   }
   for (let b = 0; b < song.bars; b++) track.append(h('div.vr-chart-bar', { style: `left: ${b * 4 * PX_PER_BEAT}px` }));
-  const blocks = cues.map((c) => {
-    const b = h('div.vr-chart-cue', { style: `left: ${c.t * PX_PER_BEAT}px; width: ${Math.max(18, c.len * PX_PER_BEAT - 4)}px` }, cueLabel(song, role, c));
+  const widths = cues.map((c) => Math.max(c.dead ? 44 : 18, c.len * PX_PER_BEAT - 4)); // a dead note is short, but must read DEAD
+  const blocks = cues.map((c, i) => {
+    const b = h(`div.vr-chart-cue${c.dead ? '.dead' : ''}${c.palm ? '.palm' : ''}${widths[i]! < 44 && !c.dead ? '.narrow' : ''}` as 'div', { style: `left: ${c.t * PX_PER_BEAT}px; width: ${widths[i]}px` }, c.dead ? 'DEAD' : cueLabel(song, role, c));
     track.append(b);
     return b;
+  });
+  // the hold bar under each block: how long it has been held, running past the block if held too long
+  const holds = cues.map((c) => {
+    const bar = h('div.vr-chart-hold', { style: `left: ${c.t * PX_PER_BEAT}px; width: 0px` });
+    track.append(bar);
+    return bar;
   });
   let focused: number | undefined;
   return {
@@ -42,6 +51,12 @@ export function renderChart(song: GameSong, role: Role, cues: readonly Cue[]): {
     },
     grade(i, r) {
       blocks[i]?.classList.add(r.grade);
+    },
+    hold(i, share, g) {
+      const bar = holds[i];
+      if (!bar) return;
+      bar.style.width = `${Math.round(Math.min(share, 2) * widths[i]!)}px`;
+      if (g) bar.classList.add(g);
     },
     focus(i) {
       if (focused === i) return;

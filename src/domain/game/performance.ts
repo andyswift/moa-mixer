@@ -15,7 +15,16 @@ export interface Cue {
   readonly notes: readonly number[];
   /** Their pitch classes, sorted, no repeats: what the player must play. */
   readonly pcs: readonly number[];
+  /** A dead note (written at velocity 40 or less): struck with the hand damping the string, any pitch. */
+  readonly dead?: boolean;
+  /** Played with the palm resting on the strings (the mod wheel up). */
+  readonly palm?: boolean;
 }
+
+/** Notes this soft or softer are dead notes, as the MOA-BASS plays them. */
+export const DEAD_VELOCITY = 40;
+/** The mod wheel at or above this is the palm resting on the strings. */
+export const PALM_WHEEL = 0.4;
 
 /** Groups a part's notes into cues by start time. */
 export function cuesOf(part: readonly NoteEvent[]): Cue[] {
@@ -29,8 +38,34 @@ export function cuesOf(part: readonly NoteEvent[]): Cue[] {
     len: Math.max(...ns.map((n) => n.len)),
     notes: ns.map((n) => n.note),
     pcs: [...new Set(ns.map((n) => n.note % 12))].sort((a, b) => a - b),
+    ...(ns.every((n) => n.vel <= DEAD_VELOCITY) ? { dead: true } : {}),
   }));
 }
+
+/** Marks the cues starting inside any of these beat ranges as palm-muted. */
+export function withPalm(cues: readonly Cue[], ranges: readonly (readonly [number, number])[]): Cue[] {
+  return cues.map((c) => (ranges.some(([a, b]) => c.t >= a && c.t < b) ? { ...c, palm: true } : c));
+}
+
+/** How long a cue was held against how long it is written. */
+export type LengthGrade = 'good' | 'short' | 'long';
+
+/** A hold within this share of the written length (or LENGTH_MIN_MS, if more) is right. */
+const LENGTH_TOLERANCE = 0.3;
+const LENGTH_MIN_MS = 120;
+
+export function lengthGrade(writtenMs: number, heldMs: number): LengthGrade {
+  const tol = Math.max(LENGTH_TOLERANCE * writtenMs, LENGTH_MIN_MS);
+  return Math.abs(heldMs - writtenMs) <= tol ? 'good' : heldMs < writtenMs ? 'short' : 'long';
+}
+
+/**
+ * What note lengths do to the score: nothing ('off'), part of every cue's points ('scored': the length lessons), or a
+ * bonus that can only raise it ('bonus': gigs from Northside Club on).
+ */
+export type LengthMode = 'off' | 'scored' | 'bonus';
+const LENGTH_SHARE = 0.4;
+const LENGTH_BONUS = 0.25;
 
 export type CueGrade = 'good' | 'close' | 'off' | 'wrong' | 'missed';
 
@@ -38,6 +73,8 @@ export interface CueResult {
   readonly grade: CueGrade;
   /** First note's distance from the beat, ms (negative early); undefined if missed. */
   readonly offsetMs?: number;
+  /** Why a right note was still wrong: a dead note played full, a palm-muted note played open, a note played dead. */
+  readonly why?: 'not dead' | 'no palm' | 'too soft';
 }
 
 /** A note further than this from every waiting cue answers none of them. */
@@ -63,12 +100,23 @@ export class PartJudge {
   crowdPeak: number;
   private crowdSum = 0;
   private crowdCount = 0;
+  /** When each cue's hold ended (its first note let go), ms; NaN until then. */
+  private heldEnd: number[];
+  /** The cue each pitch class last went to, to match its note-off. */
+  private lastCue = new Map<number, number>();
+  readonly lengths: LengthMode;
+  /** Judge the touch too: dead notes soft, palm-muted notes with the wheel up, other notes not dead. */
+  readonly touch: boolean;
 
-  constructor(readonly cues: readonly Cue[], readonly startMs: number, readonly beatMs: number, crowdStart = 0.4) {
+  constructor(readonly cues: readonly Cue[], readonly startMs: number, readonly beatMs: number, crowdStart = 0.4,
+    opts: { lengths?: LengthMode; touch?: boolean } = {}) {
     this.results = cues.map(() => undefined);
     this.heard = cues.map(() => ({ pcs: new Set<number>(), firstMs: NaN, wrong: false }));
+    this.heldEnd = cues.map(() => NaN);
     this.crowd = crowdStart;
     this.crowdPeak = crowdStart;
+    this.lengths = opts.lengths ?? 'off';
+    this.touch = opts.touch ?? false;
   }
 
   due(i: number): number {
@@ -79,7 +127,7 @@ export class PartJudge {
    * A note played at `timeMs`. It goes to the nearest waiting cue in reach; a cue is graded as soon as all its notes
    * are in (or at once on a wrong note). Returns the cue it went to and, if that settled it, its result.
    */
-  play(note: number, timeMs: number): { cue?: number; result?: CueResult } {
+  play(note: number, timeMs: number, velocity = 100, wheel = 0): { cue?: number; result?: CueResult } {
     this.settle(timeMs);
     let best = -1;
     let bestOff = Infinity;
@@ -92,15 +140,62 @@ export class PartJudge {
     const h = this.heard[best]!;
     if (Number.isNaN(h.firstMs)) h.firstMs = timeMs;
     const cue = this.cues[best]!;
-    if (!cue.pcs.includes(note % 12)) {
+    const off0 = h.firstMs - this.due(best);
+    if (!cue.dead && !cue.pcs.includes(note % 12)) {
       h.wrong = true;
-      return { cue: best, result: this.grade(best, 'wrong', h.firstMs - this.due(best)) };
+      return { cue: best, result: this.grade(best, 'wrong', off0) };
     }
-    h.pcs.add(note % 12);
+    if (this.touch) {
+      const why = cue.dead && velocity > DEAD_VELOCITY ? 'not dead' : !cue.dead && velocity <= DEAD_VELOCITY ? 'too soft'
+        : cue.palm && wheel < PALM_WHEEL ? 'no palm' : undefined;
+      if (why) return { cue: best, result: this.grade(best, 'wrong', off0, why) };
+    }
+    this.lastCue.set(note % 12, best);
+    h.pcs.add(cue.dead ? cue.pcs[0]! : note % 12);
     if (h.pcs.size < cue.pcs.length) return { cue: best };
-    const off = h.firstMs - this.due(best);
-    const a = Math.abs(off);
-    return { cue: best, result: this.grade(best, a <= GOOD_MS ? 'good' : a <= OK_MS ? 'close' : 'off', off) };
+    const a = Math.abs(off0);
+    return { cue: best, result: this.grade(best, a <= GOOD_MS ? 'good' : a <= OK_MS ? 'close' : 'off', off0) };
+  }
+
+  /**
+   * A note let go at `timeMs`: ends the hold of the cue it last played (a chord's hold ends with its first note let
+   * go). Returns that cue and how its length went, unless it is a dead note (those have no length).
+   */
+  release(note: number, timeMs: number): { cue?: number; length?: LengthGrade } {
+    const i = this.lastCue.get(note % 12);
+    if (i === undefined) return {};
+    this.lastCue.delete(note % 12);
+    if (!Number.isNaN(this.heldEnd[i]!) || Number.isNaN(this.heard[i]!.firstMs)) return {};
+    this.heldEnd[i] = timeMs;
+    return this.cues[i]!.dead ? { cue: i } : { cue: i, length: this.length(i) };
+  }
+
+  /** How long cue i was held against its written length, once let go. */
+  length(i: number): LengthGrade | undefined {
+    const end = this.heldEnd[i]!;
+    if (Number.isNaN(end) || this.cues[i]!.dead) return undefined;
+    return lengthGrade(this.cues[i]!.len * this.beatMs, end - this.heard[i]!.firstMs);
+  }
+
+  /** How much of cue i's written length has been held: 0..; while still held, up to `nowMs`. */
+  holdShare(i: number, nowMs: number): number {
+    const start = this.heard[i]!.firstMs;
+    if (Number.isNaN(start) || this.results[i]?.grade === 'wrong') return 0;
+    const end = Number.isNaN(this.heldEnd[i]!) ? nowMs : this.heldEnd[i]!;
+    return Math.max(0, (end - start) / (this.cues[i]!.len * this.beatMs));
+  }
+
+  /** Lengths of the cues played right that have been let go: how many were good, short or long. */
+  lengthStats(): { measured: number; good: number; short: number; long: number } {
+    const st = { measured: 0, good: 0, short: 0, long: 0 };
+    this.cues.forEach((_, i) => {
+      const g = this.length(i);
+      const r = this.results[i]?.grade;
+      if (!g || !(r === 'good' || r === 'close' || r === 'off')) return;
+      st.measured++;
+      st[g]++;
+    });
+    return st;
   }
 
   /** Grades every cue whose time has passed out of reach: missed, or off if only part of a chord came. */
@@ -115,8 +210,8 @@ export class PartJudge {
     return settled;
   }
 
-  private grade(i: number, grade: CueGrade, offsetMs?: number): CueResult {
-    const r: CueResult = offsetMs === undefined ? { grade } : { grade, offsetMs };
+  private grade(i: number, grade: CueGrade, offsetMs?: number, why?: CueResult['why']): CueResult {
+    const r: CueResult = { grade, ...(offsetMs === undefined ? {} : { offsetMs }), ...(why ? { why } : {}) };
     this.results[i] = r;
     if (grade === 'good' || grade === 'close') this.streak++;
     else this.streak = 0;
@@ -138,10 +233,40 @@ export class PartJudge {
     return !this.cues.length || timeMs > this.due(this.cues.length - 1) + REACH_MS;
   }
 
-  /** Good 1, close 0.5, the rest 0, over every cue: 0..1. */
-  get score(): number {
+  /** Timing alone: good 1, close 0.5, the rest 0, over every cue: 0..1. */
+  get timingScore(): number {
     if (!this.cues.length) return 1;
     return this.results.reduce((sum, r) => sum + (r?.grade === 'good' ? 1 : r?.grade === 'close' ? 0.5 : 0), 0) / this.cues.length;
+  }
+
+  /** Share of the cues played on time whose length was right (dead notes left out). */
+  get lengthScore(): number {
+    const st = this.lengthStats();
+    const due = this.cues.filter((c, i) => !c.dead && ['good', 'close'].includes(this.results[i]?.grade ?? '')).length;
+    return due ? st.good / due : 0;
+  }
+
+  /**
+   * The score, 0..1. With lengths off it is the timing score; scored, each cue's points are 60% timing and 40% length
+   * (dead notes, which have no length, all timing); as a bonus, length raises the timing score toward 1, never lowers it.
+   */
+  get score(): number {
+    const timing = this.timingScore;
+    if (this.lengths === 'off' || !this.cues.length) return timing;
+    if (this.lengths === 'bonus') return timing + (1 - timing) * LENGTH_BONUS * this.lengthScore;
+    return this.scoreFor(this.cues.map((_, i) => i));
+  }
+
+  /** The score of some of the cues (a section of a lesson), with lengths scored. */
+  scoreFor(indices: readonly number[]): number {
+    if (!indices.length) return 1;
+    const points = indices.reduce((sum, i) => {
+      const r = this.results[i]?.grade;
+      const t = r === 'good' ? 1 : r === 'close' ? 0.5 : 0;
+      if (this.cues[i]!.dead || this.lengths === 'off') return sum + t;
+      return sum + t * (1 - LENGTH_SHARE) + (t > 0 && this.length(i) === 'good' ? LENGTH_SHARE : 0);
+    }, 0);
+    return points / indices.length;
   }
 
   get crowdAverage(): number {

@@ -7,7 +7,7 @@ import type { GameProgress, Role } from '../../domain/game/progress';
 import type { MidiEvent } from '../../domain/midi/events';
 import type { WebMidi } from '../../midi/webMidi';
 
-export type ScreenName = 'gate' | 'knobs' | 'band' | 'tree' | 'tour' | { lesson: string } | { drill: string } | { groove: string } | { rehearse: string } | { gig: string };
+export type ScreenName = 'gate' | 'knobs' | 'touch' | 'band' | 'tree' | 'tour' | { lesson: string } | { drill: string } | { groove: string } | { rehearse: string } | { gig: string } | { length: string };
 
 /** Which instrument the player's keys play. */
 export type Instrument = 'mono' | 'poly' | 'bass';
@@ -27,6 +27,8 @@ export interface Game {
   instrument: Instrument;
   /** The band member the skill tree shows. */
   role: Role;
+  /** The venue the tour screen shows (its setlist and gig); undefined picks the furthest one reached. */
+  venue?: string;
   /** Starts every engine (from a click). */
   startAudio(): Promise<void>;
   readonly engine: AudioEngine;
@@ -37,9 +39,10 @@ export interface Game {
   go(screen: ScreenName): void;
   /**
    * The current screen's MIDI listener, with the message's time (performance.now() clock). Notes still play the
-   * instrument whatever the screen does; on the bass, the screen gets the note as the bass sounds it.
+   * instrument whatever the screen does; on the bass, the screen gets the note as the bass sounds it, and its velocity
+   * through the player's touch setup (`rawVelocity` is the keyboard's own, for setting the touch again).
    */
-  listen(fn: ((e: MidiEvent, time: number) => void) | undefined): void;
+  listen(fn: ((e: MidiEvent, time: number, rawVelocity?: number) => void) | undefined): void;
   /** True once a note has come in from the player's device this session. */
   heardNote: boolean;
 }

@@ -46,10 +46,13 @@ describe('the songs', () => {
     }
   });
 
-  it('get harder through the set', () => {
-    const notesPerBar = SONGS.map((s) => cuesOf(s.parts.bass).length / s.bars);
-    expect(notesPerBar[0]).toBeLessThan(notesPerBar[1]!);
-    expect(SONGS.map((s) => s.bpm)).toEqual([...SONGS.map((s) => s.bpm)].sort((a, b) => a - b));
+  it('get faster through each venue\'s set, and every set song exists', () => {
+    for (const v of VENUES) {
+      const bpms = v.setlist.map((id) => songById(id).bpm);
+      expect(bpms).toEqual([...bpms].sort((a, b) => a - b));
+    }
+    const cellar = venueById('cellar').setlist.map(songById);
+    expect(cuesOf(cellar[0]!.parts.bass).length / cellar[0]!.bars).toBeLessThan(cuesOf(cellar[1]!.parts.bass).length / cellar[1]!.bars);
     expect(sectionAt(SONGS[0]!, 9)!.name).toBe('Verse 1');
   });
 });

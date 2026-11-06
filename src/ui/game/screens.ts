@@ -1,14 +1,17 @@
 import { KNOB_COUNT, learnKnob } from '../../domain/game/knobs';
+import { renderTouchSetup } from './touchSetupView';
 import { TECHNIQUE, THEORY } from '../../domain/game/drills';
 import { GROOVES } from '../../domain/game/groove';
+import { LENGTH_LESSONS } from '../../domain/game/lengthLessons';
 import { BASS_SOUND, SOUND_DESIGN, SOUND_DESIGN_LATER } from '../../domain/game/lessons';
 import { level, levelProgress, ROLES, type Role } from '../../domain/game/progress';
 import { button, h } from './dom';
 import type { Game, Screen } from './game';
 
 /** Where to go after the MIDI check: whichever setup step is missing, else the skill tree. */
-export function nextAfterGate(game: Game): 'knobs' | 'band' | 'tour' {
+export function nextAfterGate(game: Game): 'knobs' | 'touch' | 'band' | 'tour' {
   if (game.progress.knobs.length < KNOB_COUNT) return 'knobs';
+  if (!game.progress.touch) return 'touch';
   if (!game.progress.band.trim()) return 'band';
   return 'tour';
 }
@@ -82,7 +85,7 @@ export function knobsScreen(game: Game): Screen {
   const done = button('Continue', () => {
     game.progress = { ...game.progress, knobs };
     game.save();
-    game.go(game.progress.band.trim() ? 'tour' : 'band');
+    game.go(nextAfterGate(game));
   }, 'primary');
   const turns = new Map<number, number>();
 
@@ -121,6 +124,20 @@ export function knobsScreen(game: Game): Screen {
   };
 }
 
+/** Touch setup as a step of the game's setup (and from the tour): the touch widget, then on to the next step. */
+export function touchScreen(game: Game): Screen {
+  const done = button('Continue', () => game.go(nextAfterGate(game)), 'primary');
+  done.hidden = true;
+  const setup = renderTouchSetup(game, { onDone: () => { done.hidden = false; } });
+  game.listen((e, _, raw) => { if (e.type === 'noteOn') setup.note(raw ?? e.velocity); });
+  return {
+    el: h('div.vr-screen', null,
+      h('span.vr-kicker.hot', null, 'Setup · your touch'),
+      setup.el,
+      h('div', { style: 'max-width: 640px' }, done)),
+  };
+}
+
 /** Name the band. */
 export function bandScreen(game: Game): Screen {
   const input = h('input.vr-input', { id: 'band-name', type: 'text', maxlength: 40, autocomplete: 'off', placeholder: 'Band name', value: game.progress.band });
@@ -148,12 +165,12 @@ export function bandScreen(game: Game): Screen {
 /** Lessons shown in the tree but not built yet, per role and track. */
 const LATER: Record<Role, Record<'technique' | 'theory' | 'sound', readonly (readonly [string, string, string])[]>> = {
   synth: {
-    technique: [['T2', 'Five-finger patterns', 'coming next'], ['T3', 'Left-hand bass lines', 'coming next'], ['T4', 'Arpeggiator and latch', 'coming next']],
+    technique: [['T3', 'Five-finger patterns', 'coming next'], ['T4', 'Left-hand bass lines', 'coming next'], ['T5', 'Arpeggiator and latch', 'coming next']],
     theory: [['H2', 'Inversions', 'coming next'], ['H3', 'The four-chord song', 'coming next'], ['H4', 'Seventh chords', 'coming next']],
     sound: SOUND_DESIGN_LATER.map((l) => [l.id, l.title, l.topic] as const),
   },
   bass: {
-    technique: [['B-T3', 'The palm and dead notes', 'coming next'], ['B-T4', 'Eighth-note grooves', 'coming next']],
+    technique: [['B-T6', 'Eighth-note grooves', 'coming next'], ['B-T7', 'Slides and ghost notes', 'coming next']],
     theory: [['B-H2', 'Walking to the next chord', 'coming next'], ['B-H3', 'The octave', 'coming next']],
     sound: [['B-S2', 'Overdrive', 'Grit that keeps the low end'], ['B-S3', 'Compression', 'Every note the same size']],
   },
@@ -191,11 +208,12 @@ export function treeScreen(game: Game): Screen {
     .filter((l) => l.role === role && l.track === track)
     .map((l) => openNode(l, () => game.go({ drill: l.id })));
   const grooves = GROOVES.filter((l) => l.role === role).map((l) => openNode(l, () => game.go({ groove: l.id })));
+  const lengths = LENGTH_LESSONS.filter((l) => l.role === role).map((l) => openNode(l, () => game.go({ length: l.id })));
   const later = (track: 'technique' | 'theory' | 'sound') => LATER[role][track].map(([k, t, sub]) => locked(k, t, sub));
   const track = (name: string, sub: string, nodes: HTMLElement[]) =>
     h('div', null, h('div.vr-track-head', null, h('span.name', null, name), h('span.vr-mono', null, sub)), h('div.vr-nodes', null, ...nodes));
   const bar = h('div.vr-xpbar', null, h('div', { style: `width: ${Math.round(levelProgress(xp) * 100)}%` }));
-  const all = [...soundLessons, ...TECHNIQUE, ...THEORY, ...GROOVES].filter((l) => !('role' in l) || l.role === role);
+  const all = [...soundLessons, ...TECHNIQUE, ...THEORY, ...GROOVES, ...LENGTH_LESSONS].filter((l) => !('role' in l) || l.role === role);
   const done = all.filter((l) => p.passed[l.id] !== undefined).length;
 
   const tabs = h('div.vr-tabs', { role: 'tablist', 'aria-label': 'Band member' }, ...ROLES.map((r) => {
@@ -221,12 +239,13 @@ export function treeScreen(game: Game): Screen {
       ),
       tabs,
       h('div.vr-tracks', null,
-        track('Technique', role === 'synth' ? 'Your hands on the keys' : 'Your hands on the strings', [...drills('technique'), ...grooves, ...later('technique')]),
+        track('Technique', role === 'synth' ? 'Your hands on the keys' : 'Your hands on the strings', [...drills('technique'), ...grooves, ...lengths, ...later('technique')]),
         track('Theory', 'What to play and why', [...drills('theory'), ...later('theory')]),
         track(role === 'synth' ? 'Sound design' : 'Tone', role === 'synth' ? 'Building patches from nothing' : 'Hands, pickup and amp · on your knobs', [...sound, ...later('sound')]),
       ),
-      h('div.vr-row', { style: 'max-width: 640px; margin-top: auto' },
+      h('div.vr-row', { style: 'max-width: 960px; margin-top: auto' },
         button('Redo knob setup', () => game.go('knobs')),
+        button('Redo touch setup', () => game.go('touch')),
         button('Rename the band', () => game.go('band'))),
     ),
   };

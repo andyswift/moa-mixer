@@ -67,6 +67,14 @@ export function playSong(game: Game, song: GameSong, opts: { player?: Role; temp
     else game.poly.keyUp(note);
   };
 
+  // the bandmate bass rests its palm on the strings where the song says
+  if (opts.player !== 'bass') {
+    for (const [from, to] of song.palm ?? []) {
+      later(heardAt(from) - performance.now() - 30, () => game.bass.setModWheel(0.8));
+      later(heardAt(to) - performance.now() - 30, () => game.bass.setModWheel(0));
+    }
+  }
+
   const schedule = () => {
     const until = ctx.currentTime + LOOKAHEAD_S;
     while (nextDrum < drums.length && t0 + drums[nextDrum]!.t * beatS < until) {
@@ -95,6 +103,7 @@ export function playSong(game: Game, song: GameSong, opts: { player?: Role; temp
       for (const id of timers) clearTimeout(id);
       timers.clear();
       for (const p of parts) for (const n of p.notes) play(p.role, n.note, 0, false);
+      if (opts.player !== 'bass') game.bass.setModWheel(0);
     },
   };
 }

@@ -39,16 +39,21 @@ export interface GameSong {
   readonly chords: readonly ChordChange[];
   readonly drums: readonly DrumHit[];
   readonly parts: Readonly<Record<Role, readonly NoteEvent[]>>;
+  /** Beat ranges the bass plays with the palm on the strings (the bandmate lifts the mod wheel; a lesson can judge it). */
+  readonly palm?: readonly (readonly [number, number])[];
 }
 
 export const BEATS_PER_BAR = 4;
 
-type ChordName = 'C' | 'G' | 'Am' | 'F';
+type ChordName = 'C' | 'G' | 'Am' | 'F' | 'Dm';
 const CHORD: Record<ChordName, { root: number; quality: 'major' | 'minor' }> = {
   C: { root: 0, quality: 'major' }, G: { root: 7, quality: 'major' }, Am: { root: 9, quality: 'minor' }, F: { root: 5, quality: 'major' },
+  Dm: { root: 2, quality: 'minor' },
 };
-/** Where each chord's root sits on the bass (as it sounds): C2, G1, A1, F1. */
-const BASS_ROOT: Record<ChordName, number> = { C: 36, G: 31, Am: 33, F: 29 };
+/** Where each chord's root sits on the bass (as it sounds): C2, G1, A1, F1, D2. */
+const BASS_ROOT: Record<ChordName, number> = { C: 36, G: 31, Am: 33, F: 29, Dm: 38 };
+/** A dead note's velocity: soft enough that the bass plays it damped. */
+const DEAD = 30;
 
 /** One bar of a part: the notes it plays over a chord, at 16th-note steps. */
 type BarWriter = (bar: number, chord: ChordName) => NoteEvent[];
@@ -62,6 +67,10 @@ const bassOn = (stepList: readonly number[], len: number, vel = 100): BarWriter 
 /** Bass: root and fifth, a note per entry: [step, 'root' | 'fifth']. */
 const bassRootFifth = (pattern: readonly (readonly [number, 'root' | 'fifth'])[], len: number, vel = 100): BarWriter => (bar, c) =>
   pattern.map(([s, which]) => ev(at16(bar, s), len / 4, BASS_ROOT[c] + (which === 'fifth' ? 7 : 0), vel));
+/** Bass: the root on these steps, and dead notes (the root, damped) on those. */
+const bassWithDead = (roots: readonly number[], dead: readonly number[], len: number): BarWriter => (bar, c) =>
+  [...roots.map((s) => ev(at16(bar, s), len / 4, BASS_ROOT[c], 100)), ...dead.map((s) => ev(at16(bar, s), 0.2, BASS_ROOT[c], DEAD))]
+    .sort((a, b) => a.t - b.t);
 /** Synth: the chord on these steps, each lasting `len` steps. */
 const chordsOn = (stepList: readonly number[], len: number, vel = 92): BarWriter => (bar, c) =>
   stepList.flatMap((s) => triad(c).map((n) => ev(at16(bar, s), len / 4, n, vel)));
@@ -74,6 +83,8 @@ interface SongPlan {
   chorus: readonly ChordName[];
   bass: { verse: BarWriter; chorus: BarWriter };
   synth: { verse: BarWriter; chorus: BarWriter };
+  /** The bass plays the verses with the palm on the strings. */
+  palmVerses?: boolean;
 }
 
 const INTRO_BARS = 2;
@@ -127,8 +138,68 @@ function writeSong(p: SongPlan): GameSong {
       synth.push(...(s.kind === 'verse' ? p.synth.verse : p.synth.chorus)(bar, chord));
     }
   }
-  return { id: p.id, title: p.title, bpm: p.bpm, bars: bar, sections, chords, drums, parts: { bass, synth } };
+  const palm = p.palmVerses ? sections.filter((x) => x.name.startsWith('Verse')).map((x) => [x.from, x.to] as const) : undefined;
+  return { id: p.id, title: p.title, bpm: p.bpm, bars: bar, sections, chords, drums, parts: { bass, synth }, ...(palm ? { palm } : {}) };
 }
+
+/** A bar of the band's groove: kick on every beat, clap on 2 and 4, hi-hat on the eighths. */
+function grooveBar(drums: DrumHit[], t0: number): void {
+  for (let b = 0; b < 4; b++) drums.push({ t: t0 + b, voice: 'kick', vel: 1 });
+  drums.push({ t: t0 + 1, voice: 'clap', vel: 0.8 }, { t: t0 + 3, voice: 'clap', vel: 0.8 });
+  for (let e = 0; e < 8; e++) drums.push({ t: t0 + e / 2, voice: 'closedHat', vel: e % 2 ? 0.3 : 0.45 });
+}
+
+/**
+ * A short song for a lesson: one bar of hi-hat to count in, then bars in named sections, each with its chord and
+ * what the player's part plays over it. `palm` names the sections played with the palm on the strings.
+ */
+export function lessonSong(id: string, title: string, bpm: number, role: Role,
+  bars: readonly { section: string; chord: ChordName; part: BarWriter }[], palm: readonly string[] = []): GameSong {
+  const drums: DrumHit[] = [];
+  for (let e = 0; e < 8; e++) drums.push({ t: e / 2, voice: 'closedHat', vel: e % 2 ? 0.3 : 0.6 });
+  const sections: SongSection[] = [{ name: 'Count-in', from: 0, to: BEATS_PER_BAR }];
+  const chords: ChordChange[] = [];
+  const part: NoteEvent[] = [];
+  bars.forEach((b, i) => {
+    const bar = i + 1;
+    const t0 = bar * BEATS_PER_BAR;
+    const last = sections[sections.length - 1]!;
+    if (last.name === b.section) sections[sections.length - 1] = { ...last, to: t0 + BEATS_PER_BAR };
+    else sections.push({ name: b.section, from: t0, to: t0 + BEATS_PER_BAR });
+    chords.push({ t: t0, name: b.chord, ...CHORD[b.chord] });
+    grooveBar(drums, t0);
+    part.push(...b.part(bar, b.chord));
+  });
+  const palmRanges = sections.filter((x) => palm.includes(x.name)).map((x) => [x.from, x.to] as const);
+  const empty: NoteEvent[] = [];
+  return {
+    id, title, bpm, bars: bars.length + 1, sections, chords, drums,
+    parts: role === 'bass' ? { bass: part, synth: empty } : { synth: part, bass: empty },
+    ...(palmRanges.length ? { palm: palmRanges } : {}),
+  };
+}
+
+/** The parts the length lessons are built from. */
+export const PARTS = {
+  /** A chord held through the bar, let go just before the next. */
+  pad: chordsOn([0], 15),
+  /** Short chords on each beat: struck and let go. */
+  stab: chordsOn([0, 4, 8, 12], 1),
+  /** The root held through the bar. */
+  longRoot: bassOn([0], 15),
+  /** Short roots on each beat. */
+  shortRoot: bassOn([0, 4, 8, 12], 1),
+  /** Roots on the eighths, for the palm. */
+  eighthRoot: bassOn([0, 2, 4, 6, 8, 10, 12, 14], 1.6),
+  /** Roots on the beats with a dead note on each "and". */
+  deadEighths: bassWithDead([0, 4, 8, 12], [2, 6, 10, 14], 1.2),
+  /** Roots on every beat, for the palm at a learning pace. */
+  quarterRoot: bassOn([0, 4, 8, 12], 2.5),
+  /** Roots on beats 1 and 3, a dead note on 2 and 4. */
+  deadBackbeat: bassWithDead([0, 8], [4, 12], 3),
+  /** Only the dead notes on 2 and 4: practising the soft touch on its own. */
+  deadOnly: bassWithDead([], [4, 12], 3),
+};
 
 export const SONGS: readonly GameSong[] = [
   writeSong({
@@ -151,6 +222,26 @@ export const SONGS: readonly GameSong[] = [
       chorus: bassOn([0, 2, 4, 6, 8, 10, 12, 14], 1.6),
     },
     synth: { verse: chordsOn([0, 8], 7), chorus: chordsOn([2, 6, 10, 14], 1.5) },
+  }),
+  // Northside Club: pads against stabs, the palm and dead notes, and a song in a minor key.
+  writeSong({
+    id: 'glasshouse', title: 'Glasshouse', bpm: 118,
+    verse: ['Dm', 'F', 'C', 'G'], chorus: ['F', 'C', 'Dm', 'G'],
+    bass: { verse: PARTS.eighthRoot, chorus: bassOn([0, 8], 7) },
+    synth: { verse: chordsOn([0], 15), chorus: chordsOn([0, 4, 8, 12], 1) },
+    palmVerses: true,
+  }),
+  writeSong({
+    id: 'paper-planes', title: 'Paper Planes', bpm: 122,
+    verse: ['C', 'Am', 'F', 'G'], chorus: ['Am', 'F', 'C', 'G'],
+    bass: { verse: bassOn([0, 4, 8, 12], 1), chorus: bassWithDead([0, 4, 8, 12], [2, 6, 10, 14], 1.2) },
+    synth: { verse: chordsOn([2, 6, 10, 14], 1), chorus: chordsOn([0], 15) },
+  }),
+  writeSong({
+    id: 'last-train-home', title: 'Last Train Home', bpm: 126,
+    verse: ['Am', 'G', 'F', 'G'], chorus: ['C', 'G', 'Dm', 'F'],
+    bass: { verse: bassOn([0], 15), chorus: bassRootFifth([[0, 'root'], [2, 'root'], [4, 'fifth'], [6, 'root'], [8, 'root'], [10, 'root'], [12, 'fifth'], [14, 'root']], 1.6) },
+    synth: { verse: chordsOn([0], 15), chorus: chordsOn([0, 4, 8, 12], 1) },
   }),
 ];
 

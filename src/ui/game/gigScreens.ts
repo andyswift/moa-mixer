@@ -5,7 +5,7 @@ import { cuesOf, type CueGrade, type PartJudge } from '../../domain/game/perform
 import { level, ROLES, type Role } from '../../domain/game/progress';
 import { StepSession, stepsOf, type Step } from '../../domain/game/rehearsal';
 import { chordAt, songById, type GameSong } from '../../domain/game/songs';
-import { adviceFor, canBook, gigOutcome, recordGig, recordRehearsal, REHEARSED_MARK, venueById, VENUES } from '../../domain/game/tour';
+import { adviceFor, canBook, gigOutcome, recordGig, recordRehearsal, REHEARSED_MARK, venueById, VENUES, type Venue } from '../../domain/game/tour';
 import type { MidiEvent } from '../../domain/midi/events';
 import { playSong, setUpBand } from './bandPlayer';
 import { renderChart } from './chartView';
@@ -53,26 +53,34 @@ const stat = (k: string, v: string) => h('div.vr-stat', null, h('span.k', null, 
 
 // ---------------------------------------------------------------- Tour
 
-/** The game's home: the road of venues, the Cellar Bar's setlist with each song's rehearsal, and the gig. */
+/**
+ * The game's home: the road of venues, the chosen venue's setlist with each song's rehearsal, and its gig. A venue
+ * with a setlist can be chosen once the band has its fans and the member its level.
+ */
 export function tourScreen(game: Game): Screen {
   const p = game.progress;
   const role = game.role;
-  const cellar = venueById('cellar');
-  const book = canBook(p, role, cellar);
+  const reached = (v: Venue) => p.fans >= v.needs.fans && level(p.xp[role]) >= v.needs.level;
+  const playable = VENUES.filter((v) => v.setlist.length);
+  const venue = playable.find((v) => v.id === game.venue && reached(v)) ?? [...playable].reverse().find(reached) ?? playable[0]!;
+  const book = canBook(p, role, venue);
 
   const road = h('div.vr-road', null, ...VENUES.map((v) => {
-    const open = canBook(p, role, v);
-    const here = v.id === 'cellar';
+    const open = v.setlist.length > 0 && reached(v);
     const best = p.gigBest[v.id];
-    return h(`div.vr-venue${here ? '.here' : ''}${!v.setlist.length ? '.locked' : ''}` as 'div', null,
-      h('span.vr-mono', null, here ? (best !== undefined ? `PLAYED · BEST ${Math.round(best * 100)}%` : 'FIRST GIG') : 'LOCKED'),
+    const tag = v.id === venue.id ? (best !== undefined ? `PLAYED · BEST ${Math.round(best * 100)}%` : 'NEXT GIG')
+      : open ? (best !== undefined ? `PLAYED · BEST ${Math.round(best * 100)}%` : 'OPEN') : 'LOCKED';
+    const card = h(`${open ? 'button' : 'div'}.vr-venue${v.id === venue.id ? '.here' : ''}${!open ? '.locked' : ''}` as 'div', open ? { type: 'button' } : null,
+      h('span.vr-mono', null, tag),
       h('span.name', null, v.name),
       h('span.vr-mono', null, `cap. ${v.capacity.toLocaleString('en-GB')}`),
-      h('span.need', null, here ? `${v.setlist.length} songs · £${v.fee}` : `${v.needs.fans.toLocaleString('en-GB')} fans · level ${v.needs.level}`),
-      !here && !open.ok && v.setlist.length === 0 ? h('span.vr-mono', null, 'later versions') : null);
+      h('span.need', null, open ? `${v.setlist.length} songs · £${v.fee}${v.lengths === 'off' ? '' : ' · note length counts'}` : `${v.needs.fans.toLocaleString('en-GB')} fans · level ${v.needs.level}`),
+      !v.setlist.length ? h('span.vr-mono', null, 'later versions') : null);
+    if (open) card.addEventListener('click', () => { game.venue = v.id; game.go('tour'); });
+    return card;
   }));
 
-  const setlist = h('div.vr-setlist', null, ...cellar.setlist.map((id, i) => {
+  const setlist = h('div.vr-setlist', null, ...venue.setlist.map((id, i) => {
     const s = songById(id);
     const best = p.rehearsed[`${role}:${id}`];
     const ready = (best ?? 0) >= REHEARSED_MARK;
@@ -83,8 +91,9 @@ export function tourScreen(game: Game): Screen {
       button('Rehearse', () => game.go({ rehearse: id })));
   }));
 
-  const gig = button('Play the gig', () => game.go({ gig: 'cellar' }), 'primary');
+  const gig = button('Play the gig', () => game.go({ gig: venue.id }), 'primary');
   gig.disabled = !book.ok;
+  const next = VENUES.find((v) => v.setlist.length && !reached(v));
 
   return {
     el: h('div.vr-screen', null,
@@ -96,19 +105,22 @@ export function tourScreen(game: Game): Screen {
         h('div.vr-stats', null, stat('FANS', p.fans.toLocaleString('en-GB')), stat('CASH', `£${p.cash.toLocaleString('en-GB')}`), stat('GIGS', String(p.gigs))),
       ),
       road,
+      next ? h('span.vr-mono', null, `Next on the road: ${next.name} at ${next.needs.fans.toLocaleString('en-GB')} fans and ${ROLE_NAMES[role].toLowerCase()} level ${next.needs.level} (you: ${p.fans.toLocaleString('en-GB')} fans, level ${level(p.xp[role])}).`) : null,
       h('div.vr-gigpanel', null,
         h('div', { style: 'display: flex; flex-direction: column; gap: 14px; min-width: 0; flex: 1 1 520px' },
-          h('span.vr-kicker.hot', null, `Next gig · ${cellar.name}`),
+          h('span.vr-kicker.hot', null, `Gig · ${venue.name}`),
           h('span.vr-label', null, 'You play'),
           roleSwitch(game, () => game.go('tour')),
           h('span.vr-label', null, `Setlist · rehearse each song at full tempo (${Math.round(REHEARSED_MARK * 100)}%+) to book the gig`),
-          setlist),
+          setlist,
+          venue.lengths !== 'off' ? h('span.vr-mono', null, 'Here how long you hold your notes counts too: a bonus on top of your score, never against it.') : null),
         h('div', { style: 'display: flex; flex-direction: column; gap: 12px; flex: 0 1 320px' },
           gig,
           h('span.vr-mono', null, book.ok ? 'The band is ready. The engine plays the other members at their own level.' : book.why!),
           button('Skills and lessons', () => game.go('tree')))),
-      h('div.vr-row', { style: 'max-width: 640px; margin-top: auto' },
+      h('div.vr-row', { style: 'max-width: 960px; margin-top: auto' },
         button('Redo knob setup', () => game.go('knobs')),
+        button('Redo touch setup', () => game.go('touch')),
         button('Rename the band', () => game.go('band'))),
     ),
   };
@@ -255,7 +267,7 @@ export function rehearseScreen(game: Game, songId: string): Screen {
     const start = (tempo: number) => {
       stopAll();
       out.hidden = true;
-      const along = playAlong(game, song, role, { tempo, seed: 3 }, {
+      const along = playAlong(game, song, role, { tempo, seed: 3, lengths: VENUES.find((v) => v.setlist.includes(song.id))?.lengths ?? 'off' }, {
         onMidi: (e) => view.midi(e),
         onResult: (_, r) => {
           feedback.textContent = `${GRADE_TEXT[r.grade]}${r.offsetMs !== undefined && r.grade !== 'wrong' ? ` · ${Math.abs(Math.round(r.offsetMs))} ms ${r.offsetMs < 0 ? 'early' : 'late'}` : ''}`;
@@ -340,7 +352,7 @@ export function gigScreen(game: Game, venueId: string): Screen {
     songLine.textContent = `SONG ${i + 1} OF ${songs.length} · ${song.title.toUpperCase()} · ${song.bpm} BPM`;
     feedback.textContent = 'The drums count you in…';
     feedback.className = 'vr-feedback';
-    const along = playAlong(game, song, role, { crowdStart: crowd, seed: 100 + i }, {
+    const along = playAlong(game, song, role, { crowdStart: crowd, seed: 100 + i, lengths: venue.lengths }, {
       onMidi: (e) => view.midi(e),
       onResult: (_, r, judge) => {
         feedback.textContent = GRADE_TEXT[r.grade];
@@ -367,8 +379,8 @@ export function gigScreen(game: Game, venueId: string): Screen {
 
   function review(): void {
     const avgCrowd = judges.reduce((s, j) => s + j.crowdAverage, 0) / judges.length;
-    const outcome = gigOutcome(venue, scores, avgCrowd);
     const before = game.progress;
+    const outcome = gigOutcome(venue, scores, avgCrowd, before.gigBest[venue.id] === undefined);
     game.progress = recordGig(before, role, venue, outcome);
     game.save();
     const all = judges.map((j) => j.counts());
@@ -376,23 +388,26 @@ export function gigScreen(game: Game, venueId: string): Screen {
     const cuesTotal = judges.reduce((s, j) => s + j.cues.length, 0);
     const offs = judges.map((j) => j.meanOffsetMs());
     const weakest = songs[scores.indexOf(Math.min(...scores))]!.id;
-    const advice = adviceFor(role, { cues: cuesTotal, good: sum('good'), close: sum('close'), off: sum('off'), wrong: sum('wrong'), missed: sum('missed'), meanOffsetMs: offs.reduce((a, b) => a + b, 0) / offs.length }, weakest);
+    const lengths = judges.map((j) => j.lengthStats()).reduce((a, b) => ({ measured: a.measured + b.measured, good: a.good + b.good, short: a.short + b.short, long: a.long + b.long }), { measured: 0, good: 0, short: 0, long: 0 });
+    const advice = adviceFor(role, { cues: cuesTotal, good: sum('good'), close: sum('close'), off: sum('off'), wrong: sum('wrong'), missed: sum('missed'), meanOffsetMs: offs.reduce((a, b) => a + b, 0) / offs.length, lengths }, weakest);
     const levelUp = level(game.progress.xp[role]) > level(before.xp[role]);
     const quote = outcome.stars >= 4 ? '“Tight, bright and loud. Book them again.”' : outcome.stars === 3 ? '“A promising set with a few wobbles.”' : '“Nervous, but there is something there.”';
 
     result.replaceChildren(h('div.vr-review', null,
       h('div.vr-zine', null,
-        h('div.vr-zine-head', null, h('span', null, 'Cellar Notes'), h('span.vr-mono', null, 'LIVE REVIEW')),
+        h('div.vr-zine-head', null, h('span', null, venue.id === 'cellar' ? 'Cellar Notes' : 'Northside Weekly'), h('span.vr-mono', null, 'LIVE REVIEW')),
         h('span.vr-zine-stars', { 'aria-label': `${outcome.stars} out of 5` }, `${outcome.stars}/5`),
         h('span.vr-zine-band', null, `${game.progress.band || 'Your band'} · ${venue.name}`),
         h('span.vr-zine-quote', null, quote),
         h('div.vr-zine-songs', null, ...songs.map((s, i) => h('div', null, h('span', null, s.title), h('span', null, `${Math.round(scores[i]! * 100)}%`))))),
       h('div', { style: 'display: flex; flex-direction: column; gap: 16px; flex: 1 1 360px; min-width: 0' },
         h('div.vr-stats', null, stat('FANS', `+${outcome.fans}`), stat('CASH', `+£${outcome.cash}`), stat('XP', `+${outcome.xp}`)),
+        outcome.wordOfMouth ? h('span.vr-mono', null, `First time here: +${outcome.wordOfMouth} fans by word of mouth.`) : null,
+        lengths.measured ? h('span.vr-mono', null, `Note lengths: ${lengths.good} right, ${lengths.short} let go early, ${lengths.long} held too long${venue.lengths === 'bonus' ? ' (a bonus on your score here)' : ' (shown, not scored here)'}`) : null,
         h('span.vr-mono', null, `${sum('good')} good · ${sum('close')} close · ${sum('off')} off · ${sum('wrong')} wrong · ${sum('missed')} missed${levelUp ? ` · ${ROLE_NAMES[role]} level ${level(game.progress.xp[role])}` : ''}`),
         h('span.vr-label', null, 'Practise next'),
         ...advice.map((a) => {
-          const go = a.lesson ? button(`${a.lesson.id} · ${a.lesson.title}`, () => game.go(a.lesson!.kind === 'groove' ? { groove: a.lesson!.id } : { drill: a.lesson!.id }))
+          const go = a.lesson ? button(`${a.lesson.id} · ${a.lesson.title}`, () => game.go(a.lesson!.kind === 'groove' ? { groove: a.lesson!.id } : a.lesson!.kind === 'length' ? { length: a.lesson!.id } : { drill: a.lesson!.id }))
             : a.song ? button(`Rehearse ${songById(a.song).title}`, () => game.go({ rehearse: a.song! })) : null;
           return h('div.vr-card', null, h('span', { style: 'font-size: 15px; line-height: 1.5' }, a.text), go);
         }),
