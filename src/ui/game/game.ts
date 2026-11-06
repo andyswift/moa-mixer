@@ -1,21 +1,33 @@
 import type { AudioEngine } from '../../audio/engine';
+import type { BassGuitar } from '../../domain/devices/bassGuitar';
+import type { DrumMachine } from '../../domain/devices/drumMachine';
 import type { PolySynth } from '../../domain/devices/polySynth';
 import type { Synthesizer } from '../../domain/devices/synthesizer';
-import type { GameProgress } from '../../domain/game/progress';
+import type { GameProgress, Role } from '../../domain/game/progress';
 import type { MidiEvent } from '../../domain/midi/events';
 import type { WebMidi } from '../../midi/webMidi';
 
-export type ScreenName = 'gate' | 'knobs' | 'band' | 'tree' | { lesson: string } | { drill: string };
+export type ScreenName = 'gate' | 'knobs' | 'band' | 'tree' | { lesson: string } | { drill: string } | { groove: string };
 
-/** What every screen gets: the synths and their engines, MIDI, the saved progress, and a way to move on. */
+/** Which instrument the player's keys play. */
+export type Instrument = 'mono' | 'poly' | 'bass';
+
+/** What every screen gets: the instruments and their engines, MIDI, the saved progress, and a way to move on. */
 export interface Game {
-  /** The SOLO-1 (the MOA-1's engine): the mono synth the player starts with. */
+  /** The SOLO-1 (the MOA-1's engine): the mono synth the synth player starts with. */
   readonly synth: Synthesizer;
   /** The MOA-6, for lessons that need chords. */
   readonly poly: PolySynth;
-  /** Which synth the player's keys play; every screen starts on 'mono'. */
-  instrument: 'mono' | 'poly';
-  /** Starts both engines (from a click). */
+  /** The MOA-BASS. Played from the keyboard it sounds an octave below the keys (screens get the sounding note). */
+  readonly bass: BassGuitar;
+  /** The drum machine that plays grooves, and its engine (its audio clock times them). */
+  readonly drums: DrumMachine;
+  readonly drumsEngine: AudioEngine;
+  /** Which instrument the player's keys play; every screen starts on 'mono'. */
+  instrument: Instrument;
+  /** The band member the skill tree shows. */
+  role: Role;
+  /** Starts every engine (from a click). */
   startAudio(): Promise<void>;
   readonly engine: AudioEngine;
   readonly midi: WebMidi;
@@ -23,8 +35,11 @@ export interface Game {
   /** Saves the progress after a screen changed it. */
   save(): void;
   go(screen: ScreenName): void;
-  /** The current screen's MIDI listener (notes still play the synth whatever the screen does). */
-  listen(fn: ((e: MidiEvent) => void) | undefined): void;
+  /**
+   * The current screen's MIDI listener, with the message's time (performance.now() clock). Notes still play the
+   * instrument whatever the screen does; on the bass, the screen gets the note as the bass sounds it.
+   */
+  listen(fn: ((e: MidiEvent, time: number) => void) | undefined): void;
   /** True once a note has come in from the player's device this session. */
   heardNote: boolean;
 }

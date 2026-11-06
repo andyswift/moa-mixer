@@ -78,7 +78,7 @@ button, input { font: inherit; color: inherit; }
 .vr-track-head .name { font-family: var(--vr-display); font-size: 30px; text-transform: uppercase; }
 .vr-nodes { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .vr-node { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 14px; background: transparent; border: 1px dashed var(--vr-line); color: var(--vr-muted); text-align: left; width: 100%; }
-.vr-node .k { font-family: var(--vr-mono); font-size: 12px; width: 24px; }
+.vr-node .k { font-family: var(--vr-mono); font-size: 12px; min-width: 40px; white-space: nowrap; }
 .vr-node .t { display: flex; flex-direction: column; gap: 1px; flex-grow: 1; }
 .vr-node .t b { font-size: 15px; font-weight: 600; }
 .vr-node .t span { font-size: 12px; }
@@ -142,11 +142,11 @@ button, input { font: inherit; color: inherit; }
 .solo1-head { display: flex; justify-content: space-between; align-items: center; }
 .solo1-head .brand { font-family: var(--vr-display); font-size: 28px; letter-spacing: 0.06em; }
 .solo1-head .kind { font-family: var(--vr-mono); font-size: 12px; }
-.solo1-sections { display: flex; gap: 12px; flex-wrap: wrap; }
+.solo1-sections { display: flex; gap: 10px; flex-wrap: wrap; }
 .solo1-section { display: flex; flex-direction: column; gap: 10px; border-top: 4px solid var(--vr-ink); padding-top: 8px; }
 .solo1-section .sname { font-family: var(--vr-mono); font-size: 12px; font-weight: 600; letter-spacing: 0.1em; }
-.solo1-section .sliders { display: flex; gap: 2px; }
-.solo1-slider { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 4px; border: 2px solid transparent; border-radius: 4px; min-width: 42px; }
+.solo1-section .sliders { display: flex; gap: 1px; }
+.solo1-slider { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 2px; border: 2px solid transparent; border-radius: 4px; flex: 0 0 auto; width: 50px; box-sizing: border-box; } /* a fixed column: values changing length must not move the sliders */
 .solo1-slider.locked { opacity: 0.42; }
 .solo1-slider.active { border-color: var(--vr-face-hot); }
 .solo1-slider .knobtag { font-family: var(--vr-mono); font-size: 11px; font-weight: 600; background: var(--vr-ink); color: var(--vr-face); padding: 1px 6px; border-radius: 2px; }
@@ -156,7 +156,9 @@ button, input { font: inherit; color: inherit; }
 .solo1-slider .cap { position: absolute; left: 0; width: 24px; height: 12px; background: var(--vr-ink); }
 .solo1-slider .ghost { position: absolute; left: 0; width: 24px; height: 12px; border: 2px dashed var(--vr-face-hot); }
 .solo1-slider .lbl { font-family: var(--vr-mono); font-size: 12px; font-weight: 600; }
-.solo1-slider .val { font-family: var(--vr-mono); font-size: 11px; min-height: 14px; white-space: nowrap; }
+.solo1-slider .val { font-family: var(--vr-mono); font-size: 10px; min-height: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; width: 100%; text-align: center; }
+.solo1.rig .solo1-slider { width: 64px; }
+.solo1.rig .solo1-slider .val { font-size: 11px; }
 
 @media (max-width: 960px) {
   .vr-screen { padding: 28px 16px; }
@@ -165,3 +167,48 @@ button, input { font: inherit; color: inherit; }
   .vr-title { font-size: 44px; }
   .vr-title.huge { font-size: 64px; }
 }
+
+/* The bass rig's face: black, like an amp head */
+.solo1.rig { background: #1b1917; color: var(--vr-paper); box-shadow: inset 0 -10px 0 rgba(0, 0, 0, 0.5), inset 0 0 0 1px #3a332d; }
+.solo1.rig .solo1-section { border-top-color: var(--vr-paper); }
+.solo1.rig .solo1-slider .track::before { background: #5c544c; }
+.solo1.rig .solo1-slider .cap { background: var(--vr-paper); }
+.solo1.rig .solo1-slider .ghost { border-color: var(--vr-amber); }
+.solo1.rig .solo1-slider.active { border-color: var(--vr-amber); }
+.solo1.rig .solo1-slider .knobtag { background: var(--vr-amber); color: var(--vr-ground); }
+
+/* Role tabs on the skill tree */
+.vr-tabs { display: flex; gap: 8px; }
+.vr-tab { min-height: 48px; padding: 0 20px; display: inline-flex; align-items: center; gap: 12px; background: transparent; border: 1px solid var(--vr-line); color: var(--vr-muted); font-family: var(--vr-display); font-size: 22px; text-transform: uppercase; cursor: pointer; }
+.vr-tab .lv { font-family: var(--vr-mono); font-size: 12px; }
+.vr-tab.on { border: 2px solid var(--vr-amber); color: var(--vr-paper); background: var(--vr-panel-hot); }
+.vr-tab:focus-visible { outline: 3px solid var(--vr-amber); outline-offset: 2px; }
+
+/* The bass neck */
+.vr-fretboard { display: flex; flex-direction: column; gap: 0; background: #2a2018; border: 1px solid var(--vr-line); padding: 10px 12px 6px; }
+.vr-fb-row { display: grid; grid-template-columns: 28px 60px repeat(7, minmax(0, 1fr)); align-items: center; height: 34px; }
+.vr-fb-row.numbers { height: 22px; }
+.vr-fb-name { font-family: var(--vr-mono); font-size: 13px; font-weight: 600; color: var(--vr-muted); }
+.vr-fb-cell { position: relative; height: 100%; display: flex; align-items: center; justify-content: center; border-right: 3px solid #b9b2a6; }
+.vr-fb-cell.open { border-right: 7px solid #e8e1d3; }
+.vr-fb-cell::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: #9a948a; }
+.vr-fb-dot { position: relative; z-index: 1; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--vr-mono); font-size: 12px; font-weight: 600; }
+.vr-fb-cell.guide .vr-fb-dot { border: 3px solid var(--vr-amber); background: var(--vr-ground); color: var(--vr-amber); }
+.vr-fb-cell.down .vr-fb-dot { background: var(--vr-amber); border-color: var(--vr-amber); color: var(--vr-ground); }
+.vr-fb-num { font-family: var(--vr-mono); font-size: 11px; color: var(--vr-dim); text-align: center; }
+.vr-fb-num.inlay { color: var(--vr-paper); }
+
+/* Timing lessons */
+.vr-lamps { display: flex; gap: 8px; }
+.vr-lamp { width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; font-family: var(--vr-display); font-size: 24px; border: 1px solid var(--vr-line); color: var(--vr-dim); }
+.vr-lamp.play { border: 2px solid var(--vr-paper); color: var(--vr-paper); }
+.vr-lamp.now { background: var(--vr-amber); border-color: var(--vr-amber); color: var(--vr-ground); }
+.vr-hits { display: flex; gap: 4px; flex-wrap: wrap; }
+.vr-hit { width: 26px; height: 26px; border: 1px dashed var(--vr-line); }
+.vr-hit.good { background: var(--vr-amber); border: 1px solid var(--vr-amber); }
+.vr-hit.close { border: 2px solid var(--vr-amber); }
+.vr-hit.bad { border: 1px solid var(--vr-paper); background: repeating-linear-gradient(45deg, transparent 0 5px, #4a423a 5px 7px); }
+.vr-scatter { position: relative; height: 92px; background: var(--vr-panel); border: 1px solid var(--vr-line); }
+.vr-scatter-centre { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: var(--vr-dim); }
+.vr-scatter-dot { position: absolute; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--vr-paper); }
+.vr-scatter-dot.good { background: var(--vr-amber); }

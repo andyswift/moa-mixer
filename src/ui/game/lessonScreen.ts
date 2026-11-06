@@ -1,16 +1,24 @@
-import type { Synthesizer } from '../../domain/devices/synthesizer';
 import { knobIndex } from '../../domain/game/knobs';
 import { LessonSession } from '../../domain/game/lessonSession';
-import { noteName, SOUND_DESIGN, type Lesson } from '../../domain/game/lessons';
-import { level, recordPass } from '../../domain/game/progress';
+import { bassBase } from '../../domain/game/sounds';
+import { BASS_SOUND, noteName, SOUND_DESIGN, type Lesson } from '../../domain/game/lessons';
+import { level, recordPass, type Role } from '../../domain/game/progress';
 import { button, h } from './dom';
 import type { Game, Screen } from './game';
-import { formatValue, PANEL_NAMES, renderSolo1 } from './solo1Panel';
+import { BASS_RIG, formatValue, PANEL_NAMES, renderPanel, SOLO1 } from './solo1Panel';
+
+/** Something a phrase can be played on. */
+interface Keys {
+  keyDown(note: number, velocity?: number): void;
+  keyUp(note: number): void;
+}
+
+
 
 const RELEASE_TAIL_MS = 500;
 
 /** Plays a phrase on the synth from timers; returns a stop function. `done` runs once, when it ends or is stopped. */
-function playPhrase(synth: Synthesizer, phrase: Lesson['demo'], done: () => void): () => void {
+function playPhrase(synth: Keys, phrase: Lesson['demo'], done: () => void): () => void {
   const beatMs = 60000 / phrase.bpm;
   const timers: number[] = [];
   let finished = false;
@@ -35,11 +43,18 @@ function playPhrase(synth: Synthesizer, phrase: Lesson['demo'], done: () => void
  * hear, a check that scores each control, and once it matches, a riff to play with the new sound.
  */
 export function lessonScreen(game: Game, lessonId: string): Screen {
-  const index = SOUND_DESIGN.findIndex((l) => l.id === lessonId);
-  const lesson = SOUND_DESIGN[index]!;
-  const next = SOUND_DESIGN[index + 1];
-  const session = new LessonSession(game.synth, lesson);
-  const panel = renderSolo1((id) => game.synth.control(id));
+  const onBass = BASS_SOUND.some((l) => l.id === lessonId);
+  const list = onBass ? BASS_SOUND : SOUND_DESIGN;
+  const index = list.findIndex((l) => l.id === lessonId);
+  const lesson = list[index]!;
+  const next = list[index + 1];
+  const role: Role = onBass ? 'bass' : 'synth';
+  const device = onBass ? game.bass : game.synth;
+  game.instrument = onBass ? 'bass' : 'mono';
+  const session = onBass
+    ? new LessonSession(device, lesson, bassBase())
+    : new LessonSession(device, lesson);
+  const panel = renderPanel(onBass ? BASS_RIG : SOLO1, (id) => device.control(id));
   panel.setActive(lesson.controls.map((c) => c.id));
 
   let stop: (() => void) | undefined;
@@ -53,7 +68,7 @@ export function lessonScreen(game: Game, lessonId: string): Screen {
     stop?.();
     if (target) { panel.freeze(true); session.showTarget(); }
     hearTarget.disabled = hearYours.disabled = true;
-    stop = playPhrase(game.synth, lesson.demo, () => {
+    stop = playPhrase(device, lesson.demo, () => {
       if (target) { session.showYours(); panel.freeze(false); }
       hearTarget.disabled = hearYours.disabled = false;
       stop = undefined;
@@ -76,7 +91,7 @@ export function lessonScreen(game: Game, lessonId: string): Screen {
     meterLabel.textContent = `Sound match · ${Math.round(result.score * 100)}%`;
     scores.replaceChildren(...result.scores.map((s, i) => {
       const spec = lesson.controls[i]!;
-      const c = game.synth.control(s.id);
+      const c = device.control(s.id);
       let text = s.direction === 'ok' ? 'match' : s.direction === 'low' ? spec.low : spec.high;
       if (session.revealed && s.direction !== 'ok') text += ` · ${formatValue(c)} → ${formatValue(c, lesson.target[s.id]!)}`;
       return h('div.vr-score', null, h('span', null, `K${i + 1} · ${PANEL_NAMES[s.id] ?? s.id}`), h(`span.s${s.direction === 'ok' ? '' : '.off'}` as 'span', null, text));
@@ -91,7 +106,9 @@ export function lessonScreen(game: Game, lessonId: string): Screen {
   const riffNotes = h('div.vr-riff');
   const riffCard = h('div.vr-card.hot', { hidden: true },
     h('span.vr-kicker.hot', null, 'It matches · now play it'),
-    h('span', { style: 'font-size: 15px' }, 'Play these keys in order with the sound you made.'),
+    h('span', { style: 'font-size: 15px' }, onBass
+      ? 'Play these notes in order with the sound you made (on your keyboard, an octave up: the bass sounds an octave below the keys).'
+      : 'Play these keys in order with the sound you made.'),
     riffNotes);
   function renderRiff(): void {
     riffNotes.replaceChildren(...lesson.riff.map((n, i) =>
@@ -110,14 +127,14 @@ export function lessonScreen(game: Game, lessonId: string): Screen {
   function pass(): void {
     phase = 'passed';
     const before = game.progress;
-    game.progress = recordPass(before, lesson.id, lesson.xp, lastScore);
+    game.progress = recordPass(before, role, lesson.id, lesson.xp, lastScore);
     game.save();
-    const gained = game.progress.xp - before.xp;
-    const levelUp = level(game.progress.xp) > level(before.xp);
+    const gained = game.progress.xp[role] - before.xp[role];
+    const levelUp = level(game.progress.xp[role]) > level(before.xp[role]);
     passedCard.replaceChildren(
       h('span.vr-kicker.hot', null, 'Lesson passed'),
       h('span', { style: 'font-family: var(--vr-display); font-size: 40px; text-transform: uppercase' }, `+${gained} XP`),
-      h('span.vr-mono', null, levelUp ? `Level ${level(game.progress.xp)}: your playing just got better.` : `Score ${Math.round(lastScore * 100)}%`),
+      h('span.vr-mono', null, levelUp ? `Level ${level(game.progress.xp[role])}: your playing just got better.` : `Score ${Math.round(lastScore * 100)}%`),
       h('div.vr-row', null,
         button('Back to skills', () => game.go('tree')),
         next ? button(`Next: ${next.title}`, () => game.go({ lesson: next.id }), 'primary') : null),
@@ -154,7 +171,9 @@ export function lessonScreen(game: Game, lessonId: string): Screen {
         matchCard, riffCard, passedCard, hint,
       ),
       h('div.vr-side', null, panel.el, knobLegend,
-        h('p.vr-mono', null, 'Only the lesson\'s controls move: the rest are locked for now. Play notes any time to hear your sound.')),
+        h('p.vr-mono', null, onBass
+          ? 'Only the lesson\'s controls move: the rest are locked for now. Play notes any time to hear your sound: the bass sounds an octave below your keys, and the mod wheel rests your palm on the strings.'
+          : 'Only the lesson\'s controls move: the rest are locked for now. Play notes any time to hear your sound.')),
     ),
   );
 

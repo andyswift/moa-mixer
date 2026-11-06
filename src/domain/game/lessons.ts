@@ -19,6 +19,8 @@ export interface PhraseNote {
 
 export interface Lesson {
   readonly id: string;
+  /** The instrument the lesson is on: the SOLO-1 (the default) or the MOA-BASS. */
+  readonly instrument?: 'solo1' | 'bass';
   readonly title: string;
   /** What the lesson is about, in a few words (the skill tree's second line). */
   readonly topic: string;
@@ -156,6 +158,34 @@ export const SOUND_DESIGN: readonly Lesson[] = [
     demo: longNotes(84, [64, 62, 60, 62], 2),
     riff: [64, 62, 60, 62],
     xp: 120,
+  },
+];
+
+/** The bass player's sound lessons: the same knob matching, on the MOA-BASS. Notes here are as the bass sounds. */
+export const BASS_SOUND: readonly Lesson[] = [
+  {
+    id: 'B-S1',
+    instrument: 'bass',
+    title: 'Pickup and tone',
+    topic: 'Where you pluck, what the pickup hears',
+    goal: 'A punchy finger tone',
+    intro: [
+      'Where you pluck a bass string changes its sound. Near the neck the note is round and soft; near the bridge it is tight and punchy, with more of the string\'s higher harmonics.',
+      'The pickup hears the string from one place too: near the neck it hears a deep, warm tone, near the bridge a leaner one with more bite. Tone rolls off the top of what the pickup hears.',
+      'Mid on the amp boosts or cuts the middle of the sound, where a bass line cuts through a band. The target is a punchy modern finger tone: pluck near the bridge, pickup towards the bridge, tone open, a little extra mid.',
+    ],
+    start: { 'pluck.position': 0.32, 'pickup.position': 0.27, tone: 700, 'amp.mid': -6 },
+    target: { 'pluck.position': 0.08, 'pickup.position': 0.09, tone: 4000, 'amp.mid': 4 },
+    controls: [
+      { id: 'pluck.position', tolerance: 0.1, low: 'too close to the bridge: too thin', high: 'too far from the bridge: too soft' },
+      { id: 'pickup.position', tolerance: 0.1, low: 'pickup too near the bridge', high: 'pickup too near the neck: woolly' },
+      { id: 'tone', tolerance: 0.07, low: 'too dark', high: 'too bright' },
+      { id: 'amp.mid', tolerance: 0.1, low: 'not enough mid: it won\'t cut through', high: 'too much mid: honky' },
+    ],
+    hint: 'Move the pluck first and listen to the attack change; then the pickup. Open the tone until the strings start to click, then back off a little.',
+    demo: eighths(100, [28, 28, 40, 28, 31, 33, 35, 31]),
+    riff: [28, 31, 33, 35],
+    xp: 100,
   },
 ];
 

@@ -1,16 +1,41 @@
 import type { Control } from '../../domain/devices/controls';
-import { position } from '../../domain/game/scoring';
 import type { PresetValues } from '../../domain/devices/synthPresets';
+import { position } from '../../domain/game/scoring';
 import { h } from './dom';
 
-/** The SOLO-1's face: the MOA-1's controls a lesson can use, in sections, as sliders. */
-const SECTIONS: readonly { name: string; items: readonly (readonly [string, string])[] }[] = [
-  { name: 'VCO', items: [['osc.range', 'RANGE'], ['osc.mod', 'MOD']] },
-  { name: 'LFO', items: [['lfo.rate', 'RATE'], ['lfo.wave', 'WAVE']] },
-  { name: 'SOURCE MIXER', items: [['mix.saw', 'SAW'], ['mix.pulse', 'PULSE'], ['mix.sub', 'SUB'], ['mix.noise', 'NOISE']] },
-  { name: 'VCF', items: [['filter.cutoff', 'FREQ'], ['filter.resonance', 'RES'], ['filterEnv.amount', 'ENV']] },
-  { name: 'ENV', items: [['filterEnv.attack', 'A'], ['filterEnv.decay', 'D'], ['filterEnv.sustain', 'S'], ['filterEnv.release', 'R']] },
-];
+/** An instrument's face for a lesson: its name and the controls it shows, in sections, as sliders. */
+export interface PanelSpec {
+  readonly brand: string;
+  readonly kind: string;
+  /** The face's look: the SOLO-1's grey or the bass rig's black. */
+  readonly theme: 'solo1' | 'rig';
+  readonly sections: readonly { name: string; items: readonly (readonly [string, string])[] }[];
+}
+
+export const SOLO1: PanelSpec = {
+  brand: 'SOLO-1',
+  kind: 'MONOPHONIC SYNTHESIZER',
+  theme: 'solo1',
+  sections: [
+    { name: 'VCO', items: [['osc.range', 'RANGE'], ['osc.mod', 'MOD']] },
+    { name: 'LFO', items: [['lfo.rate', 'RATE'], ['lfo.wave', 'WAVE']] },
+    { name: 'SOURCE MIXER', items: [['mix.saw', 'SAW'], ['mix.pulse', 'PULSE'], ['mix.sub', 'SUB'], ['mix.noise', 'NOISE']] },
+    { name: 'VCF', items: [['filter.cutoff', 'FREQ'], ['filter.resonance', 'RES'], ['filterEnv.amount', 'ENV']] },
+    { name: 'ENV', items: [['filterEnv.attack', 'A'], ['filterEnv.decay', 'D'], ['filterEnv.sustain', 'S'], ['filterEnv.release', 'R']] },
+  ],
+};
+
+export const BASS_RIG: PanelSpec = {
+  brand: 'BASS RIG',
+  kind: 'FOUR-STRING BASS · AMP · 4×10',
+  theme: 'rig',
+  sections: [
+    { name: 'HANDS', items: [['pluck.position', 'PLUCK'], ['pluck.strength', 'FORCE'], ['palm', 'PALM']] },
+    { name: 'BASS', items: [['pickup.position', 'PICKUP'], ['tone', 'TONE']] },
+    { name: 'AMP', items: [['amp.gain', 'GAIN'], ['amp.bass', 'BASS'], ['amp.mid', 'MID'], ['amp.treble', 'TREBLE']] },
+    { name: 'CABINET', items: [['cab.blend', 'DI/CAB'], ['level', 'LEVEL']] },
+  ],
+};
 
 /** A control's name as the player sees it on the panel and in the scores. */
 export const PANEL_NAMES: Readonly<Record<string, string>> = {
@@ -18,6 +43,9 @@ export const PANEL_NAMES: Readonly<Record<string, string>> = {
   'mix.saw': 'Saw', 'mix.pulse': 'Pulse', 'mix.sub': 'Sub', 'mix.noise': 'Noise',
   'filter.cutoff': 'Cutoff', 'filter.resonance': 'Resonance', 'filterEnv.amount': 'Env amount',
   'filterEnv.attack': 'Attack', 'filterEnv.decay': 'Decay', 'filterEnv.sustain': 'Sustain', 'filterEnv.release': 'Release',
+  'pluck.position': 'Pluck position', 'pluck.strength': 'Pluck force', palm: 'Palm mute', 'pickup.position': 'Pickup position',
+  tone: 'Tone', 'amp.gain': 'Amp gain', 'amp.bass': 'Amp bass', 'amp.mid': 'Amp mid', 'amp.treble': 'Amp treble',
+  'cab.blend': 'DI / cabinet', level: 'Level',
 };
 
 const TRACK_PX = 160;
@@ -29,15 +57,17 @@ export function formatValue(control: Control, value: number | string = control.v
   if (control.kind !== 'number') return String(value);
   switch (control.unit) {
     case 'Hz': return value >= 1000 ? `${(value / 1000).toFixed(1)} kHz` : value >= 20 ? `${Math.round(value)} Hz` : `${value.toFixed(1)} Hz`;
-    case 's': return value < 1 ? `${Math.round(value * 1000)} ms` : `${value.toFixed(2)} s`;
+    case 's': return value < 1 ? `${Math.round(value * 1000)} ms` : `${value.toFixed(1)} s`;
     case 'oct': return `${value.toFixed(1)} oct`;
     case 'ct': return `${Math.round(value)} ct`;
+    case 'm': return `${Math.round(value * 100)} cm`;
+    case 'dB': return `${value > 0 ? '+' : ''}${value.toFixed(1)} dB`;
     case '': return control.max === 1 ? `${Math.round(value * 100)}%` : value.toFixed(1);
     default: return `${Math.round(value)}${control.unit}`;
   }
 }
 
-export interface Solo1Panel {
+export interface InstrumentPanel {
   readonly el: HTMLElement;
   /** Which controls the knobs turn (knob 1 first); the rest are shown locked. */
   setActive(ids: readonly string[]): void;
@@ -48,12 +78,12 @@ export interface Solo1Panel {
   dispose(): void;
 }
 
-export function renderSolo1(control: (id: string) => Control): Solo1Panel {
+export function renderPanel(spec: PanelSpec, control: (id: string) => Control): InstrumentPanel {
   const sliders = new Map<string, { root: HTMLElement; cap: HTMLElement; ghost: HTMLElement; val: HTMLElement; tag: HTMLElement }>();
   const offs: (() => void)[] = [];
   let frozen = false;
 
-  const sections = SECTIONS.map((s) =>
+  const sections = spec.sections.map((s) =>
     h('div.solo1-section', null,
       h('span.sname', null, s.name),
       h('div.sliders', null, ...s.items.map(([id, label]) => {
@@ -81,8 +111,8 @@ export function renderSolo1(control: (id: string) => Control): Solo1Panel {
   }
   for (const id of sliders.keys()) update(id);
 
-  const el = h('div.solo1', null,
-    h('div.solo1-head', null, h('span.brand', null, 'SOLO-1'), h('span.kind', null, 'MONOPHONIC SYNTHESIZER')),
+  const el = h(`div.solo1${spec.theme === 'rig' ? '.rig' : ''}` as 'div', null,
+    h('div.solo1-head', null, h('span.brand', null, spec.brand), h('span.kind', null, spec.kind)),
     h('div.solo1-sections', null, ...sections),
   );
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BassGuitar } from '../devices/bassGuitar';
 import { PolySynth } from '../devices/polySynth';
 import { Synthesizer } from '../devices/synthesizer';
 import { answerLabel, DRILL_PASS_MARK, DrillSession, guideTriad, part, promptLabel, spellTriad, TECHNIQUE, THEORY, triad, voiceTriad, type PlayLesson } from '../game/drills';
@@ -14,6 +15,7 @@ const play = (s: DrillSession, keys: number[]) => {
 const answer = (l: PlayLesson, i: number): number[] => {
   const p = l.prompts[i]!;
   if (p.kind === 'note') return [(p.octave === undefined ? 60 : 12 * (p.octave + 1)) + p.pc];
+  if (p.kind === 'sequence') return p.notes.map((n) => 36 + n);
   return voiceTriad(p);
 };
 
@@ -129,7 +131,8 @@ describe('playing lessons', () => {
     for (const l of [...TECHNIQUE, ...THEORY]) {
       const sound = { name: l.id, values: l.instrument.sound };
       if (l.instrument.kind === 'mono') expect(() => new Synthesizer().loadPreset(sound)).not.toThrow();
-      else expect(() => new PolySynth('Poly').loadPreset(sound)).not.toThrow();
+      else if (l.instrument.kind === 'poly') expect(() => new PolySynth('Poly').loadPreset(sound)).not.toThrow();
+      else for (const id of Object.keys(l.instrument.sound)) expect(() => new BassGuitar().control(id)).not.toThrow();
     }
   });
 

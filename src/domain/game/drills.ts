@@ -1,13 +1,19 @@
 import type { PresetValues } from '../devices/synthPresets';
 import { noteName } from './lessons';
+import type { Role } from './progress';
 
 /**
  * Playing lessons (Technique and Theory): the game asks for something, the player plays it on their keyboard, and the
  * game judges each answer. Sound Design lessons match knobs to a target instead (lessons.ts).
  */
 export type Prompt =
-  /** One key. `octave` given: exactly that key (C4 is middle C); otherwise that note in any octave. */
-  | { readonly kind: 'note'; readonly pc: number; readonly octave?: number }
+  /**
+   * One key. `octave` given: exactly that key (C4 is middle C); otherwise that note in any octave. `teach`: the game
+   * shows and plays it first, and the answer does not count towards the score.
+   */
+  | { readonly kind: 'note'; readonly pc: number; readonly octave?: number; readonly teach?: boolean }
+  /** Notes one after another, any octave, in this order (a root then its fifth); named after `name`, a chord. */
+  | { readonly kind: 'sequence'; readonly name: string; readonly notes: readonly number[]; readonly teach?: boolean; readonly shown?: readonly number[] }
   /**
    * A triad held down, any octave and any order of its three notes. `teach`: the game shows and plays it first and
    * the answer does not count towards the score; `byEar`: the game plays it and names only the root.
@@ -16,14 +22,18 @@ export type Prompt =
 
 export interface PlayLesson {
   readonly id: string;
+  readonly role: Role;
   readonly track: 'technique' | 'theory';
   readonly title: string;
   readonly topic: string;
   readonly goal: string;
   readonly intro: readonly string[];
   readonly hint: string;
-  /** The mono SOLO-1 or the MOA-6 poly (chords need more than one voice), with this sound over the synth's init. */
-  readonly instrument: { readonly kind: 'mono' | 'poly'; readonly sound: PresetValues };
+  /**
+   * The mono SOLO-1, the MOA-6 poly (chords need more than one voice) or the MOA-BASS, with this sound over the
+   * instrument's own defaults. On the bass, notes are as the bass sounds: an octave below the keys played.
+   */
+  readonly instrument: { readonly kind: 'mono' | 'poly' | 'bass'; readonly sound: PresetValues };
   readonly prompts: readonly Prompt[];
   readonly xp: number;
 }
@@ -35,13 +45,17 @@ const PC: Record<string, number> = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }
 const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
-const note = (name: string, octave?: number): Prompt => ({ kind: 'note', pc: PC[name]!, octave });
+const note = (name: string, octave?: number, teach = false): Prompt => ({ kind: 'note', pc: PC[name]!, octave, teach });
+/** A chord's root then its fifth, on the bass (pitch classes: any octave). */
+const rootFifth = (name: string, root: number, teach = false): Prompt =>
+  ({ kind: 'sequence', name, notes: [root % 12, (root + 7) % 12], teach, shown: [root, root + 7] });
 const chord = (root: string, quality: 'major' | 'minor', mode: 'teach' | 'test' | 'ear' = 'test'): Prompt =>
   ({ kind: 'chord', root: PC[root]!, quality, teach: mode === 'teach', byEar: mode === 'ear' });
 
 export const TECHNIQUE: readonly PlayLesson[] = [
   {
     id: 'T1',
+    role: 'synth',
     track: 'technique',
     title: 'Note names and octaves',
     topic: 'Find any note, fast',
@@ -59,11 +73,32 @@ export const TECHNIQUE: readonly PlayLesson[] = [
     prompts: [note('C'), note('E'), note('G'), note('D'), note('A'), note('F'), note('B'), note('C', 4), note('C', 3), note('A', 4)],
     xp: 100,
   },
+  {
+    id: 'B-T1',
+    role: 'bass',
+    track: 'technique',
+    title: 'The neck',
+    topic: 'Open strings and the first frets',
+    goal: 'Find the notes on the neck',
+    intro: [
+      'A bass has four strings, tuned E A D G from the lowest. Each fret raises a string by a half step, and the fifth fret of a string is the same note as the next string open: that is how a bass is tuned.',
+      'Here you play the bass from your keyboard. It sounds an octave below the keys you press, the way bass parts are written, so the E key below middle C plays the open E string, E1. Hold the mod wheel up to rest your palm on the strings.',
+      'Part 1 shows each note on the neck and plays it: copy it, nothing is scored. Part 2 asks for the same notes from memory.',
+    ],
+    hint: 'The open strings are E A D G, low to high. The third fret is three half steps up: G on the E string, C on the A string.',
+    instrument: { kind: 'bass', sound: {} },
+    prompts: [
+      note('E', 1, true), note('A', 1, true), note('D', 2, true), note('G', 2, true), note('G', 1, true), note('C', 2, true),
+      note('G', 1), note('D', 2), note('E', 1), note('C', 2), note('A', 1), note('G', 2),
+    ],
+    xp: 100,
+  },
 ];
 
 export const THEORY: readonly PlayLesson[] = [
   {
     id: 'H1',
+    role: 'synth',
     track: 'theory',
     title: 'Major and minor triads',
     topic: 'Learn six, then play them',
@@ -89,6 +124,26 @@ export const THEORY: readonly PlayLesson[] = [
       chord('F', 'major', 'teach'), chord('G', 'major', 'teach'), chord('D', 'minor', 'teach'),
       chord('A', 'minor'), chord('F', 'major'), chord('C', 'major'), chord('D', 'minor'), chord('G', 'major'), chord('C', 'minor'),
       chord('C', 'major', 'ear'), chord('C', 'minor', 'ear'), chord('A', 'minor', 'ear'), chord('G', 'major', 'ear'),
+    ],
+    xp: 120,
+  },
+  {
+    id: 'B-H1',
+    role: 'bass',
+    track: 'theory',
+    title: 'Roots and fifths',
+    topic: 'What a bass plays under a chord',
+    goal: 'Root, then fifth',
+    intro: [
+      'Under a chord the bass usually plays its root: the note the chord is named after. The next most useful note is the fifth, seven half steps up. Root and fifth say which chord it is, and they fit major and minor chords alike.',
+      'On the neck the fifth has one shape everywhere: one string up, two frets higher. Learn the shape once and it works for every chord.',
+      'Part 1 shows the root and fifth for each chord and plays them: copy them, root first. Part 2 asks from memory.',
+    ],
+    hint: 'From the root, the fifth is seven half steps up: count on your keyboard, or on the neck go one string up and two frets along.',
+    instrument: { kind: 'bass', sound: {} },
+    prompts: [
+      rootFifth('C', 36, true), rootFifth('F', 29, true), rootFifth('G', 31, true), rootFifth('Am', 33, true),
+      rootFifth('Am', 33), rootFifth('C', 36), rootFifth('G', 31), rootFifth('F', 29), rootFifth('C', 36), rootFifth('G', 31),
     ],
     xp: 120,
   },
@@ -128,18 +183,21 @@ export function voiceTriad(p: Extract<Prompt, { kind: 'chord' }>): number[] {
 /** What the prompt asks for, as the player reads it. An ear prompt hides the quality. */
 export function promptLabel(p: Prompt): string {
   if (p.kind === 'note') return p.octave === undefined ? NAMES[p.pc]! : `${NAMES[p.pc]}${p.octave}`;
+  if (p.kind === 'sequence') return `${p.name} · root, fifth`;
   return p.byEar ? `${NAMES[p.root]} ?` : `${NAMES[p.root]} ${p.quality}`;
 }
 
 /** A short name for a prompt's answer, as chord charts write it: C, C4, Am. */
 export function shortLabel(p: Prompt): string {
   if (p.kind === 'note') return promptLabel(p);
+  if (p.kind === 'sequence') return p.name;
   return `${NAMES[p.root]}${p.quality === 'minor' ? 'm' : ''}`;
 }
 
 /** The answer in full, for after a prompt is done. */
 export function answerLabel(p: Prompt): string {
   if (p.kind === 'note') return promptLabel(p);
+  if (p.kind === 'sequence') return `${p.name}: ${p.notes.map((n) => NAMES[n]).join(' then ')}`;
   return `${NAMES[p.root]} ${p.quality} · ${spellTriad(p).join(' ')}`;
 }
 
@@ -147,7 +205,7 @@ export type Judgement = 'right' | 'wrong' | undefined;
 
 /** Which part of a lesson a prompt belongs to, for the chord lesson's Learn / Build from memory / By ear. */
 export function part(p: Prompt): 'learn' | 'test' | 'ear' {
-  return p.kind === 'chord' && p.teach ? 'learn' : p.kind === 'chord' && p.byEar ? 'ear' : 'test';
+  return p.teach ? 'learn' : p.kind === 'chord' && p.byEar ? 'ear' : 'test';
 }
 
 /**
@@ -162,6 +220,7 @@ export class DrillSession {
   private at = 0;
   private missed = new Set<number>();
   private judgedThisAttempt = false;
+  private step = 0;
   private waitForRelease = false;
   /** The key or chord last played, for feedback. */
   lastPlayed: number[] = [];
@@ -170,6 +229,11 @@ export class DrillSession {
 
   get index(): number {
     return this.at;
+  }
+
+  /** How many notes of the current sequence prompt have been played right so far. */
+  get sequenceStep(): number {
+    return this.step;
   }
 
   get prompt(): Prompt | undefined {
@@ -205,6 +269,16 @@ export class DrillSession {
       this.lastPlayed = [key];
       const right = key % 12 === p.pc && (p.octave === undefined || Math.floor(key / 12) - 1 === p.octave);
       return this.judge(right);
+    }
+    if (p.kind === 'sequence') {
+      this.lastPlayed = this.step === 0 ? [key] : [...this.lastPlayed, key];
+      if (key % 12 !== p.notes[this.step]) {
+        this.step = 0;
+        return this.judge(false);
+      }
+      if (++this.step < p.notes.length) return undefined;
+      this.step = 0;
+      return this.judge(true);
     }
     if (this.waitForRelease || this.judgedThisAttempt || this.held.size < 3) return undefined;
     this.lastPlayed = [...this.held].sort((a, b) => a - b);

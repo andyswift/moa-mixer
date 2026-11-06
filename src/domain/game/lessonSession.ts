@@ -20,8 +20,9 @@ export class LessonSession {
   private riffAt = 0;
   private yours?: PresetValues;
 
-  constructor(private readonly synth: ControlSource, readonly lesson: Lesson) {
-    apply(synth, { ...INIT, ...lesson.start });
+  /** `base` is the whole panel before the lesson's start goes on top: the SOLO-1's INIT unless the instrument has its own. */
+  constructor(private readonly synth: ControlSource, readonly lesson: Lesson, base: PresetValues = INIT) {
+    apply(synth, { ...base, ...lesson.start });
   }
 
   /** The lesson's controls, knob 1 first. */
@@ -96,11 +97,19 @@ export class LessonSession {
 /** The target's place shows on the panel after this many checks. */
 export const REVEAL_AFTER = 2;
 
-function apply(synth: ControlSource, values: PresetValues): void {
+/** Sets each listed control to its value. */
+export function apply(synth: ControlSource, values: PresetValues): void {
   for (const [id, value] of Object.entries(values)) {
     const c = synth.control(id);
     if (c.kind === 'number' && typeof value === 'number') c.set(value);
     else if (c.kind === 'choice' && typeof value === 'string') c.set(value);
     else throw new Error(`Lesson: bad value for ${id}`);
   }
+}
+
+/** A device's controls as they stand (numbers and switches), to use as a lesson's base: take it from a fresh device. */
+export function defaultsOf(device: { readonly controls: readonly Control[] }): PresetValues {
+  const values: PresetValues = {};
+  for (const c of device.controls) if (c.kind === 'number' || c.kind === 'choice') values[c.id] = c.value;
+  return values;
 }

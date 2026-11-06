@@ -159,24 +159,39 @@ describe('knob setup', () => {
 });
 
 describe('progress', () => {
-  it('gives XP once per lesson, plus a little for a better score', () => {
-    let p = recordPass({ ...NEW_GAME }, 'S1', 100, 0.8);
-    expect(p.xp).toBe(140);
-    p = recordPass(p, 'S1', 100, 0.8);
-    expect(p.xp).toBe(140);
-    p = recordPass(p, 'S1', 100, 1);
-    expect(p.xp).toBe(150);
+  it('gives XP once per lesson, plus a little for a better score, to the role that played it', () => {
+    let p = recordPass(loadProgress(undefined), 'synth', 'S1', 100, 0.8);
+    expect(p.xp).toEqual({ synth: 140, bass: 0 });
+    p = recordPass(p, 'synth', 'S1', 100, 0.8);
+    expect(p.xp.synth).toBe(140);
+    p = recordPass(p, 'synth', 'S1', 100, 1);
+    expect(p.xp.synth).toBe(150);
     expect(p.passed.S1).toBe(1);
-    expect(level(p.xp)).toBe(2);
+    expect(level(p.xp.synth)).toBe(2);
+    p = recordPass(p, 'bass', 'B-T1', 100, 1);
+    expect(p.xp).toEqual({ synth: 150, bass: 150 });
   });
 
   it('survives a round trip and junk in storage', () => {
     const store = new Map<string, string>();
     const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
-    saveProgress({ band: 'The Filters', knobs: [74, 71], passed: { S1: 0.9 }, xp: 90 }, storage);
-    expect(loadProgress(storage)).toEqual({ band: 'The Filters', knobs: [74, 71], passed: { S1: 0.9 }, xp: 90 });
+    const saved = { band: 'The Filters', knobs: [74, 71], passed: { S1: 0.9 }, xp: { synth: 90, bass: 30 } };
+    saveProgress(saved, storage);
+    expect(loadProgress(storage)).toEqual(saved);
     store.set('virtualRockstar.progress', '{not json');
     expect(loadProgress(storage)).toEqual(NEW_GAME);
+  });
+
+  it('reads the first version, whose XP was the synth player\'s alone', () => {
+    const storage = { getItem: () => JSON.stringify({ band: 'Old', knobs: [1, 74], passed: { S1: 1 }, xp: 310 }) };
+    expect(loadProgress(storage)).toEqual({ band: 'Old', knobs: [1, 74], passed: { S1: 1 }, xp: { synth: 310, bass: 0 } });
+  });
+
+  it('starts every new game fresh (no shared state between games)', () => {
+    const a = loadProgress(undefined);
+    a.xp.synth = 99;
+    expect(loadProgress(undefined).xp.synth).toBe(0);
+    expect(NEW_GAME.xp.synth).toBe(0);
   });
 });
 
